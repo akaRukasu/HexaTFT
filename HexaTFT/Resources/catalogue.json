@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "patch": "Pédagogie · indépendant du patch",
+  "updatedAt": "2026-11-03",
+  "source": "Exemples rédigés pour le prototype Hexa ; aucune statistique de méta.",
+  "isDemo": true,
+  "guides": [
+    {
+      "id": "reroll-one",
+      "name": "Reroll à 1 PO",
+      "style": "Reroll",
+      "difficulty": "Accessible",
+      "summary": "Un plan pédagogique centré sur les unités peu coûteuses et les améliorations trois étoiles.",
+      "tags": [
+        "Reroll",
+        "Pédagogie",
+        "Économie"
+      ],
+      "itemNotes": [
+        "Comparer les besoins de dégâts et de résistance du plateau.",
+        "Un porteur temporaire permet de préparer un transfert d’équipement.",
+        "Les meilleurs objets dépendent des champions et du patch : aucune liste méta n’est fournie dans cet exemple."
+      ],
+      "positioning": [
+        "Répartir les tanks et protéger les porteurs de dégâts.",
+        "Comparer un carry en coin et une position plus centrale.",
+        "Les particularités de chaque set peuvent modifier ces principes."
+      ],
+      "phases": [
+        {
+          "stage": "2-1",
+          "level": "Niv. 4 : repère indicatif",
+          "economy": "Préserver les intérêts quand cela reste compatible avec le plateau.",
+          "objective": "Comprendre les probabilités de boutique.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "2-5",
+          "level": "Niv. 4–5 : selon le plan",
+          "economy": "Préserver les intérêts quand cela reste compatible avec le plateau.",
+          "objective": "Comparer économie et progression du noyau.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "3-2",
+          "level": "Niv. 5 : souvent le palier de recherche",
+          "economy": "50 PO : repère classique d’intérêts, à adapter aux règles et au contexte.",
+          "objective": "Dépenser les intérêts sans épuiser toute la réserve.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "4-1",
+          "level": "Niv. 6 si le noyau est terminé",
+          "economy": "50 PO : repère classique d’intérêts, à adapter aux règles et au contexte.",
+          "objective": "Éviter de rester bloqué sur une recherche interminable.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "5-1",
+          "level": "Niv. 7–8 : compléter les synergies",
+          "economy": "50 PO : repère classique d’intérêts, à adapter aux règles et au contexte.",
+          "objective": "Ajouter de la valeur autour du noyau.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "6-1",
+          "level": "Plateau final à consolider",
+          "economy": "Préserver les intérêts quand cela reste compatible avec le plateau.",
+          "objective": "Affiner le placement.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "reroll-two",
+      "name": "Reroll à 2 PO",
+      "style": "Slow roll",
+      "difficulty": "Intermédiaire",
+      "summary": "Un plan pédagogique pour comprendre le rôle du niveau 6 et les compromis entre économie et améliorations.",
+      "tags": [
+        "Slow roll",
+        "Pédagogie",
+        "Économie"
+      ],
+      "itemNotes": [
+        "Comparer les besoins de dégâts et de résistance du plateau.",
+        "Un porteur temporaire permet de préparer un transfert d’équipement.",
+        "Les meilleurs objets dépendent des champions et du patch : aucune liste méta n’est fournie dans cet exemple."
+      ],
+      "positioning": [
+        "Répartir les tanks et protéger les porteurs de dégâts.",
+        "Comparer un carry en coin et une position plus centrale.",
+        "Les particularités de chaque set peuvent modifier ces principes."
+      ],
+      "phases": [
+        {
+          "stage": "2-1",
+          "level": "Niv. 4 : plateau de transition",
+          "economy": "Préserver les intérêts quand cela reste compatible avec le plateau.",
+          "objective": "Jouer un plateau de transition cohérent.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "2-5",
+          "level": "Niv. 5 : transition possible",
+          "economy": "Préserver les intérêts quand cela reste compatible avec le plateau.",
+          "objective": "Garder des options de porteurs temporaires.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "3-2",
+          "level": "Niv. 6 : palier fréquent",
+          "economy": "50 PO : repère classique d’intérêts, à adapter aux règles et au contexte.",
+          "objective": "Comprendre le slow roll au palier choisi.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "4-1",
+          "level": "Niv. 6–7 : terminer ou évoluer",
+          "economy": "50 PO : repère classique d’intérêts, à adapter aux règles et au contexte.",
+          "objective": "Comparer la poursuite des trois étoiles et la montée en niveau.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "5-1",
+          "level": "Niv. 7–8 : compléter le plateau",
+          "economy": "50 PO : repère classique d’intérêts, à adapter aux règles et au contexte.",
+          "objective": "Renforcer les synergies et la première ligne.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "6-1",
+          "level": "Valeur des améliorations finales",
+          "economy": "Préserver les intérêts quand cela reste compatible avec le plateau.",
+          "objective": "Comparer plusieurs placements.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fast-eight",
+      "name": "Construire vers le niveau 8",
+      "style": "Fast 8",
+      "difficulty": "Intermédiaire",
+      "summary": "Un plan pédagogique pour passer d’un plateau temporaire à une composition plus coûteuse.",
+      "tags": [
+        "Fast 8",
+        "Pédagogie",
+        "Économie"
+      ],
+      "itemNotes": [
+        "Comparer les besoins de dégâts et de résistance du plateau.",
+        "Un porteur temporaire permet de préparer un transfert d’équipement.",
+        "Les meilleurs objets dépendent des champions et du patch : aucune liste méta n’est fournie dans cet exemple."
+      ],
+      "positioning": [
+        "Répartir les tanks et protéger les porteurs de dégâts.",
+        "Comparer un carry en coin et une position plus centrale.",
+        "Les particularités de chaque set peuvent modifier ces principes."
+      ],
+      "phases": [
+        {
+          "stage": "2-1",
+          "level": "Niv. 4 : ouverture",
+          "economy": "Préserver les intérêts quand cela reste compatible avec le plateau.",
+          "objective": "Construire une base économique.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "2-5",
+          "level": "Niv. 5 : repère de transition",
+          "economy": "Préserver les intérêts quand cela reste compatible avec le plateau.",
+          "objective": "Associer économie et plateau temporaire.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "3-2",
+          "level": "Niv. 6 : repère courant",
+          "economy": "50 PO : repère classique d’intérêts, à adapter aux règles et au contexte.",
+          "objective": "Préparer plusieurs sorties possibles.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "4-1",
+          "level": "Niv. 7–8 : transition à préparer",
+          "economy": "50 PO : repère classique d’intérêts, à adapter aux règles et au contexte.",
+          "objective": "Anticiper le transfert des objets.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "5-1",
+          "level": "Niv. 8 : stabilisation puis améliorations",
+          "economy": "50 PO : repère classique d’intérêts, à adapter aux règles et au contexte.",
+          "objective": "Améliorer les pièces décisives.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        },
+        {
+          "stage": "6-1",
+          "level": "Niv. 9 éventuel, selon les moyens",
+          "economy": "Préserver les intérêts quand cela reste compatible avec le plateau.",
+          "objective": "Comparer une unité supplémentaire et les améliorations.",
+          "options": [
+            "Ce palier est un repère de guide, pas une instruction personnalisée.",
+            "Option économie : conserver davantage de ressources pour les prochains paliers.",
+            "Option stabilité : investir une partie des ressources pour renforcer le plateau."
+          ]
+        }
+      ]
+    }
+  ]
+}
