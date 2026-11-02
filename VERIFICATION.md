@@ -1,14 +1,20 @@
 # Vérification de la version 0.1
 
-Effectuée le 3 novembre 2026 dans un environnement Linux.
+Effectuée le 3 novembre 2026.
 
-- Vérification portable du contenu : réussie.
-- Catalogue : 3 guides, 6 phases distinctes par guide, identifiants uniques.
-- Codex : 2 571 entrées nommées, identifiants uniques, images sur le domaine officiel Data Dragon. Les 13 éléments sans nom affichable ont été exclus.
-- Projet Xcode : graphe de 43 objets cohérent, chemins des sources et ressources présents, schéma partagé valide.
-- Aperçu : syntaxe JavaScript et interactions vérifiées dans un petit environnement DOM de contrôle (chargement, changement d’étape, navigation, choix de guide).
-- Compilation Swift, XCTest natifs, simulateur et iPhone : non exécutés, Xcode indisponible.
-- Rendu navigateur : non vérifié ; le téléchargement du navigateur de test n’a pas abouti.
-- Workflow GitHub Actions : fourni, non exécuté.
+- Vérification portable des données et du projet : réussie.
+- Catalogue : trois guides pédagogiques et six étapes chacun.
+- Codex : 2 571 entrées nommées, identifiants uniques.
+- Compilation Xcode pour simulateur : réussie.
+- Deux tests XCTest (validation des catalogues et persistance/import transactionnel) : réussis.
+- Compilation Release iPhone ARM64 : réussie.
+- Production et publication de l’artefact GitHub Actions : réussies.
+- IPA récupérée : archive intègre, exécutable Mach-O 64 bits ARM64, version 0.1.0, minimum iOS 17.0, ressources reference.json et catalogue.json présentes.
+- Signature Apple : absente, intentionnellement.
+- Vérification manuelle sur iPhone et rendu visuel du simulateur : non réalisés.
 
-Les tests structurels ne garantissent pas que le projet compile. Le premier passage sur macOS doit inclure une compilation, les XCTest et une vérification visuelle sur iPhone avant toute diffusion.
+Workflow : https://github.com/akaRukasu/HexaTFT/actions/runs/41544918319
+
+Commit source de l’IPA : 130921a07612b3c496243345deee73ddb753ccde
+
+L’application reste un prototype avec guides pédagogiques, sans compos méta actualisées ni synchronisation avec la partie PC.

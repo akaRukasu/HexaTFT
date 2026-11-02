@@ -2,7 +2,11 @@
 
 Version 0.1.0, créée le 3 novembre 2026. Usage : TFT sur PC, iPhone à côté.
 
-**Il s’agit d’un premier prototype natif, pas d’une application complète connectée à la méta.** Le projet Xcode et les sources sont fournis. Aucune compilation iOS ni exécution sur iPhone n’a pu être faite dans l’environnement Linux de création. Les vérifications locales couvrent les fichiers de données, la structure du projet et les interactions JavaScript de l’aperçu (sans rendu navigateur) ; les tests XCTest fournis restent à lancer sur macOS.
+**Prototype natif compilé et testé via GitHub Actions.** La compilation pour le simulateur, les deux tests XCTest et la compilation iPhone ARM64 ont réussi le 3 novembre 2026. L’IPA produite est non signée : une signature Apple reste nécessaire pour l’installer. Aucun essai manuel sur un iPhone physique n’a été réalisé.
+
+Résultat : https://github.com/akaRukasu/HexaTFT/actions/runs/41544918319
+
+Commit source de l’IPA : `130921a07612b3c496243345deee73ddb753ccde`.
 
 ## Ce qui est implémenté
 
@@ -38,9 +42,9 @@ La génération du projet ne nécessite pas XcodeGen ni de package tiers. `pytho
 
 ## Compiler depuis Windows avec GitHub Actions
 
-Le dépôt n’a pas été créé ni envoyé sur GitHub. Après avoir ajouté le contenu de ce dossier à la racine d’un dépôt, le workflow `.github/workflows/ios.yml` peut être lancé dans Actions → Build and test iOS → Run workflow. Il choisit un simulateur disponible, exécute les tests, puis produit `HexaTFT-unsigned.ipa`.
+Le dépôt privé est `akaRukasu/HexaTFT`. Le workflow `.github/workflows/ios.yml` peut être lancé dans Actions → Build and test iOS → Run workflow. Il choisit un simulateur disponible, exécute les tests, puis produit `HexaTFT-unsigned.ipa`.
 
-**Ce workflow est fourni mais n’a pas été exécuté. L’IPA obtenue est non signée et ne s’installe pas directement.** Il faut la signer par une méthode de développement ou de distribution adaptée. TestFlight nécessite un compte Apple Developer et une configuration de signature ; aucun certificat ni abonnement n’est inclus.
+**Ce workflow a été exécuté avec succès. L’IPA obtenue est non signée et ne s’installe pas directement.** Il faut la signer par une méthode de développement ou de distribution adaptée. TestFlight nécessite un compte Apple Developer et une configuration de signature ; aucun certificat ni abonnement n’est inclus.
 
 ## Données et catalogues
 
