@@ -38,7 +38,9 @@ struct VisualCompositionGuide: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(mode == "Final" || board.isFinal ? "Plateau cible" : mode == "Niveaux" ? "Niveau " + level : stage.title).font(.title3.bold())
-                            Text("\(board.units.count) unités · touche un champion").font(.caption).foregroundStyle(.secondary)
+                            let champions = board.units.filter { store.champion("champion:" + $0.name) != nil }.count
+                            let summons = board.units.count - champions
+                            Text("\(champions) champions" + (summons > 0 ? " · \(summons) invocations" : "") + " · touche un portrait").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         if boards.count > 1 {
