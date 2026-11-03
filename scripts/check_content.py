@@ -110,8 +110,8 @@ def main():
     for element in scheme.findall('.//BuildableReference'):
         assert element.attrib['BlueprintIdentifier'] in objects
     preview = (ROOT/'apercu.html').read_text()
-    embedded = json.loads(re.search(r'<script id="pack" type="application/json">(.*?)</script>',preview,re.S).group(1))
-    assert embedded == data
+    embedded = json.loads(re.search(r'<script id="native-data" type="application/json">(.*?)</script>',preview,re.S).group(1))
+    assert embedded == meta
     assert 'PACK_JSON' not in preview
     print('PASS: guide phases, reference IDs, project graph, source/resource paths, shared scheme, preview data')
     print('Reference entries:',dict(Counter(e['kind'] for e in reference['entries'])))

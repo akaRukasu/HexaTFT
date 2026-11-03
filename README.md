@@ -1,79 +1,44 @@
-# Hexa — compagnon TFT pour iPhone
+# Hexa TFT — iPhone companion
 
-Version 0.1.0, créée le 3 novembre 2026. Usage : TFT sur PC, iPhone à côté.
+Native SwiftUI app, in French, intended to sit beside TFT on PC. Version 0.2 replaces the example-only landing screen with real native composition sheets and adds the full source websites inside the app.
 
-**Prototype natif compilé et testé via GitHub Actions.** La compilation pour le simulateur, les deux tests XCTest et la compilation iPhone ARM64 ont réussi le 3 novembre 2026. L’IPA produite est non signée : une signature Apple reste nécessaire pour l’installer. Aucun essai manuel sur un iPhone physique n’a été réalisé.
+- **Méta**: Blitz compositions, search by champion, style filters, favorites and sorting by average placement or top-4 rate. Source, patch and retrieval date are visible.
+- **Composition**: portraits, 4×7 source board, equipped items, frequent item trios, recipes, temporary holders, augments, observed early boards and variants by level/stage. Hexa's general economy notes are labelled separately from observed Blitz data.
+- **Partie**: a manually pinned composition and saved stage, with an option to keep the display awake while this screen is visible.
+- **Plateau**: copy a source board into the saved personal editor or build your own.
+- **Codex**: French champions, items, traits and augments from the same set as the native sheets; champion and item illustrations bundled for offline use.
+- **Sources**: complete Mobalytics, MetaTFT and Blitz pages in WKWebView, with back/forward/home/reload, persistent web cookies and retained pages when switching sources. Source pages need a connection and can show their own consent, login or subscription screens.
+- **Profil**: manual journal and local top-4 history, accessible from the person icon in Méta.
 
-Résultat : https://github.com/akaRukasu/HexaTFT/actions/runs/41544918319
+The supplied gold/emerald logo is the iPhone app icon and the in-app identity.
 
-Commit source de l’IPA : `130921a07612b3c496243345deee73ddb753ccde`.
+## Data and updates
 
-## Ce qui est implémenté
+`HexaTFT/Resources/meta.json` contains the bundled snapshot. Pull to refresh or use the refresh icon to fetch Blitz's currently published composition data. A validated refresh is saved atomically and remains available after restart; errors keep the last valid data. New-set data with unknown champions are rejected rather than mixing sets. A new release is needed to change the bundled reference and assets.
 
-- Interface SwiftUI en français, sombre, pour iOS 17 et versions suivantes.
-- Recherche de guides, favoris, fiches, principes de placement et d’objets.
-- Épinglage d’un guide et consultation manuelle de six étapes (2-1 à 6-1).
-- Maintien optionnel de l’écran allumé uniquement quand l’onglet Partie est visible et l’application active.
-- Constructeur de plateau 4 × 7 : ajout, remplacement, retrait, sauvegarde et partage textuel.
-- Codex français : champions, objets, traits et optimisations issus de Riot Data Dragon 16.21.1, snapshot téléchargé le 3 novembre 2026. Les textes sont embarqués ; les images sont chargées en ligne et remplacées par des initiales hors connexion.
-- Filtres de sets : les données regroupent plusieurs sets et ne déterminent pas le set actuellement joué.
-- Journal local de résultats, notes et calcul du top 4 sur les parties saisies.
-- Import local de catalogues JSON, validation avant remplacement et conservation du dernier catalogue valide.
-- Sauvegardes atomiques dans Application Support. Aucune clé API ni compte Riot dans l’application.
+The visible website patch and Blitz's internal API patch identifier are different fields. Both are shown in their respective context; the app does not silently relabel the underlying statistics. Statistics describe the provider's WORLD / PLATINUM+ ranked sample, not guaranteed outcomes.
 
-## Ce qui reste à développer
+Native sheets currently import **Blitz**. Mobalytics and MetaTFT are consulted as full websites inside Hexa, not presented as imported native datasets. Provider-specific access restrictions and outages remain possible.
 
-- Vraies compositions de méta : source autorisée, fraîcheur du patch et couverture statistique à établir.
-- Compositions avec unités, équipements et positions prescrits dans chaque phase ; les guides inclus expliquent seulement des archétypes économiques.
-- Recettes d’objets, associations complètes des traits et statistiques détaillées : Data Dragon ne fournit pas tout dans les fichiers utilisés ici.
-- Actualisation automatique des données et gestion des changements de set.
-- Compte Riot, historique automatique et bilan après partie via un serveur conservant les secrets.
-- Évaluation de l’accessibilité et de l’ergonomie sur un appareil réel.
-- Icône définitive, signature, TestFlight ou autre distribution, et validation des usages par Riot.
+Refresh the bundled release data with Python 3 + Pillow:
 
-## Tester sur Mac
+```
+python -m pip install pillow
+python scripts/update_meta.py
+python scripts/prepare_project.py
+python -X utf8 scripts/check_content.py
+```
 
-1. Ouvrir `HexaTFT.xcodeproj` dans Xcode 16 ou ultérieur.
-2. Choisir le schéma `HexaTFT` et un simulateur iPhone avec iOS 17 ou ultérieur.
-3. Exécuter avec ⌘R. Lancer les tests avec ⌘U.
-4. Pour un vrai iPhone, choisir une équipe dans Signing & Capabilities et remplacer `com.example.HexaTFT` par un identifiant unique. La signature Apple est nécessaire.
+The refresh tool discovers the set advertised by Blitz, fetches the French reference and downloads champion/item art into the asset catalog. Review data and asset checks before publishing a new release. No account keys are embedded in the iOS app.
 
-La génération du projet ne nécessite pas XcodeGen ni de package tiers. `python3 scripts/prepare_project.py` régénère le fichier Xcode si besoin.
+## Build and validation
 
-## Compiler depuis Windows avec GitHub Actions
+Open `HexaTFT.xcodeproj` with Xcode, choose the HexaTFT scheme and an iPhone running iOS 17 or newer. Set a signing team to install on a physical iPhone.
 
-Le dépôt privé est `akaRukasu/HexaTFT`. Le workflow `.github/workflows/ios.yml` peut être lancé dans Actions → Build and test iOS → Run workflow. Il choisit un simulateur disponible, exécute les tests, puis produit `HexaTFT-unsigned.ipa`.
+GitHub Actions validates bundled data, runs XCTest and the UI smoke test on an iPhone simulator, builds the release device app and uploads:
 
-**Ce workflow a été exécuté avec succès. L’IPA obtenue est non signée et ne s’installe pas directement.** Il faut la signer par une méthode de développement ou de distribution adaptée. TestFlight nécessite un compte Apple Developer et une configuration de signature ; aucun certificat ni abonnement n’est inclus.
+- `HexaTFT-unsigned`: an **unsigned** IPA. It still requires signing before installation.
+- `native-test-results`: the Xcode results bundle.
+- `interface-screenshots`: exported UI test attachments.
 
-## Données et catalogues
-
-Les trois guides inclus sont signalés « pédagogiques » : Reroll à 1 PO, Reroll à 2 PO et Fast 8. Ils ne revendiquent aucun rang de méta, taux de victoire ni adaptation au patch actuel. Les niveaux et paliers économiques sont des repères généraux, pas des instructions personnalisées.
-
-Le bouton d’import de Plans accepte un fichier `.json`. Le fichier `HexaTFT/Resources/catalogue.json` sert d’exemple complet du format : `schemaVersion`, `patch`, `updatedAt`, `source`, `isDemo` et `guides`. Chaque guide possède un identifiant unique et exactement une phase pour chacune des étapes `2-1`, `2-5`, `3-2`, `4-1`, `5-1`, `6-1`. Limites : 2 Mo et 200 guides. `isDemo=false` indique seulement une déclaration du fournisseur ; l’application ne vérifie pas indépendamment la qualité de la source.
-
-Les données officielles proviennent de :
-
-- https://ddragon.leagueoflegends.com/api/versions.json
-- https://ddragon.leagueoflegends.com/cdn/16.21.1/data/fr_FR/tft-champion.json
-- https://ddragon.leagueoflegends.com/cdn/16.21.1/data/fr_FR/tft-item.json
-- https://ddragon.leagueoflegends.com/cdn/16.21.1/data/fr_FR/tft-trait.json
-- https://ddragon.leagueoflegends.com/cdn/16.21.1/data/fr_FR/tft-augments.json
-
-Les descriptions peuvent conserver des paramètres bruts entre @…@ ou accolades : aucune valeur manquante n’est inventée. Les éléments non attribuables à un set sont regroupés sous « Commun ». Le Codex n’expose pas de taux de victoire d’optimisations.
-
-## Portée du mode Partie
-
-La sélection d’une étape ouvre une page statique d’un guide préparé avant la partie. Le plateau personnel ne recalcule aucune recommandation. Le projet n’observe pas le PC, ne suit pas les adversaires et ne prend aucune décision à la place du joueur.
-
-La politique TFT distingue ces guides des recommandations dynamiques basées sur l’état courant de la partie. Une intégration PC éventuelle et ses usages devront être évalués séparément ; l’existence d’un accès technique n’implique pas son autorisation : https://developer.riotgames.com/docs/tft
-
-Riot demande l’enregistrement des produits destinés aux joueurs. L’enregistrement et toute demande d’accès de production ne sont pas réalisés ici.
-
-## Vérifications
-
-`python3 scripts/check_content.py` vérifie les données et toutes les références du projet Xcode. Les tests natifs fournis vérifient les catalogues invalides, le remplacement transactionnel et la persistance des résultats, du plan épinglé et de l’étape sélectionnée. Leur exécution exige Xcode.
-
-`apercu.html` est une maquette interactive locale de présentation, pas le rendu d’un simulateur iOS. Les boutons Plans et Partie y permettent de parcourir les guides embarqués. Elle n’installe pas l’application.
-
-Projet indépendant, non affilié à Riot Games. Les noms, contenus et marques TFT appartiennent à leurs ayants droit.
+No automatic game-state detection or Riot account synchronization is implemented. This is an independent project using Riot game content and third-party source data, not an official Riot application.

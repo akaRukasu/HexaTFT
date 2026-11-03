@@ -282,7 +282,9 @@ struct MetaStage: View {
             } else {
                 ForEach(Array(variants.enumerated()), id: \.offset) { index, variant in VariantPanel(variant: variant, title: "Plateau observé \(index + 1)") }
             }
-            Text("Repères d’économie généraux : garde tes paliers d’intérêts quand ton plateau le permet ; stabilise avant de dépenser pour le niveau suivant. Adapte les dépenses à tes PV et aux unités disponibles.").font(.caption).foregroundStyle(.secondary)
+            Text("Économie · repères du style").font(.subheadline.bold())
+            Text(comp.economy(at: stage)).font(.subheadline).foregroundStyle(.secondary)
+            Text("Conseils généraux rédigés dans Hexa ; les plateaux ci-dessus proviennent de Blitz.").font(.caption).foregroundStyle(.secondary)
         }
     }
 }

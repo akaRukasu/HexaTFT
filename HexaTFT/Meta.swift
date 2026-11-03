@@ -73,6 +73,29 @@ struct MetaComp: Codable, Identifiable {
         default: return (strategy?.type ?? "Flexible").replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
+    func economy(at stage: Stage) -> String {
+        let type = strategy?.type ?? "standard"
+        let reroll = type.hasPrefix("roll_") || type.hasPrefix("slow_roll_")
+        if reroll {
+            let target = type.last.map(String.init) ?? "6"
+            switch stage {
+            case .opening: return "Garde les copies de tes unités clés. Vise progressivement 10 puis 20 PO ; évite les relances dispersées."
+            case .early: return "Construis ton économie vers 30 à 50 PO. Garde tes porteurs temporaires et prépare le niveau " + target + "."
+            case .mid: return "Au niveau " + target + ", conserve si possible 50 PO et relance l’excédent pour les unités à trois étoiles. Stabilise plus tôt si tu perds trop de PV."
+            case .transition: return "Vérifie tes copies et la concurrence. Continue les relances au niveau " + target + " tant que les améliorations clés restent atteignables."
+            case .late: return "Après les trois étoiles prioritaires, investis dans les niveaux et ajoute les unités de soutien du plateau final."
+            case .end: return "Dépense ta réserve pour les dernières améliorations et adapte le placement à l’adversaire que tu risques de rencontrer."
+            }
+        }
+        switch stage {
+        case .opening: return "Repère habituel : niveau 4 au 2-1 si ton ouverture le justifie. Joue tes meilleures unités deux étoiles et construis les premiers paliers d’intérêts."
+        case .early: return "Repère habituel : niveau 5 vers le 2-5. Développe l’économie sans multiplier les relances et garde une première ligne solide."
+        case .mid: return "Repère habituel : niveau 6 au 3-2. Vise 50 PO quand ton plateau le permet ; dépense pour stabiliser si tes PV chutent."
+        case .transition: return type == "fast_9" || type == "fast_10" ? "Prépare le niveau 8 avec un plateau stable et conserve l’économie pour le niveau 9. Une montée rapide dépend de tes PV et de ton or." : "Prépare le niveau 8 vers 4-1 ou 4-2, puis cherche les carries et tanks deux étoiles du plateau cible."
+        case .late: return "Stabilise les unités clés avant d’investir au niveau supérieur. Consulte les variantes 8 et 9 pour choisir les soutiens disponibles."
+        case .end: return "Utilise l’or restant pour les dernières améliorations. Revois le côté de ton carry, les menaces adverses et la protection de ta première ligne."
+        }
+    }
     var url: URL { URL(string: "https://blitz.gg/tft/comps/" + slug)! }
     func title(_ reference: ReferenceData?) -> String {
         let carries = (carry_units ?? []).prefix(2).map { key in reference?.entries.first { $0.id == "champion:" + key }?.name ?? key }

@@ -1,20 +1,7 @@
-# Vérification de la version 0.1
+# Verification — Hexa 0.2
 
-Effectuée le 3 novembre 2026.
+Local content checks pass for 48 bundled compositions, 539 French reference entries from one set, source board positions, known units/items, and all bundled champion/item images. The project graph and shared scheme also pass validation.
 
-- Vérification portable des données et du projet : réussie.
-- Catalogue : trois guides pédagogiques et six étapes chacun.
-- Codex : 2 571 entrées nommées, identifiants uniques.
-- Compilation Xcode pour simulateur : réussie.
-- Deux tests XCTest (validation des catalogues et persistance/import transactionnel) : réussis.
-- Compilation Release iPhone ARM64 : réussie.
-- Production et publication de l’artefact GitHub Actions : réussies.
-- IPA récupérée : archive intègre, exécutable Mach-O 64 bits ARM64, version 0.1.0, minimum iOS 17.0, ressources reference.json et catalogue.json présentes.
-- Signature Apple : absente, intentionnellement.
-- Vérification manuelle sur iPhone et rendu visuel du simulateur : non réalisés.
+The CI workflow runs native catalogue and persistence tests, bundled meta decoding/reference checks, native comp pinning and board persistence, and a UI smoke test covering Méta → composition → Partie → Codex → Sources. Native tests and the unsigned device build must pass before the IPA is described as compiled.
 
-Workflow : https://github.com/akaRukasu/HexaTFT/actions/runs/41544918319
-
-Commit source de l’IPA : 130921a07612b3c496243345deee73ddb753ccde
-
-L’application reste un prototype avec guides pédagogiques, sans compos méta actualisées ni synchronisation avec la partie PC.
+A physical iPhone installation and signing are separate from an unsigned build. Full third-party websites require network access and remain subject to their own availability, login, cookie and subscription behavior.
