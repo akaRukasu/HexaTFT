@@ -125,7 +125,7 @@ struct CodexView: View {
             Section {
                 Text("Données françaises Blitz \(store.reference?.version ?? "—") · Français")
                     .font(.subheadline)
-                Text("Snapshot du \(store.reference?.retrievedAt ?? "—"). Ce Codex est limité au set des fiches natives.")
+                Text("Snapshot du \(store.reference.map { String($0.retrievedAt.prefix(10)) } ?? "—"). Ce Codex est limité au set des fiches natives.")
                     .font(.caption).foregroundStyle(.secondary)
                 Picker("Catégorie", selection: $kind) {
                     Text("Champions").tag("champion"); Text("Objets").tag("item")
@@ -156,7 +156,7 @@ struct CodexView: View {
                     }
                 }
             }
-        }.navigationTitle("Codex").searchable(text: $query, prompt: "Chercher dans le Codex")
+        }.navigationTitle("Codex").navigationBarTitleDisplayMode(.inline).searchable(text: $query, prompt: "Chercher dans le Codex")
     }
 }
 

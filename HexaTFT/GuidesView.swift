@@ -110,7 +110,6 @@ struct CompanionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Badge(text: "GUIDE CONSULTÉ MANUELLEMENT")
                 if let composition = meta.comps.first(where: { $0.id == store.state.pinnedID }) {
                     HexaBrand()
                     Text(composition.title(store.reference)).font(.largeTitle.bold())
@@ -141,7 +140,7 @@ struct CompanionView: View {
                                            description: Text("Dans Méta, ouvre une composition et touche Suivre dans Partie."))
                 }
             }.padding()
-        }.navigationTitle("À côté du PC")
+        }.background(hexaNavy).navigationTitle("À côté du PC").navigationBarTitleDisplayMode(.inline)
         .onAppear { active = true; updateIdleTimer() }
         .onDisappear { active = false; updateIdleTimer() }
         .onChange(of: stayAwake) { _, _ in updateIdleTimer() }

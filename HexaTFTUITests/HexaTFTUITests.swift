@@ -20,9 +20,14 @@ final class HexaTFTUITests: XCTestCase {
         snapshot("04-codex")
         app.tabBars.buttons["Sources"].tap()
         XCTAssertTrue(app.buttons["MetaTFT"].waitForExistence(timeout: 8))
-        app.buttons["MetaTFT"].tap()
-        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
-        snapshot("05-sources")
+        for source in ["Mobalytics", "MetaTFT", "Blitz"] {
+            app.buttons[source].tap()
+            XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
+            let content = NSPredicate { _, _ in app.webViews.firstMatch.staticTexts.count > 5 }
+            expectation(for: content, evaluatedWith: nil)
+            waitForExpectations(timeout: 45)
+            snapshot("05-source-" + source)
+        }
     }
     @MainActor private func snapshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
