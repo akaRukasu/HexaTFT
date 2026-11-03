@@ -5,6 +5,9 @@ final class HexaTFTUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         XCTAssertTrue(app.staticTexts["La méta, à portée de main."].waitForExistence(timeout: 15))
+        app.buttons["Actualiser les compositions"].tap()
+        let refreshed = app.staticTexts["Compositions actualisées."]
+        XCTAssertTrue(refreshed.waitForExistence(timeout: 45))
         snapshot("01-meta")
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "meta-card-")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10))

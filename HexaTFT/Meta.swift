@@ -174,3 +174,11 @@ struct MetaPack: Codable {
         } catch { message = "Actualisation impossible : \(error.localizedDescription) Les fiches enregistrées restent consultables." }
     }
 }
+
+// Source boards can include summoned structures that are not purchasable champions.
+extension ReferenceEntry {
+    static func boardEntity(_ key: String) -> ReferenceEntry {
+        let names = ["DA_Elderwood18_Lifeblossom": "Fleur de vie", "DA_Elderwood18_StonebarkTree": "Rochécorce", "DA_Elderwood18_Protector": "Protecteur de Fonds-de-bois"]
+        return ReferenceEntry(id: "entity:" + key, name: names[key] ?? "Invocation", kind: "entity", set: "18", cost: 0, description: "Élément invoqué présent dans le plateau de la source.", imageURL: "")
+    }
+}

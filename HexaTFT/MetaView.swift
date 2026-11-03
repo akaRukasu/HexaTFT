@@ -100,7 +100,8 @@ struct UnitStrip: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 8) {
                 ForEach(units) { unit in
-                    if let entry = store.champion("champion:" + unit.name) {
+                    let entry = store.champion("champion:" + unit.name) ?? ReferenceEntry.boardEntity(unit.name)
+                    Group {
                         VStack(spacing: 4) {
                             EntryIcon(entry: entry, size: 46)
                             Text(entry.name).font(.system(size: 10)).lineLimit(2).frame(width: 53)
@@ -139,7 +140,7 @@ struct MetaBoard: View {
                         HStack(spacing: 3) {
                             ForEach(0..<7, id: \.self) { col in
                                 let position = positions.first { $0.board_position == row * 7 + col }
-                                let entry = position.flatMap { store.champion("champion:" + $0.unit_api_name) }
+                                let entry = position.map { store.champion("champion:" + $0.unit_api_name) ?? ReferenceEntry.boardEntity($0.unit_api_name) }
                                 ZStack {
                                     Hexagon().fill(hexaGold.opacity(entry == nil ? 0.035 : 0.16))
                                     if let entry { EntryIcon(entry: entry, size: width).clipShape(Hexagon()) }
