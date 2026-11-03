@@ -18,7 +18,7 @@ The supplied gold/emerald logo is the iPhone app icon and the in-app identity.
 
 The visible website patch and Blitz's internal API patch identifier are different fields. Both are shown in their respective context; the app does not silently relabel the underlying statistics. Statistics describe the provider's WORLD / PLATINUM+ ranked sample, not guaranteed outcomes.
 
-Native sheets currently import **Blitz**. Mobalytics and MetaTFT are consulted as full websites inside Hexa, not presented as imported native datasets. Provider-specific access restrictions and outages remain possible.
+Native sheets currently import **Blitz**. Mobalytics and MetaTFT are consulted as full websites inside Hexa, not presented as imported native datasets. Provider-specific access restrictions and outages remain possible. Simulator checks confirmed visible Blitz and MetaTFT pages; Mobalytics displayed its anti-bot verification screen, so access to its actual composition content was not confirmed in CI.
 
 Refresh the bundled release data with Python 3 + Pillow:
 

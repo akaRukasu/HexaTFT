@@ -45,5 +45,18 @@ def main():
             (folder/'Contents.json').write_text(json.dumps({'images':[{'filename':'image.png','idiom':'universal'}],'info':{'author':'xcode','version':1}}))
         except Exception as error: print('Image unavailable',name,str(error))
     list(concurrent.futures.ThreadPoolExecutor(max_workers=10).map(download,entries))
+    preview = ROOT/'apercu.html'
+    if preview.exists():
+        import base64
+        text = preview.read_text(encoding='utf-8')
+        lookup = {e['id']:dict(e) for e in entries}
+        for entry in lookup.values():
+            local = images/(entry['id'].split(':',1)[1]+'.imageset')/'image.png'
+            if local.exists(): entry['imageURL'] = 'data:image/png;base64,'+base64.b64encode(local.read_bytes()).decode()
+        for identifier, value in [('native-data',payload),('reference-data',lookup)]:
+            encoded = json.dumps(value,ensure_ascii=False).replace('</','<\\/')
+            pattern = r'(<script id="'+identifier+r'" type="application/json">).*?(</script>)'
+            text = re.sub(pattern,lambda m:m[1]+encoded+m[2],text,flags=re.S)
+        preview.write_text(text,encoding='utf-8')
     print(f"Saved {len(payload['data'])} compositions; {len(entries)} French entries; set {set_number}, patch {display_patch}")
 if __name__=='__main__':main()
