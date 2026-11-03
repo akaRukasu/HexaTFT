@@ -59,7 +59,7 @@ struct EntryIcon: View {
                 placeholder: { Text(entry.initials).font(.caption.bold()).frame(maxWidth: .infinity, maxHeight: .infinity).background(hexaGold.opacity(0.12)) }
             }
         }
-        .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: 8))
+        .frame(width: size, height: size).clipShape(RoundedRectangle(cornerRadius: min(8, size / 5)))
         .accessibilityHidden(true)
     }
 }

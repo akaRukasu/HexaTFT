@@ -94,6 +94,11 @@ final class HexaTFTTests: XCTestCase {
                     XCTAssertEqual(Set(board.positions.map(\.board_position)).count, board.positions.count)
                 }
             }
+            for level in comp.variations?.levels?.keys.map({ $0 }) ?? [] {
+                for board in comp.guideBoards(level: level) {
+                    XCTAssertTrue(board.positions.isEmpty || Set(board.positions.map(\.unit_api_name)) == board.keys)
+                }
+            }
             let unmapped = MetaVariant(units: [MetaUnit(name: "missing-test-unit", items: nil, star_level: nil)], units_positions: nil, nb_boards: 1, avg_placement: nil)
             XCTAssertTrue(comp.board(from: unmapped, label: "Test").positions.isEmpty)
             if comp.variations?.stages?["6"]?.allSatisfy({ $0.units.isEmpty }) == true {

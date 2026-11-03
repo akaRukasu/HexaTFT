@@ -20,14 +20,20 @@ extension MetaComp {
     }
     func board(from variant: MetaVariant, label: String) -> GuideBoard {
         let keys = Set(variant.units.map(\.name))
+        func valid(_ positions: [MetaPosition]) -> Bool {
+            !positions.isEmpty && Set(positions.map(\.unit_api_name)) == keys &&
+            Set(positions.map(\.board_position)).count == positions.count &&
+            positions.allSatisfy { (0..<28).contains($0.board_position) }
+        }
         var positions = variant.units_positions ?? []
+        if !valid(positions) { positions = [] }
         var source = label
         // Stage samples do not always carry coordinates. Reuse coordinates only
         // when an observed level board contains exactly the same units.
         if positions.isEmpty, !keys.isEmpty {
             for level in (variations?.levels?.keys.map { $0 } ?? []).sorted(by: { (Int($0) ?? 0) < (Int($1) ?? 0) }) {
                 if let match = variations?.levels?[level]?.first(where: {
-                    Set($0.units.map(\.name)) == keys && !($0.units_positions ?? []).isEmpty
+                    Set($0.units.map(\.name)) == keys && valid($0.units_positions ?? [])
                 }) {
                     positions = match.units_positions ?? []
                     source += " · placement observé au niveau " + level
