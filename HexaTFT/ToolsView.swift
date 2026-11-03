@@ -188,7 +188,7 @@ struct JournalView: View {
                 }.onDelete(perform: store.deleteMatches)
             }
             Section("À propos") {
-                Text("Hexa 0.2 · Compagnon TFT").font(.subheadline)
+                Text("Hexa \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—") · Compagnon TFT").font(.subheadline)
                 Text("Projet indépendant, non affilié à Riot Games. Teamfight Tactics et ses éléments sont des marques et contenus de Riot Games.").font(.caption).foregroundStyle(.secondary)
                 Link("Règles développeurs TFT", destination: URL(string: "https://developer.riotgames.com/docs/tft")!)
             }

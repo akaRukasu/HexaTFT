@@ -150,7 +150,7 @@ struct TacticalBoard: View {
                 }
             }.frame(height: cellHeight)
             HStack { Text("PREMIÈRE LIGNE ↑"); Spacer(); Text("ARRIÈRE ↓") }.font(.system(size: 8)).foregroundStyle(.secondary)
-        }.accessibilityIdentifier("tactical-board")
+        }
     }
     // Width-dependent cell content reserves room for champion names and all 3 items.
     private var cellHeight: CGFloat { 345 }
