@@ -54,7 +54,16 @@ import Combine
             state = value
         } catch { self.error = "Sauvegarde impossible : \(error.localizedDescription)" }
     }
-    func pin(_ guide: Guide) { var next = state; next.pinnedID = guide.id; commit(next) }
+    func pin(_ guide: Guide) { var next = state; next.pinnedID = guide.id; next.pinnedName = guide.name; commit(next) }
+    func pinMeta(_ comp: MetaComp) { var next = state; next.pinnedID = comp.id; next.pinnedName = comp.title(reference); commit(next) }
+    func copyBoard(_ positions: [MetaPosition]) {
+        var next = state; next.board = [:]
+        for position in positions where (0..<28).contains(position.board_position) {
+            let id = "champion:" + position.unit_api_name
+            if champion(id) != nil { next.board[position.board_position] = id }
+        }
+        commit(next)
+    }
     func setStage(_ stage: Stage) { var next = state; next.stage = stage; commit(next) }
     func favorite(_ id: String) {
         var next = state
@@ -69,7 +78,7 @@ import Combine
     func addMatch(placement: Int, notes: String) {
         guard (1...8).contains(placement), notes.count <= 4_000 else { return }
         var next = state
-        next.matches.insert(MatchNote(placement: placement, guideName: pinned?.name ?? "Plan libre",
+        next.matches.insert(MatchNote(placement: placement, guideName: pinned?.name ?? state.pinnedName ?? "Plan libre",
                                       patch: catalogue?.patch ?? "Inconnu", notes: notes), at: 0)
         commit(next)
     }

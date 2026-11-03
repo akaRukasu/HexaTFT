@@ -96,6 +96,7 @@ struct MatchNote: Codable, Identifiable {
 
 struct SavedState: Codable {
     var pinnedID: String?
+    var pinnedName: String?
     var stage = Stage.opening
     var favorites: Set<String> = []
     var board: [Int: String] = [:]

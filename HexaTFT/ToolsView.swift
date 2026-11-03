@@ -26,7 +26,7 @@ struct BoardView: View {
                                                 Hexagon().fill(entry == nil ? Color.white.opacity(0.045) : Color.mint.opacity(0.18))
                                                 Hexagon().stroke(.mint.opacity(entry == nil ? 0.18 : 0.65), lineWidth: 1)
                                                 if let entry {
-                                                    Text(entry.initials).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                                                    EntryIcon(entry: entry, size: width).clipShape(Hexagon())
                                                 } else { Image(systemName: "plus").font(.caption2).foregroundStyle(.secondary) }
                                             }.frame(width: width, height: width * 1.1).contentShape(Hexagon())
                                         }.buttonStyle(.plain)
@@ -57,7 +57,7 @@ struct BoardView: View {
                     Spacer()
                     Button("Vider", role: .destructive) { confirmingClear = true }.disabled(store.state.board.isEmpty)
                 }.buttonStyle(.bordered)
-                Text("Le Codex contient plusieurs sets présents dans Data Dragon. Choisis le set adapté dans le sélecteur de champions.")
+                Text("Les champions et les objets du set de la source sont disponibles hors connexion.")
                     .font(.caption).foregroundStyle(.secondary)
             }.padding()
         }.navigationTitle("Plateau")
@@ -123,9 +123,9 @@ struct CodexView: View {
     var body: some View {
         List {
             Section {
-                Text("Données Riot Data Dragon \(store.reference?.version ?? "—") · Français")
+                Text("Données françaises Blitz \(store.reference?.version ?? "—") · Français")
                     .font(.subheadline)
-                Text("Snapshot du \(store.reference?.retrievedAt ?? "—"). Plusieurs sets sont inclus ; leur présence ne signifie pas qu’ils sont actifs. Ces données ne sont pas des statistiques de méta.")
+                Text("Snapshot du \(store.reference?.retrievedAt ?? "—"). Ce Codex est limité au set des fiches natives.")
                     .font(.caption).foregroundStyle(.secondary)
                 Picker("Catégorie", selection: $kind) {
                     Text("Champions").tag("champion"); Text("Objets").tag("item")
@@ -188,7 +188,7 @@ struct JournalView: View {
                 }.onDelete(perform: store.deleteMatches)
             }
             Section("À propos") {
-                Text("Hexa 0.1 · Prototype iOS natif").font(.subheadline)
+                Text("Hexa 0.2 · Compagnon TFT").font(.subheadline)
                 Text("Projet indépendant, non affilié à Riot Games. Teamfight Tactics et ses éléments sont des marques et contenus de Riot Games.").font(.caption).foregroundStyle(.secondary)
                 Link("Règles développeurs TFT", destination: URL(string: "https://developer.riotgames.com/docs/tft")!)
             }
@@ -208,7 +208,7 @@ struct AddMatchView: View {
             Form {
                 Picker("Placement", selection: $placement) { ForEach(1...8, id: \.self) { Text("Top \($0)").tag($0) } }
                 Section("Ce que je retiens") { TextEditor(text: $notes).frame(minHeight: 150) }
-                Text("Plan : \(store.pinned?.name ?? "Plan libre")").font(.caption)
+                Text("Plan : \(store.pinned?.name ?? store.state.pinnedName ?? "Plan libre")").font(.caption)
             }.navigationTitle("Bilan de partie")
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }

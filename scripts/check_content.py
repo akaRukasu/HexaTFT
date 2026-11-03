@@ -61,9 +61,29 @@ def main():
     reference = json.loads((ROOT/'HexaTFT/Resources/reference.json').read_text())
     ids = [entry['id'] for entry in reference['entries']]
     assert len(ids) == len(set(ids)), 'duplicate reference identifiers'
-    assert all(e['name'] and e['imageURL'].startswith('https://ddragon.leagueoflegends.com/') for e in reference['entries'])
+    assert all(e['name'] and e['imageURL'].startswith('https://blitz-cdn.blitz.gg/') for e in reference['entries'])
     assert set(e['kind'] for e in reference['entries']) == {'champion','item','trait','augment'}
 
+    meta = json.loads((ROOT/'HexaTFT/Resources/meta.json').read_text(encoding='utf-8'))
+    champions = {e['id'].split(':',1)[1] for e in reference['entries'] if e['kind']=='champion'}
+    items = {e['id'].split(':',1)[1] for e in reference['entries'] if e['kind']=='item'}
+    assert len(meta['data']) >= 10 and len({c['comp_id'] for c in meta['data']}) == len(meta['data'])
+    assert len({e['set'] for e in reference['entries']}) == 1
+    for comp in meta['data']:
+        assert 1 <= comp['stats']['avg_placement'] <= 8
+        assert 0 <= comp['stats']['top_4_percent'] <= 1
+        assert len({u['name'] for u in comp['units']}) == len(comp['units'])
+        for unit in comp['units']:
+            assert unit['name'] in champions, unit['name']
+            assert set(unit.get('items',[])) <= items
+        positions=comp.get('units_positions',[])
+        assert all(0 <= p['board_position'] < 28 for p in positions)
+        assert len({p['board_position'] for p in positions}) == len(positions)
+    for entry in reference['entries']:
+        if entry['kind'] in ('champion','item'):
+            name=entry['id'].split(':',1)[1]
+            assert (ROOT/'HexaTFT/Assets.xcassets'/f'{name}.imageset/image.png').is_file()
+    print(f"PASS: {len(meta['data'])} compositions, matching set reference, boards, objects and offline assets")
     project = parse_project(ROOT/'HexaTFT.xcodeproj/project.pbxproj')
     objects = project['objects']
     assert objects[project['rootObject']]['isa'] == 'PBXProject'
@@ -84,7 +104,7 @@ def main():
             entry = objects[child]
             if entry['isa'] == 'PBXGroup': check_group(child,base)
             elif entry.get('sourceTree') == '<group>':
-                assert (base/entry['path']).is_file(), base/entry['path']
+                assert (base/entry['path']).exists(), base/entry['path']
     check_group(objects[project['rootObject']]['mainGroup'], ROOT)
     scheme = ElementTree.parse(ROOT/'HexaTFT.xcodeproj/xcshareddata/xcschemes/HexaTFT.xcscheme')
     for element in scheme.findall('.//BuildableReference'):

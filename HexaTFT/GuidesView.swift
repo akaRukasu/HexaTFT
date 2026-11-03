@@ -102,6 +102,7 @@ struct PhasePanel: View {
 
 struct CompanionView: View {
     @EnvironmentObject private var store: Store
+    @EnvironmentObject private var meta: MetaStore
     @Environment(\.scenePhase) private var scenePhase
     @State private var stayAwake = false
     @State private var active = false
@@ -110,7 +111,15 @@ struct CompanionView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Badge(text: "GUIDE CONSULTÉ MANUELLEMENT")
-                if let guide = store.pinned {
+                if let composition = meta.comps.first(where: { $0.id == store.state.pinnedID }) {
+                    HexaBrand()
+                    Text(composition.title(store.reference)).font(.largeTitle.bold())
+                    StageSelector(stage: Binding(get: { store.state.stage }, set: { store.setStage($0) }))
+                    Panel { MetaStage(comp: composition, stage: store.state.stage) }
+                    Panel { Text("Plateau cible").font(.headline); MetaBoard(positions: composition.units_positions ?? []); UnitStrip(units: composition.units) }
+                    NavigationLink("Objets, variantes et guide complet") { MetaDetail(comp: composition) }.buttonStyle(.borderedProminent)
+                    Toggle("Garder l’écran allumé ici", isOn: $stayAwake)
+                } else if let guide = store.pinned {
                     Text(guide.name).font(.largeTitle.bold())
                     Text("Choisis l’étape à consulter. Le contenu est celui du guide, sans analyse de ta partie.")
                         .font(.subheadline).foregroundStyle(.secondary)
@@ -129,7 +138,7 @@ struct CompanionView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
                     ContentUnavailableView("Ton plan à portée de main", systemImage: "pin",
-                                           description: Text("Dans Plans, ouvre une fiche et touche Épingler dans Partie."))
+                                           description: Text("Dans Méta, ouvre une composition et touche Suivre dans Partie."))
                 }
             }.padding()
         }.navigationTitle("À côté du PC")

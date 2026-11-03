@@ -2,7 +2,7 @@ name: Build and test iOS
 on:
   workflow_dispatch:
   push:
-    paths: ['HexaTFT/**', 'HexaTFTTests/**', 'HexaTFT.xcodeproj/**', '.github/workflows/ios.yml']
+    paths: ['HexaTFT/**', 'HexaTFTTests/**', 'HexaTFTUITests/**', 'HexaTFT.xcodeproj/**', '.github/workflows/ios.yml']
 permissions:
   contents: read
 jobs:
@@ -10,6 +10,8 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check bundled data
+        run: python3 scripts/check_content.py
       - name: Choose an available iPhone simulator
         run: |
           DEVICE_ID=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for a in d["devices"].values() for x in a if "iPhone" in x["name"]))')
@@ -27,6 +29,16 @@ jobs:
         with:
           name: HexaTFT-unsigned
           path: HexaTFT-unsigned.ipa
+      - name: Export interface screenshots
+        if: always()
+        run: xcrun xcresulttool export attachments --path TestResults.xcresult --output-path screenshots || true
+      - name: Save screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interface-screenshots
+          path: screenshots
+          if-no-files-found: ignore
       - name: Save test results
         if: always()
         uses: actions/upload-artifact@v4

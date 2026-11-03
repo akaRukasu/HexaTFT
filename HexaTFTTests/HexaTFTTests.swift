@@ -3,7 +3,7 @@ import XCTest
 
 final class HexaTFTTests: XCTestCase {
     private func pack() -> Data {
-        let phases = Stage.allCases.map { Phase(stage: $0, level: "6", economy: "Repère", objective: "Comparer", options: []) }
+        let phases = Stage.allCases.map { Phase(stage: $0, level: "6", economy: "RepÃ¨re", objective: "Comparer", options: []) }
         let guide = Guide(id: "example", name: "Test", style: "Reroll", difficulty: "Accessible", summary: "Guide de test",
                           tags: [], itemNotes: [], positioning: [], phases: phases)
         return try! JSONEncoder().encode(Catalogue(schemaVersion: 1, patch: "test", updatedAt: "2026-11-03",
@@ -47,5 +47,37 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertEqual(restored.state.stage, .transition)
         XCTAssertEqual(restored.state.matches.count, 2)
         XCTAssertEqual(restored.state.matches.first?.notes, "Transition difficile")
+    }
+
+    func testBundledMetaAndFrenchReferenceMatch() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "meta", withExtension: "json"))
+        let pack = try MetaPack.decode(Data(contentsOf: url))
+        XCTAssertGreaterThan(pack.data.count, 10)
+        let referenceURL = try XCTUnwrap(Bundle.main.url(forResource: "reference", withExtension: "json"))
+        let reference = try JSONDecoder().decode(ReferenceData.self, from: Data(contentsOf: referenceURL))
+        let ids = Set(reference.entries.map(\.id))
+        XCTAssertEqual(Set(reference.entries.map(\.set)).count, 1)
+        for comp in pack.data {
+            for unit in comp.units {
+                XCTAssertTrue(ids.contains("champion:" + unit.name), unit.name)
+                for item in unit.items ?? [] { XCTAssertTrue(ids.contains("item:" + item), item) }
+            }
+        }
+        XCTAssertThrowsError(try MetaPack.decode(Data("{\"data\":[]}".utf8)))
+        XCTAssertThrowsError(try MetaPack.decode(Data(repeating: 0, count: 20_000_001)))
+    }
+    @MainActor func testMetaPinAndBoardCopyPersist() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = Store(directory: directory)
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "meta", withExtension: "json"))
+        let comp = try XCTUnwrap(MetaPack.decode(Data(contentsOf: url)).data.first)
+        store.pinMeta(comp)
+        store.copyBoard(comp.units_positions ?? [])
+        let restored = Store(directory: directory)
+        XCTAssertEqual(restored.state.pinnedID, comp.id)
+        XCTAssertEqual(restored.state.pinnedName, comp.title(store.reference))
+        XCTAssertEqual(restored.state.board.count, comp.units_positions?.count)
+        XCTAssertFalse(restored.state.board.isEmpty)
     }
 }
