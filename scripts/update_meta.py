@@ -30,7 +30,7 @@ def main():
             desc=v.get('ability',{}).get('description','') if kind=='champion' else v.get('description','')
             if kind=='trait':desc+='\n'+'\n'.join(f"({b['needed']}) {b['effect']}" for b in v.get('bonuses',[]))
             if kind=='item' and v.get('buildsFrom'):desc+='\nRecette : '+' + '.join(data.get(k,{}).get('name',k) for k in v['buildsFrom'])
-            entries.append(dict(id=f'{kind}:{key}',name=v['name'] + (' ('+key.rsplit('_',1)[1]+')' if kind=='champion' and key.endswith(('_AD','_AP')) else ''),kind=kind,set=set_number,cost=v.get('cost',0),description=clean(desc),imageURL=f'https://blitz-cdn.blitz.gg/blitz/{path}/{key}.webp'))
+            entries.append(dict(id=f'{kind}:{key}',name=v['name'] + (' ('+key.rsplit('_',1)[1]+')' if kind=='champion' and key.endswith(('_AD','_AP')) else ''),kind=kind,set=set_number,cost=v.get('cost',0),description=clean(desc),imageURL=f'https://blitz-cdn.blitz.gg/blitz/{path}/{key}.webp',components=v.get('buildsFrom') if kind=='item' else None,itemTags=v.get('tags') if kind=='item' else None))
     reference=dict(version=f'Set {set_number} · {display_patch}',source='https://blitz.gg/tft/comps',retrievedAt=payload['retrievedAt'],entries=entries)
     (RES/'reference.json').write_text(json.dumps(reference,ensure_ascii=False,separators=(',',':')),encoding='utf-8')
     # Bundle portraits and item icons so native boards also work offline.

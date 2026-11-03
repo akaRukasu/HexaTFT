@@ -80,4 +80,46 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertEqual(restored.state.board.count, comp.units_positions?.count)
         XCTAssertFalse(restored.state.board.isEmpty)
     }
+
+    func testVisualGuideUsesExactObservedPositionsAndNeverEmptyStages() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "meta", withExtension: "json"))
+        let pack = try MetaPack.decode(Data(contentsOf: url))
+        for comp in pack.data {
+            for stage in Stage.allCases {
+                let boards = comp.guideBoards(stage: stage)
+                XCTAssertFalse(boards.isEmpty)
+                for board in boards {
+                    XCTAssertFalse(board.units.isEmpty)
+                    XCTAssertTrue(board.positions.allSatisfy { board.keys.contains($0.unit_api_name) })
+                    XCTAssertEqual(Set(board.positions.map(\.board_position)).count, board.positions.count)
+                }
+            }
+            let unmapped = MetaVariant(units: [MetaUnit(name: "missing-test-unit", items: nil, star_level: nil)], units_positions: nil, nb_boards: 1, avg_placement: nil)
+            XCTAssertTrue(comp.board(from: unmapped, label: "Test").positions.isEmpty)
+            if comp.variations?.stages?["6"]?.allSatisfy({ $0.units.isEmpty }) == true {
+                XCTAssertTrue(try XCTUnwrap(comp.guideBoards(stage: .end).first).isFinal)
+            }
+        }
+    }
+    func testProjectedItemsAndRecipesRemainDistinctFromObservedItems() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "meta", withExtension: "json"))
+        let comp = try XCTUnwrap(MetaPack.decode(Data(contentsOf: url)).data.first)
+        let unit = try XCTUnwrap(comp.units.first { !($0.items ?? []).isEmpty })
+        let actual = comp.loadout(for: unit.name, on: comp.finalBoard)
+        XCTAssertFalse(actual.isProjected)
+        XCTAssertEqual(actual.items, unit.items)
+        let early = GuideBoard(units: [MetaUnit(name: unit.name, items: nil, star_level: nil)], positions: [], sourceLabel: "Test", sample: nil, isFinal: false)
+        let planned = comp.loadout(for: unit.name, on: early)
+        XCTAssertTrue(planned.isProjected)
+        XCTAssertEqual(planned.items, actual.items)
+        let referenceURL = try XCTUnwrap(Bundle.main.url(forResource: "reference", withExtension: "json"))
+        let reference = try JSONDecoder().decode(ReferenceData.self, from: Data(contentsOf: referenceURL))
+        let ids = Set(reference.entries.map(\.id))
+        for item in reference.entries where item.kind == "item" {
+            for component in item.components ?? [] { XCTAssertTrue(ids.contains("item:" + component), component) }
+        }
+        XCTAssertGreaterThan(reference.entries.filter { !($0.components ?? []).isEmpty }.count, 50)
+        let legacy = Data("{\"id\":\"item:test\",\"name\":\"Test\",\"kind\":\"item\",\"set\":\"18\",\"cost\":0,\"description\":\"Effet\",\"imageURL\":\"\"}".utf8)
+        XCTAssertNil(try JSONDecoder().decode(ReferenceEntry.self, from: legacy).components)
+    }
 }

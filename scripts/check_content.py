@@ -83,6 +83,11 @@ def main():
         if entry['kind'] in ('champion','item'):
             name=entry['id'].split(':',1)[1]
             assert (ROOT/'HexaTFT/Assets.xcassets'/f'{name}.imageset/image.png').is_file()
+    item_ids = {e['id'] for e in reference['entries'] if e['kind']=='item'}
+    recipes = [e for e in reference['entries'] if e.get('components')]
+    assert len(recipes)>50
+    for entry in recipes:
+        assert all('item:'+key in item_ids for key in entry['components'])
     print(f"PASS: {len(meta['data'])} compositions, matching set reference, boards, objects and offline assets")
     project = parse_project(ROOT/'HexaTFT.xcodeproj/project.pbxproj')
     objects = project['objects']

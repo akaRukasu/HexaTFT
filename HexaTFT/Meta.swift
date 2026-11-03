@@ -38,7 +38,12 @@ struct MetaHolder: Codable {
     let stats: [Holder]
 }
 struct MetaUnitStats: Codable {
-    struct Trio: Codable { let item_api_names: [String]; let nb_boards: Int? }
+    struct Trio: Codable {
+        let item_api_names: [String]
+        let nb_boards: Int?
+        let avg_placement: Double?
+        let pick_rate: Double?
+    }
     let name: String
     let item_trios: [Trio]?
 }

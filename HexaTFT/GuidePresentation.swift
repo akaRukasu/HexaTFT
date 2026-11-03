@@ -1,0 +1,92 @@
+import Foundation
+
+struct GuideBoard {
+    let units: [MetaUnit]
+    let positions: [MetaPosition]
+    let sourceLabel: String
+    let sample: Int?
+    let isFinal: Bool
+    var keys: Set<String> { Set(units.map(\.name)) }
+}
+struct ChampionLoadout {
+    let items: [String]
+    let target: String
+    let isProjected: Bool
+    var hasItems: Bool { !items.isEmpty }
+}
+extension MetaComp {
+    var finalBoard: GuideBoard {
+        GuideBoard(units: units, positions: units_positions ?? [], sourceLabel: "Plateau final de référence · Blitz", sample: stats.nb_games, isFinal: true)
+    }
+    func board(from variant: MetaVariant, label: String) -> GuideBoard {
+        let keys = Set(variant.units.map(\.name))
+        var positions = variant.units_positions ?? []
+        var source = label
+        // Stage samples do not always carry coordinates. Reuse coordinates only
+        // when an observed level board contains exactly the same units.
+        if positions.isEmpty, !keys.isEmpty {
+            for level in (variations?.levels?.keys.map { $0 } ?? []).sorted(by: { (Int($0) ?? 0) < (Int($1) ?? 0) }) {
+                if let match = variations?.levels?[level]?.first(where: {
+                    Set($0.units.map(\.name)) == keys && !($0.units_positions ?? []).isEmpty
+                }) {
+                    positions = match.units_positions ?? []
+                    source += " · placement observé au niveau " + level
+                    break
+                }
+            }
+        }
+        return GuideBoard(units: variant.units, positions: positions, sourceLabel: source, sample: variant.nb_boards, isFinal: false)
+    }
+    func guideBoards(stage: Stage) -> [GuideBoard] {
+        let stageKey = String(stage.rawValue.prefix(1))
+        if let variants = variations?.stages?[stageKey]?.filter({ !$0.units.isEmpty }), !variants.isEmpty {
+            return Array(variants.prefix(3)).map { board(from: $0, label: "Exemple du stade " + stageKey + " · Blitz") }
+        }
+        if stage == .opening || stage == .early {
+            let level = stage == .opening ? "4" : "5"
+            let variants = variations?.levels?[level]?.filter { !$0.units.isEmpty } ?? []
+            if !variants.isEmpty { return Array(variants.prefix(3)).map { board(from: $0, label: "Exemple d’ouverture niveau " + level + " · Blitz") } }
+            let early = (variations?.early ?? []).filter { !$0.units.isEmpty }
+            if !early.isEmpty { return Array(early.prefix(3)).map { board(from: $0, label: "Ouverture observée · Blitz") } }
+        }
+        // Never present an empty sample as a playable board or invent positions.
+        return [GuideBoard(units: units, positions: units_positions ?? [], sourceLabel: "Pas de variante pour ce stade · plateau final de référence", sample: stats.nb_games, isFinal: true)]
+    }
+    func guideBoards(level: String) -> [GuideBoard] {
+        Array((variations?.levels?[level] ?? []).filter { !$0.units.isEmpty }.prefix(3)).map { board(from: $0, label: "Plateau observé niveau " + level + " · Blitz") }
+    }
+    func loadout(for key: String, on board: GuideBoard) -> ChampionLoadout {
+        if let equipped = board.units.first(where: { $0.name == key })?.items, !equipped.isEmpty {
+            return ChampionLoadout(items: equipped, target: key, isProjected: false)
+        }
+        if let targetItems = units.first(where: { $0.name == key })?.items, !targetItems.isEmpty {
+            return ChampionLoadout(items: targetItems, target: key, isProjected: !board.isFinal)
+        }
+        let possible = (carry_item_holders ?? []).filter { holder in
+            holder.stats.contains { $0.early_game_carry_api_name == key } &&
+            !(units.first { $0.name == holder.end_game_carry_api_name }?.items ?? []).isEmpty
+        }
+        // Several possible carries need an explicit choice; don't assign one silently.
+        if possible.count == 1, let carry = possible.first {
+            return ChampionLoadout(items: units.first { $0.name == carry.end_game_carry_api_name }?.items ?? [], target: carry.end_game_carry_api_name, isProjected: true)
+        }
+        return ChampionLoadout(items: [], target: key, isProjected: false)
+    }
+    func alternativeTrios(for key: String, excluding items: [String]) -> [MetaUnitStats.Trio] {
+        var seen: Set<String> = [items.sorted().joined(separator: "|")]
+        return (units_stats?.first { $0.name == key }?.item_trios ?? []).filter { trio in
+            guard !trio.item_api_names.isEmpty else { return false }
+            return seen.insert(trio.item_api_names.sorted().joined(separator: "|")).inserted
+        }.prefix(3).map { $0 }
+    }
+}
+extension ReferenceEntry {
+    var effectText: String { description.components(separatedBy: "\nRecette :").first ?? description }
+    var itemCategory: String? {
+        let categories = ["Attack": "Dégâts d’attaque", "Magic": "Puissance", "Defense": "Protection", "Mana": "Mana", "Support": "Soutien"]
+        for (key, label) in categories.sorted(by: { $0.key < $1.key }) {
+            if itemTags?.contains(where: { $0.hasSuffix("." + key) }) == true { return label }
+        }
+        return nil
+    }
+}

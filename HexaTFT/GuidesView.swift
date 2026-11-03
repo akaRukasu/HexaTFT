@@ -111,12 +111,10 @@ struct CompanionView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if let composition = meta.comps.first(where: { $0.id == store.state.pinnedID }) {
-                    HexaBrand()
-                    Text(composition.title(store.reference)).font(.largeTitle.bold())
-                    StageSelector(stage: Binding(get: { store.state.stage }, set: { store.setStage($0) }))
-                    Panel { MetaStage(comp: composition, stage: store.state.stage) }
-                    Panel { Text("Plateau cible").font(.headline); MetaBoard(positions: composition.units_positions ?? []); UnitStrip(units: composition.units) }
-                    NavigationLink("Objets, variantes et guide complet") { MetaDetail(comp: composition) }.buttonStyle(.borderedProminent)
+                    Text(composition.title(store.reference)).font(.title2.bold())
+                    VisualCompositionGuide(comp: composition, stage: Binding(get: { store.state.stage }, set: { store.setStage($0) }))
+                    EquipmentRoster(comp: composition)
+                    NavigationLink("Guide complet et statistiques") { MetaDetail(comp: composition) }.buttonStyle(.bordered)
                     Toggle("Garder l’écran allumé ici", isOn: $stayAwake)
                 } else if let guide = store.pinned {
                     Text(guide.name).font(.largeTitle.bold())

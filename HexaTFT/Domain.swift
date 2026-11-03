@@ -75,6 +75,8 @@ struct ReferenceEntry: Codable, Identifiable {
     let cost: Int
     let description: String
     let imageURL: String
+    var components: [String]? = nil
+    var itemTags: [String]? = nil
     var initials: String { String(name.prefix(2)).uppercased() }
 }
 
