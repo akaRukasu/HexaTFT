@@ -56,6 +56,9 @@ struct MetaView: View {
                 if meta.selection.channel == .pbe {
                     PBEGuideList()
                 } else {
+                    if meta.selection.channel == .live, !favorites, !gems {
+                        MetaRadarPreview(reference: store.reference, patch: meta.pack?.patch, query: query)
+                    }
                     guideShelf
                 }
                 NavigationLink { SourcesView() } label: {
@@ -95,17 +98,15 @@ struct MetaView: View {
                     if gems { Text("Fréquence ≤ 3 %, moyenne < 4,50 et au moins 500 parties.").font(.caption).foregroundStyle(.secondary) }
                 }
             }
-            if meta.selection.channel == .live, meta.comps.isEmpty {
-                Panel {
-                    Label("Classement statistique", systemImage: "chart.bar").font(.headline)
-                    Text("Les guides Hexa donnent des plans de jeu. Les classements chiffrés du patch restent consultables chez leurs fournisseurs.").font(.subheadline).foregroundStyle(.secondary)
-                    NavigationLink("Voir les sources du patch") { SourcesView() }
-                    if let latest = meta.archives.first(where: { !$0.pack.data.isEmpty }) {
-                        Button("Voir les \(latest.pack.data.count) guides du patch \(latest.pack.patch ?? "archivé")") {
-                            meta.select(.archives, archiveID: latest.id)
-                        }
-                    }
-                }
+            if meta.selection.channel == .live, !favorites, !gems, query.isEmpty,
+               let latest = meta.archives.first(where: { !$0.pack.data.isEmpty }) {
+                Button {
+                    meta.select(.archives, archiveID: latest.id)
+                } label: {
+                    Label("\(latest.pack.data.count) guides archivés · \(latest.sourceName) · \(latest.pack.patch ?? "ancien patch")",
+                          systemImage: "archivebox")
+                        .font(.subheadline.bold())
+                }.buttonStyle(.bordered)
             }
             if let message = meta.message, meta.selection.channel == .live {
                 Text(message).font(.caption).foregroundStyle(.secondary)

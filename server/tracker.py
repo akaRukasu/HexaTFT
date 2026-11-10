@@ -58,6 +58,9 @@ def normalized_match(doc, puuid):
         "id":doc["metadata"]["match_id"], "timestamp":info["game_datetime"]/1000,
         "patch":info.get("game_version"), "set":info.get("tft_set_number"), "queue":info.get("queue_id"),
         "mode":info.get("tft_game_type"), "placement":player["placement"], "level":player.get("level"),
+        "duration":info.get("game_length"), "lastRound":player.get("last_round"),
+        "goldLeft":player.get("gold_left"), "playerDamage":player.get("total_damage_to_players"),
+        "playersEliminated":player.get("players_eliminated"),
         "units":[{"key":u.get("character_id",""),"stars":u.get("tier"),"items":u.get("itemNames") or []}
                  for u in player.get("units",[])],
         "traits":[{"key":t.get("name",""),"count":t.get("num_units",0),"tier":t.get("tier_current",0)}

@@ -60,84 +60,180 @@ struct RiotNewsSnapshot: Codable {
     }
 }
 
+
 struct EsportEvent: Identifiable {
     let id: String
     let title: String
     let region: String
     let dates: String
     let format: String
+    let icon: String
     let url: URL
-    let past: Bool
-    static let events: [Self] = [
-        .init(id: "crown", title: "Tactician’s Crown · Enchanted Wilds", region: "Mondial", dates: "13–15 novembre 2026",
-              format: "Finale mondiale. Les créneaux précis et les résultats sont à vérifier auprès de Riot.",
-              url: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/regional-finals-2026-everything-you-need-to-know/")!, past: false),
-        .init(id: "superbrawl", title: "Tactician’s Superbrawl", region: "EMEA · AMER · APAC", dates: "6–8 novembre 2026",
-              format: "Tournoi par équipes de quatre.",
-              url: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/tacticians-superbrawl-teams-dates-and-format/")!, past: true),
-        .init(id: "regional", title: "Finales régionales Enchanted Wilds", region: "EMEA · AMER · APAC", dates: "23–25 octobre et 30 octobre–1 novembre 2026",
-              format: "Qualifications régionales pour la finale mondiale.",
-              url: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/regional-finals-2026-everything-you-need-to-know/")!, past: true)
-    ]
+
+    static let crown = Self(id: "crown", title: "Tactician’s Crown", region: "Mondial", dates: "13–15 novembre 2026",
+        format: "La finale mondiale du set 18 réunit 40 tacticiens en trois journées.",
+        icon: "crown", url: URL(string: "https://teamfighttactics.leagueoflegends.com/fr-fr/news/esports/regional-finals-2026-everything-you-need-to-know/")!)
+    static let superbrawl = Self(id: "superbrawl", title: "Tactician’s Superbrawl", region: "EMEA · AMER · APAC", dates: "6–8 novembre 2026",
+        format: "Tournoi par équipes de quatre, avec une finale en cinq manches maximum.",
+        icon: "person.3.sequence", url: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/tacticians-superbrawl-teams-dates-and-format/")!)
+    static let regional = Self(id: "regional", title: "Finales régionales", region: "EMEA · AMER · APAC", dates: "23–25 oct. et 30 oct.–1 nov. 2026",
+        format: "Deux week-ends de qualification pour le mondial, avec 64 tacticiens dans chaque région.",
+        icon: "globe.europe.africa", url: crown.url)
+
+    static let roadmap = URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/compete-in-enchanted-wilds/")!
+    static let schedule = URL(string: "https://competetft.com/schedule")!
+    static let twitch = URL(string: "https://www.twitch.tv/teamfighttactics")!
+    static let youtube = URL(string: "https://www.youtube.com/@playtft/streams")!
+    static let huanmie = URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/5-questions-with-aur-huanmie-the-space-gods-champion/")!
 }
 
 struct EsportView: View {
     @EnvironmentObject private var news: RiotNewsStore
-    @State private var tab = "En direct"
+    @State private var tab: Tab = .watch
     @AppStorage("hexa.follow.huanmie") private var followHuanmie = false
+
+    enum Tab: String, CaseIterable {
+        case watch = "En direct", calendar = "Calendrier", results = "Résultats", players = "Joueurs"
+    }
+
     var body: some View {
-        List {
-            Section {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 16) {
+                FeatureBanner(eyebrow: "HEXA ARENA · SET 18", title: "TFT Esport",
+                              detail: "Compétitions, diffusions et résultats officiels", icon: "trophy")
                 Picker("Esport", selection: $tab) {
-                    ForEach(["En direct", "Calendrier", "Résultats", "Joueurs"], id: \.self) { Text($0).tag($0) }
-                }.pickerStyle(.segmented)
-            }
-            switch tab {
-            case "Calendrier":
-                Section("Dates annoncées par Riot") {
-                    ForEach(EsportEvent.events) { event in
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(event.title).font(.headline)
-                            Text(event.dates).foregroundStyle(hexaGold)
-                            Text(event.region + " · " + event.format).font(.caption)
-                            Link("Annonce officielle", destination: event.url)
-                        }
-                    }
+                    ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }.pickerStyle(.segmented).accessibilityIdentifier("esport-tabs")
+
+                switch tab {
+                case .watch: watch
+                case .calendar: calendar
+                case .results: results
+                case .players: players
                 }
-            case "Résultats":
-                Section("Résultats et VOD") {
-                    Text("Scores et classements structurés indisponibles. Les résultats publiés par Riot et les rediffusions sont accessibles ci-dessous.").font(.subheadline)
-                    Link("Tableau officiel Superbrawl EMEA", destination: URL(string: "https://competetft.com/en-US/tournament/117008552290488714/overview")!)
-                    Link("Tableau officiel Superbrawl AMER", destination: URL(string: "https://competetft.com/en-US/tournament/117008531687591981/overview")!)
-                    Link("Tableau officiel Superbrawl APAC", destination: URL(string: "https://competetft.com/en-US/tournament/117008556467041885/overview")!)
-                    Link("Rediffusions officielles", destination: URL(string: "https://www.youtube.com/@playtft/streams")!)
-                    Link("Compétitions et résultats Riot", destination: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/")!)
-                }
-            case "Joueurs":
-                Section("Joueurs documentés") {
-                    LabeledContent("AUR Huanmie", value: "Chine")
-                    Text("Champion du monde Space Gods, set 17.")
-                    Toggle("Suivre AUR Huanmie", isOn: $followHuanmie)
-                    Link("Portrait Riot", destination: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/5-questions-with-aur-huanmie-the-space-gods-champion/")!)
-                }
-            default:
-                Section("Diffusions officielles") {
-                    Text("Vérifie le direct sur la chaîne officielle. Le calendrier seul ne confirme pas qu’une manche est en cours.").font(.subheadline)
-                    Link("Teamfight Tactics sur Twitch", destination: URL(string: "https://www.twitch.tv/teamfighttactics")!)
-                    Link("Teamfight Tactics sur YouTube", destination: URL(string: "https://www.youtube.com/@playtft/streams")!)
-                }
-            }
-            Section("Actualités Riot") {
-                if let snapshot = news.esports {
-                    Text("Vérifié le \(snapshot.checked.formatted())").font(.caption).foregroundStyle(.secondary)
-                    ForEach(snapshot.articles.prefix(12)) { article in Link(article.title, destination: article.url) }
-                } else {
-                    Text("Le fil d’actualités est momentanément indisponible.").font(.caption)
-                }
-                Link("Toutes les actualités esport", destination: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/")!)
-            }
-        }.navigationTitle("Esport")
+                newsShelf
+            }.padding()
+        }.background(hexaNavy).navigationTitle("Esport").navigationBarTitleDisplayMode(.inline)
         .refreshable { await news.refresh() }
+    }
+
+    private var watch: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("À l’affiche", systemImage: "sparkle").font(.title2.bold())
+            eventCard(.crown)
+            HStack {
+                Link(destination: EsportEvent.twitch) { Label("Twitch officiel", systemImage: "play.rectangle") }
+                Link(destination: EsportEvent.youtube) { Label("YouTube", systemImage: "play.circle") }
+            }.buttonStyle(.bordered).tint(.mint)
+            Text("Les chaînes officielles indiquent si une diffusion est en cours.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var calendar: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Le calendrier", systemImage: "calendar").font(.title2.bold())
+            eventCard(.crown)
+            Panel {
+                Label("Le parcours du mondial", systemImage: "point.3.connected.trianglepath.dotted").font(.headline)
+                phase("13 NOV.", "40 → 32", "Six manches pour établir le classement initial.")
+                phase("14 NOV.", "32 → 8", "Éliminations successives jusqu’à la table finale.")
+                phase("15 NOV.", "Finale", "Les huit qualifiés se disputent le titre.")
+                Link("Règlement et calendrier du set", destination: EsportEvent.roadmap)
+            }
+            eventCard(.superbrawl)
+            eventCard(.regional)
+            Link("Planning officiel Compete TFT", destination: EsportEvent.schedule)
+                .buttonStyle(.bordered)
+        }
+    }
+
+    private var results: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Résultats et rediffusions", systemImage: "medal").font(.title2.bold())
+            Panel {
+                Label("Superbrawl · tableaux officiels", systemImage: "list.number").font(.headline)
+                sourceLink("EMEA", icon: "globe.europe.africa", url: URL(string: "https://competetft.com/en-US/tournament/117008552290488714/overview")!)
+                sourceLink("AMER", icon: "globe.americas", url: URL(string: "https://competetft.com/en-US/tournament/117008531687591981/overview")!)
+                sourceLink("APAC", icon: "globe.asia.australia", url: URL(string: "https://competetft.com/en-US/tournament/117008556467041885/overview")!)
+            }
+            Panel {
+                Label("Dernier titre documenté dans Hexa", systemImage: "crown").font(.headline)
+                Text("AUR Huanmie").font(.title2.bold())
+                Text("Champion du monde · Space Gods · Chine").font(.subheadline).foregroundStyle(.secondary)
+                sourceLink("Résultat et entretien Riot", icon: "newspaper", url: EsportEvent.huanmie)
+                sourceLink("Rediffusions officielles", icon: "play.rectangle", url: EsportEvent.youtube)
+            }
+        }
+    }
+
+    private var players: some View {
+        Panel {
+            Label("CHINE · SPACE GODS", systemImage: "globe.asia.australia")
+                .font(.caption.bold()).foregroundStyle(.mint)
+            Text("AUR Huanmie").font(.title2.bold())
+            HStack {
+                DashboardMetric(title: "Titres internationaux", value: "3")
+                DashboardMetric(title: "Titre mondial", value: "Set 17", accent: .mint)
+            }
+            Text("Riot recense trois titres internationaux, Reckoning, TFT Paris Open et Tactician’s Crown Space Gods.")
+                .font(.subheadline).foregroundStyle(.secondary)
+            Toggle("Suivre AUR Huanmie", isOn: $followHuanmie)
+            sourceLink("Portrait et stratégie de la finale", icon: "person.text.rectangle", url: EsportEvent.huanmie)
+        }
+    }
+
+    private var newsShelf: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Actualités Riot", systemImage: "newspaper").font(.title3.bold())
+            if let snapshot = news.esports {
+                Text("Vérifiées le " + snapshot.checked.formatted()).font(.caption).foregroundStyle(.secondary)
+                ForEach(snapshot.articles.prefix(6)) { article in
+                    Panel { sourceLink(article.title, icon: "doc.text", url: article.url) }
+                }
+            }
+            Link("Toutes les actualités esport", destination: URL(string: "https://teamfighttactics.leagueoflegends.com/fr-fr/news/esports/")!)
+        }
+    }
+
+    private func eventCard(_ event: EsportEvent) -> some View {
+        Panel {
+            HStack {
+                Badge(text: event.region, color: .mint)
+                Spacer()
+                Image(systemName: event.icon).font(.title2).foregroundStyle(hexaGold).accessibilityHidden(true)
+            }
+            Text(event.title).font(.title2.bold())
+            Label(event.dates, systemImage: "calendar").font(.subheadline.bold()).foregroundStyle(hexaGold)
+            Text(event.format).font(.subheadline).foregroundStyle(.secondary)
+            if event.id == EsportEvent.crown.id {
+                HStack {
+                    DashboardMetric(title: "Tacticiens", value: "40")
+                    DashboardMetric(title: "Dotation totale", value: "470 000 $", accent: .mint)
+                }
+            }
+            sourceLink("Annonce officielle", icon: "newspaper", url: event.url)
+        }
+    }
+
+    private func phase(_ date: String, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Badge(text: date, color: hexaGold)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.headline)
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func sourceLink(_ label: String, icon: String, url: URL) -> some View {
+        Link(destination: url) {
+            HStack {
+                Label(label, systemImage: icon)
+                Spacer()
+                Image(systemName: "arrow.up.right").font(.caption)
+            }.font(.subheadline.weight(.semibold))
+        }
     }
 }
 

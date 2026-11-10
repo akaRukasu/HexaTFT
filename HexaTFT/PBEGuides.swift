@@ -157,7 +157,7 @@ struct PBELabView: View {
 
 enum LiveGuideCatalogue {
     private typealias Cell = (Int, String)
-    static let guides: [MetaComp] = [ahri, solar, nidalee]
+    static let guides: [MetaComp] = [ahri, solar, nidalee, teemo, masterYi]
 
     static func isCompatible(_ comp: MetaComp, with reference: ReferenceData) -> Bool {
         let ids = Set(reference.entries.map(\.id))
@@ -298,5 +298,71 @@ enum LiveGuideCatalogue {
                "DA_Nidalee18_AP":"Le soin aide la forme de mêlée à rester au contact. Le Gantelet apporte des critiques de sort. Si elle meurt avant de se stabiliser, fabrique l’option défensive en premier.",
                "DA_Amumu18":"Le premier objet doit lui permettre d’encaisser. Ajoute Cape solaire pour appliquer l’anti-soin au contact si personne ne l’applique déjà.",
                "DA_18_Sivir":"Dernier souffle soutient ses dégâts physiques. Adapte le troisième objet aux gros tanks ou aux besoins d’anti-soin de l’équipe."
+           ]))
+
+    private static let teemo = make("hexa-teemo-leblanc", style: "slow_roll_6",
+        carries: ["DA_18_Teemo", "DA_18_LeBlanc"],
+        source: "https://www.metastats.gg/en/tft/comps/invoker-teemo?bucket=diamond_plus&days=3&region=all",
+        levels: [
+            (4, [(1,"DA_18_Ornn"), (4,"DA_18_Kobuko"), (22,"DA_18_Veigar"), (26,"DA_18_Teemo")]),
+            (5, [(1,"DA_18_Ornn"), (4,"DA_18_Kobuko"), (8,"DA_18_Alistar"), (22,"DA_18_Veigar"), (26,"DA_18_Teemo")]),
+            (6, [(1,"DA_18_Ornn"), (4,"DA_18_Kobuko"), (8,"DA_18_Alistar"), (22,"DA_18_Veigar"), (24,"DA_18_LeBlanc"), (26,"DA_18_Teemo")]),
+            (7, [(1,"DA_18_Hecarim"), (3,"DA_18_Alistar"), (5,"DA_18_Kobuko"), (9,"DA_18_Rammus"), (21,"DA_18_Veigar"), (24,"DA_18_LeBlanc"), (26,"DA_18_Teemo")]),
+            (8, [(1,"DA_18_Hecarim"), (3,"DA_18_Alistar"), (5,"DA_18_Kobuko"), (9,"DA_18_Rammus"), (12,"DA_Sentinel18"), (21,"DA_18_Veigar"), (24,"DA_18_LeBlanc"), (26,"DA_18_Teemo")])
+        ], stageLevels: [4,5,6,6,7,8],
+        builds: [
+            "DA_18_Teemo":["DA_SpearOfShojin","DA_JeweledGauntlet","DA_RabadonsDeathcap"],
+            "DA_18_Alistar":["DA_GargoyleStoneplate","DA_WarmogsArmor","DA_SpiritVisage"],
+            "DA_18_LeBlanc":["DA_VoidStaff","DA_Morellonomicon","DA_SpearOfShojin"]
+        ],
+        substitutes: ["DA_18_Teemo":["DA_BlueBuff","DA_JeweledGauntlet","DA_NashorsTooth"]],
+        transfers: [:],
+        plan: AuthoredGuide(title: "Teemo · LeBlanc", stages: [
+            "2-1":"Garde les paires de Teemo et Kobuko. Ornn protège la première ligne pendant que Veigar active Ami de la forêt.",
+            "2-5":"Ajoute Alistar dès qu’il améliore le plateau. Réserve les composants de mana et de puissance à ton premier carry amélioré.",
+            "3-2":"Monte 6 et ajoute LeBlanc. Cherche Teemo et Alistar deux étoiles pour stabiliser avant les relances longues.",
+            "4-1":"Au niveau 6, garde si possible 50 PO. Teemo trois étoiles est prioritaire, puis Alistar ou LeBlanc si les copies viennent naturellement.",
+            "5-1":"Après les améliorations, monte 7 pour Hecarim et Rammus. Conserve Ornn amélioré jusqu’à ce que la transition renforce la première ligne.",
+            "6-1":"Ajoute Sentinelle au niveau 8. Écarte Teemo et LeBlanc contre les dégâts de zone."
+        ], conditions: "Privilégie un départ avec plusieurs copies de Teemo ou Alistar, du mana et une Baguette. Compte les copies contestées avant de t’engager.",
+           pivot: "Si Teemo est loin de trois étoiles, arrête les relances avant de perdre ton économie. Garde LeBlanc comme relais AP et monte vers une unité à quatre PO.",
+           positioning: "Alistar prend les premiers coups. Positionne Hecarim vers le groupe adverse. Garde Teemo sur le côté le plus protégé.",
+           itemPlans: [
+               "DA_18_Teemo":"Shojin accélère les sorts. Le Gantelet permet les critiques, puis Rabadon augmente la puissance.",
+               "DA_18_Alistar":"Monte d’abord une protection fiable. Place le Lithoplastron sur Alistar s’il attire plusieurs ennemis.",
+               "DA_18_LeBlanc":"Complète les besoins de l’équipe avec réduction magique et anti-soin avant de lui donner plus de mana."
+           ]))
+
+    private static let masterYi = make("hexa-yi-vi", style: "slow_roll_7",
+        carries: ["DA_18_MasterYi_AD", "DA_Vi18"],
+        source: "https://tactics.tools/team-compositions/top",
+        levels: [
+            (4, [(0,"DA_18_Yorick"), (3,"DA_18_Rakan"), (7,"DA_18_Akali_AD"), (23,"DA_Karma18")]),
+            (5, [(0,"DA_18_Yorick"), (3,"DA_18_Rakan"), (5,"DA_Vi18"), (7,"DA_18_Akali_AD"), (23,"DA_Karma18")]),
+            (6, [(0,"DA_18_Yorick"), (3,"DA_18_Rakan"), (5,"DA_Vi18"), (8,"DA_18_MasterYi_AD"), (12,"DA_18_Akali_AD"), (23,"DA_Karma18")]),
+            (7, [(0,"DA_18_Yorick"), (3,"DA_18_Sett"), (5,"DA_Vi18"), (8,"DA_18_MasterYi_AD"), (12,"DA_Nidalee18_AP"), (23,"DA_Karma18"), (27,"DA_18_Sivir")]),
+            (8, [(0,"DA_18_Yorick"), (2,"DA_18_Rakan"), (4,"DA_18_Sett"), (6,"DA_Vi18"), (8,"DA_18_MasterYi_AD"), (12,"DA_Nidalee18_AP"), (23,"DA_Karma18"), (27,"DA_18_Sivir")])
+        ], stageLevels: [4,5,6,7,7,8],
+        builds: [
+            "DA_18_MasterYi_AD":["DA_GuinsoosRageblade","DA_EdgeOfNight","DA_KrakensFury"],
+            "DA_Vi18":["DA_GargoyleStoneplate","DA_WarmogsArmor","DA_SunfireCape"],
+            "DA_18_Sivir":["DA_InfinityEdge","DA_LastWhisper","DA_GiantSlayer"]
+        ],
+        substitutes: ["DA_18_MasterYi_AD":["DA_Quicksilver","DA_TitansResolve","DA_KrakensFury"]],
+        transfers: ["DA_18_Akali_AD":"DA_18_MasterYi_AD"],
+        plan: AuthoredGuide(title: "Maître Yi · Vi", stages: [
+            "2-1":"Ouvre Fleur spirituelle avec Yorick et Karma. Akali peut porter des objets de mêlée si tu peux l’améliorer.",
+            "2-5":"Ajoute Vi pour renforcer la première ligne. Garde les paires naturelles de Maître Yi.",
+            "3-2":"Monte 6. Maître Yi AD rejoint le plateau dès qu’il peut se battre au contact sans perdre trop de PV.",
+            "4-1":"Monte 7. Stabilise Yi et Vi à deux étoiles puis relance l’excédent d’or si les copies sont accessibles.",
+            "5-1":"Priorise Yi trois étoiles puis Vi si elle est proche. Sivir prend les objets AD restants.",
+            "6-1":"Ajoute Rakan après les améliorations. Place Yi derrière la première ligne, vers le côté où il peut attaquer en continu."
+        ], conditions: "Bon départ avec des Arcs et plusieurs copies de Yi ou Vi. Vérifie la forme AD de Yi avant le transfert.",
+           pivot: "Si Yi est contesté, stabilise à deux étoiles puis monte de niveau. Sivir peut reprendre le rôle de carry AD si elle est améliorée.",
+           positioning: "Vi et Sett prennent le premier contact. Yi entre derrière eux, à l’écart du contrôle adverse le plus dangereux.",
+           itemPlans: [
+               "DA_18_MasterYi_AD":"Guinsoo et Kraken récompensent les combats longs. Fabrique Manteau de la nuit tôt si Yi se fait cibler immédiatement.",
+               "DA_Vi18":"Priorise les résistances et les PV. Ajoute Cape solaire si l’équipe manque d’anti-soin.",
+               "DA_18_Sivir":"Dernier souffle apporte la réduction d’armure. Complète avec des objets de dégâts physiques."
            ]))
 }

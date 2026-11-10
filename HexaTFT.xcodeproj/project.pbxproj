@@ -165,6 +165,26 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "0B4F3850304A42BBBA1DE7D9";
 		};
+		"574249462EF8E73116FA6C9E" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "MetaObservations.swift";
+			"sourceTree" = "<group>";
+		};
+		"FE9F550507783032E932E021" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "574249462EF8E73116FA6C9E";
+		};
+		"777A2554EE85DEE6B4FFEA3D" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "UltimatePanels.swift";
+			"sourceTree" = "<group>";
+		};
+		"65A4182EE7F1FBE10CA6E7FD" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "777A2554EE85DEE6B4FFEA3D";
+		};
 		"9684C21ECA1CD378B6FC80D7" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "text.json";
@@ -278,6 +298,8 @@
 				"EC04AE6EBAD7F135C958FD73",
 				"00FFA14D8B6EAE3D05E65DE9",
 				"0B4F3850304A42BBBA1DE7D9",
+				"574249462EF8E73116FA6C9E",
+				"777A2554EE85DEE6B4FFEA3D",
 				"0189424A5A60FED329FA868E",
 				"3685E330EC5277A9DD5661C6",
 			);
@@ -356,6 +378,8 @@
 				"1A830FCD5A28B97DB954BC5D",
 				"E455A61C6CD17829331E1A43",
 				"68BAE7B691E6DB4B763644FB",
+				"FE9F550507783032E932E021",
+				"65A4182EE7F1FBE10CA6E7FD",
 			);
 			"runOnlyForDeploymentPostprocessing" = "0";
 		};
@@ -451,8 +475,8 @@
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
 				"INFOPLIST_KEY_UISupportedInterfaceOrientations" = "UIInterfaceOrientationPortrait";
 				"TARGETED_DEVICE_FAMILY" = "1";
-				"MARKETING_VERSION" = "0.4.1";
-				"CURRENT_PROJECT_VERSION" = "5";
+				"MARKETING_VERSION" = "0.5.0";
+				"CURRENT_PROJECT_VERSION" = "6";
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
@@ -474,8 +498,8 @@
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
 				"INFOPLIST_KEY_UISupportedInterfaceOrientations" = "UIInterfaceOrientationPortrait";
 				"TARGETED_DEVICE_FAMILY" = "1";
-				"MARKETING_VERSION" = "0.4.1";
-				"CURRENT_PROJECT_VERSION" = "5";
+				"MARKETING_VERSION" = "0.5.0";
+				"CURRENT_PROJECT_VERSION" = "6";
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";

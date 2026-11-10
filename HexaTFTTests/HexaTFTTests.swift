@@ -181,7 +181,7 @@ final class HexaTFTTests: XCTestCase {
     @MainActor func testCurrentHexaGuidesHaveValidStagesAndEquipmentWithoutInventedStats() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let meta = MetaStore(directory: directory)
-        XCTAssertEqual(meta.editorialComps.count, 3)
+        XCTAssertEqual(meta.editorialComps.count, 5)
         let reference = try XCTUnwrap(meta.reference)
         for comp in meta.editorialComps {
             XCTAssertNil(comp.stats)

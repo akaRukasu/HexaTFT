@@ -91,7 +91,8 @@ final class HexaTFTUITests: XCTestCase {
         save.tap()
         let publicProfile = app.descendants(matching: .any).matching(identifier: "tracker-public-profile").firstMatch
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 8), app.debugDescription)
-        XCTAssertTrue(app.staticTexts["Tactikk#EUW"].exists)
+        let identity = app.descendants(matching: .any).matching(identifier: "tracker-identity").firstMatch
+        XCTAssertTrue(identity.label.contains("Tactikk#EUW"))
         snapshot("15-tracker-profil")
         app.terminate()
         app.launch()
@@ -104,6 +105,7 @@ final class HexaTFTUITests: XCTestCase {
         app.buttons["LIVE EUW"].tap()
         let card = app.buttons["meta-card-hexa-ahri-zyra"]
         XCTAssertTrue(card.waitForExistence(timeout: 8))
+        for _ in 0..<3 where !card.isHittable { app.swipeUp() }
         snapshot("12-live-guides")
         card.tap()
         let mode = app.segmentedControls["guide-mode"]
@@ -118,6 +120,37 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Le trio de référence"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "Fabrique d’abord Shojin")).firstMatch.exists)
         snapshot("14-live-objets")
+    }
+    @MainActor func testRadarPatchDetailsAndEsport() {
+        let app = XCUIApplication()
+        app.launch()
+        app.buttons["LIVE EUW"].tap()
+        let radar = app.buttons["meta-radar"]
+        XCTAssertTrue(radar.waitForExistence(timeout: 8))
+        snapshot("16-home-radar")
+        radar.tap()
+        let card = app.descendants(matching: .any).matching(identifier: "observation-codex-roncier").firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.navigationBars["Radar des compos"].exists)
+        snapshot("17-multi-sources")
+        app.tabBars.buttons["Patches"].tap()
+        let notes = app.buttons["Notes du patch 18.6"]
+        for _ in 0..<3 where !notes.isHittable { app.swipeUp() }
+        XCTAssertTrue(notes.exists)
+        notes.tap()
+        XCTAssertTrue(app.navigationBars["Patch 18.6"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "patch-category").firstMatch.exists)
+        snapshot("18-release-notes")
+        app.tabBars.buttons["Plus"].tap()
+        app.buttons["Esport"].tap()
+        let tabs = app.segmentedControls["esport-tabs"]
+        XCTAssertTrue(tabs.waitForExistence(timeout: 8))
+        snapshot("19-esport")
+        tabs.buttons["Calendrier"].tap()
+        let phases = app.staticTexts["Le parcours du mondial"]
+        for _ in 0..<3 where !phases.isHittable { app.swipeUp() }
+        XCTAssertTrue(phases.exists)
+        snapshot("20-esport-calendrier")
     }
     @MainActor private func snapshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

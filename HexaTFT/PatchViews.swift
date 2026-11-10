@@ -22,27 +22,121 @@ struct PatchPicker: View {
     }
 }
 
+
 struct PatchNote: Identifiable {
     let patch: String
     let published: String
     let summary: String
     let groups: [ChangeGroup]
     var id: String { patch }
-    var url: URL { URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/game-updates/teamfight-tactics-patch-" + patch.replacingOccurrences(of: ".", with: "-") + "/")! }
+    var url: URL { URL(string: "https://teamfighttactics.leagueoflegends.com/fr-fr/news/game-updates/teamfight-tactics-patch-" + patch.replacingOccurrences(of: ".", with: "-") + "/")! }
+
     struct ChangeGroup: Identifiable {
         let name: String
-        let lines: [String]
+        let icon: String
+        let changes: [Change]
         var id: String { name }
     }
+
+    struct Change: Identifiable {
+        enum Direction {
+            case buff, nerf, update
+            var label: String { switch self { case .buff: "Buff"; case .nerf: "Nerf"; case .update: "Mise à jour" } }
+            var icon: String { switch self { case .buff: "arrow.up"; case .nerf: "arrow.down"; case .update: "wrench.adjustable" } }
+            var color: Color { switch self { case .buff: .mint; case .nerf: .orange; case .update: .cyan } }
+        }
+
+        let title: String
+        let detail: String
+        let before: String?
+        let after: String?
+        let direction: Direction
+        var id: String { title + detail }
+
+        init(_ title: String, _ detail: String, _ before: String, _ after: String, _ direction: Direction) {
+            self.title = title
+            self.detail = detail
+            self.before = before
+            self.after = after
+            self.direction = direction
+        }
+
+        init(_ title: String, _ detail: String) {
+            self.title = title
+            self.detail = detail
+            before = nil
+            after = nil
+            direction = .update
+        }
+    }
+
     static let notes: [Self] = [
-        .init(patch: "18.6", published: "3 novembre 2026", summary: "Arrivée du client TFT autonome et ajustements d’équilibrage du set 18. Riot a ajouté des corrections à ses notes les 6 et 10 novembre.", groups: [
-            .init(name: "Traits", lines: ["Floraison · AD/AP 12/30/50/55 % → 12/30/55/65 %", "Sylvestre (9) · bonus de PV 25 % → 10 %", "Sprykin · bonus AD/AP du partenaire à distance 15/28/33 % → 15/30/38 %"]),
-            .init(name: "Champions", lines: ["Kobuko · soin 285/335/480 → 300/350/550", "Rek’Sai · soin 10/14/20 → 10/16/24", "Malphite · bouclier 735/885/2 000 → 750/925/2 000", "Nidalee AD · bonus du troisième sort 125 % → 140 %", "Sentinelle · ratio de PV du bouclier 10 % → 12 %"]),
-            .init(name: "Optimisations", lines: ["Clockwork Accelerator · vitesse d’attaque par activation 10 % → 12 %", "Embiggen · AD/AP de Pixie 50 % → 35 %", "Plot Armor · résistances 8 → 10", "Shopping Spree · or initial 6 → 7"]),
-            .init(name: "Économie et feux follets", lines: ["Curio Cart · coût d’un emblème 15 → 17 PO", "Middle Path · coût initial 4 → 5 PO, amélioration 3 → 4 PO"]),
-            .init(name: "Client et correctifs", lines: ["Chat en partie plus lisible. Retour du mode streamer. Corrections de stabilité et de l’interface sur PC et mobile."])
+        .init(patch: "18.6", published: "3 novembre 2026", summary: "Client TFT autonome, renforts pour plusieurs unités à quatre PO et deux vagues de correctifs sur PC et mobile.", groups: [
+            .init(name: "Traits", icon: "sparkles", changes: [
+                .init("Fleur spirituelle", "Bonus de dégâts d’attaque et de puissance", "12 / 30 / 50 / 55 %", "12 / 30 / 55 / 65 %", .buff),
+                .init("Sylvestre", "PV bonus au palier 9", "25 %", "10 %", .nerf),
+                .init("Ami de la forêt", "Bonus de dégâts d’attaque et de puissance du partenaire à distance", "15 / 28 / 33 %", "15 / 30 / 38 %", .buff)
+            ]),
+            .init(name: "Champions", icon: "person.2", changes: [
+                .init("Kobuko", "Soins", "285 / 335 / 480", "300 / 350 / 550", .buff),
+                .init("Rek’Sai", "Soins", "10 / 14 / 20", "10 / 16 / 24", .buff),
+                .init("Malphite", "Bouclier", "735 / 885 / 2 000", "750 / 925 / 2 000", .buff),
+                .init("Malphite", "Dégâts de compétence", "40 / 60 / 2 000", "100 / 150 / 2 000", .buff),
+                .init("Nidalee AD", "Soins", "300 / 450 / 2 000", "325 / 550 / 2 000", .buff),
+                .init("Nidalee AD", "Bonus de la troisième incantation", "125 %", "140 %", .buff),
+                .init("Nidalee AP", "Dégâts des attaques renforcées", "185 / 275 / 2 000", "195 / 295 / 2 000", .buff),
+                .init("Nidalee AP", "Dégâts de la troisième attaque", "330 / 500 / 3 000", "350 / 525 / 3 000", .buff),
+                .init("Sentinelle", "Part des PV dans le bouclier", "10 %", "12 %", .buff)
+            ]),
+            .init(name: "Optimisations", icon: "diamond", changes: [
+                .init("Accélérateur mécanique", "Vitesse d’attaque par activation", "10 %", "12 %", .buff),
+                .init("Agrandissement", "Bonus de dégâts d’attaque et de puissance des fées", "50 %", "35 %", .nerf),
+                .init("Résistance acharnée", "Résistances de base", "8", "10", .buff),
+                .init("Shopping intensif", "Or de départ", "6 PO", "7 PO", .buff),
+                .init("Sans rival", "Soins partagés par Rengar", "25 %", "50 %", .buff),
+                .init("Sans rival", "Mana partagé par Kha’Zix", "50 %", "70 %", .buff)
+            ]),
+            .init(name: "Esprits de la forêt", icon: "leaf", changes: [
+                .init("Chariot de curiosités", "Prix d’un emblème", "15 PO", "17 PO", .nerf),
+                .init("Cheminement", "Prix de base", "4 PO", "5 PO", .nerf),
+                .init("Cheminement", "Prix de l’amélioration", "3 PO", "4 PO", .nerf)
+            ]),
+            .init(name: "Client et correctifs", icon: "desktopcomputer", changes: [
+                .init("Client TFT autonome", "Le lancement sépare TFT du client partagé. Riot prévoit de poursuivre les améliorations avec le 18.7 et le set 19."),
+                .init("Interface en jeu", "Messagerie plus lisible, retour du mode streamer et indication plus visible des boutons d’achat d’XP et de relance sur PC."),
+                .init("Correctifs du 6 novembre", "Multitâche mobile jusqu’à deux minutes, récupération des récompenses du passe et corrections d’affichage des optimisations."),
+                .init("Correctifs annoncés les 6 et 10 novembre", "Riot traite aussi les échecs de matchmaking, la mise au premier plan au lancement d’une file et les icônes de profil invisibles."),
+                .init("Cosmétiques des prochains patches", "La séparation des nouvelles petites légendes est prévue en 19.1 et celle des nouvelles emotes en 19.2.")
+            ])
         ]),
-        .init(patch: "18.5", published: "20 octobre 2026", summary: "Ajustements ciblés des champions en difficulté après le patch 18.4. Les mises à jour intermédiaires figurent dans les notes officielles.", groups: [])
+        .init(patch: "18.5", published: "20 octobre 2026", summary: "Ajustements ciblés des verticales et du haut de tableau. Les correctifs du 22 et du 27 octobre ont surtout touché Roncier, Kha’Zix et Main de la justice.", groups: [
+            .init(name: "Traits", icon: "sparkles", changes: [
+                .init("Ronce-obscure", "Bonus du palier 6", "60 %", "50 %", .nerf),
+                .init("Sylvestre", "PV bonus des invocations au palier 9", "140 %", "125 %", .nerf),
+                .init("Fæ", "Soins aux paliers 2 et 4", "2,5 / 4 %", "3 / 5 %", .buff),
+                .init("Flora fatalis", "Soin en pourcentage des PV max", "8 %", "7 %", .nerf),
+                .init("Ultrarapide", "Vitesse d’attaque par attaque", "3 / 5 / 8 / 12 %", "3 / 5 / 7 / 10 %", .nerf),
+                .init("Jungle", "Bonus de dégâts et puissance au palier 7", "6 %", "5 %", .nerf)
+            ]),
+            .init(name: "Champions", icon: "person.2", changes: [
+                .init("Caitlyn", "Dégâts des attaques renforcées", "190 / 285 / 470", "200 / 300 / 490", .buff),
+                .init("Azir", "Dégâts de compétence", "46 / 69 / 110", "43 / 65 / 105", .nerf),
+                .init("Tristana", "Coût en mana du sort", "60", "50", .buff),
+                .init("Morgana", "Dégâts initiaux de la malédiction", "60 / 90", "70 / 105", .buff),
+                .init("Sentinelle", "Durée de l’étourdissement", "1 s", "0,5 s", .nerf),
+                .init("Sentinelle", "Bouclier", "350 / 450", "375 / 475", .buff),
+                .init("Sett", "PV rendus via la puissance", "225 / 275", "250 / 300", .buff),
+                .init("Taric", "Armure et résistance magique", "65", "70", .buff)
+            ]),
+            .init(name: "Correctifs du 22 et 27 octobre", icon: "calendar.badge.clock", changes: [
+                .init("Roncier · 22 oct.", "Soins de la Marque alpha à l’impact", "5 %", "4 %", .nerf),
+                .init("Roncier · 27 oct.", "Armure ignorée par le ratio", "25 %", "10 %", .nerf),
+                .init("Roncier · 27 oct.", "Armure ignorée de base", "25 %", "30 %", .buff),
+                .init("Kha’Zix · 27 oct.", "Dégâts sur les cibles isolées", "280 / 390 / 590", "250 / 350 / 530", .nerf),
+                .init("Main de la justice · 27 oct.", "Omnivampirisme", "15 %", "12 %", .nerf),
+                .init("Main de la justice de la lumière · 27 oct.", "Omnivampirisme", "30 %", "25 %", .nerf)
+            ])
+        ])
     ]
 }
 
@@ -56,6 +150,9 @@ struct PatchHubView: View {
             switch meta.selection.channel {
             case .live:
                 Section("Production") {
+                    FeatureBanner(eyebrow: "RELEASE NOTES · LIVE EUW", title: "Patch " + (meta.live?.pack.patch ?? "EUW"),
+                                  detail: "Équilibrage, correctifs et prochains déploiements", icon: "bolt.horizontal.circle")
+                        .listRowBackground(Color.clear)
                     LabeledContent("Patch TFT associé", value: meta.live?.pack.patch ?? "À confirmer")
                     if let context = meta.context {
                         LabeledContent("Version EUW des ressources Riot", value: meta.euwVersion ?? context.euwAssetVersion)
@@ -66,6 +163,9 @@ struct PatchHubView: View {
                 notesSection(patch: meta.live?.pack.patch)
             case .pbe:
                 Section("Laboratoire PBE") {
+                    FeatureBanner(eyebrow: "SERVEUR EXPÉRIMENTAL", title: "Laboratoire PBE",
+                                  detail: "Versions du client, historique et changements à tester", icon: "flask", accent: .mint)
+                        .listRowBackground(Color.clear)
                     LabeledContent("Build expérimental", value: meta.experimental?.version ?? "Indisponible")
                     if let date = meta.experimental?.retrievedAt { LabeledContent("Date du relevé", value: String(date.prefix(10))) }
                     if let checked = meta.pbeCheckedAt { LabeledContent("Dernière vérification", value: checked.formatted()) }
@@ -110,7 +210,7 @@ struct PatchHubView: View {
                 NavigationLink("Calendrier officiel") { PatchCalendarView() }
                 Button("Importer un instantané archivable") { importing = true }
             }
-        }.navigationTitle("Patches")
+        }.scrollContentBackground(.hidden).background(hexaNavy).navigationTitle("Patches")
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
             switch result {
             case .success(let url): meta.importArchive(url)
@@ -133,16 +233,47 @@ struct PatchHubView: View {
 
 struct PatchNoteView: View {
     let note: PatchNote
+    @State private var category: String?
+
     var body: some View {
-        List {
-            Section("Riot Games · \(note.published)") {
-                Text(note.summary)
-                Link("Lire les notes officielles complètes", destination: note.url)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                FeatureBanner(eyebrow: "RIOT GAMES · " + note.published.uppercased(), title: "Patch " + note.patch,
+                              detail: note.summary, icon: "doc.text.magnifyingglass")
+                HStack {
+                    DashboardMetric(title: "Catégories", value: note.groups.count.formatted())
+                    DashboardMetric(title: "Changements détaillés", value: note.groups.flatMap(\.changes).count.formatted(), accent: .mint)
+                }.padding(.horizontal, 6)
+                Picker("Catégorie", selection: $category) {
+                    Text("Toutes les catégories").tag(nil as String?)
+                    ForEach(note.groups) { Text($0.name).tag(Optional($0.id)) }
+                }.buttonStyle(.bordered).accessibilityIdentifier("patch-category")
+                ForEach(note.groups.filter { category == nil || $0.id == category }) { group in
+                    Label(group.name, systemImage: group.icon).font(.title3.bold())
+                    ForEach(group.changes) { change in changeRow(change) }
+                }
+                Link(destination: note.url) { Label("Notes Riot complètes en français", systemImage: "arrow.up.right.square") }
+                    .buttonStyle(.bordered)
+            }.padding()
+        }.background(hexaNavy).navigationTitle("Patch " + note.patch).navigationBarTitleDisplayMode(.inline)
+    }
+    private func changeRow(_ change: PatchNote.Change) -> some View {
+        Panel {
+            HStack(alignment: .top) {
+                Text(change.title).font(.headline)
+                Spacer()
+                Label(change.direction.label, systemImage: change.direction.icon)
+                    .font(.caption.bold()).foregroundStyle(change.direction.color)
             }
-            ForEach(note.groups) { group in
-                Section(group.name) { ForEach(group.lines, id: \.self) { Text($0).font(.subheadline) } }
+            Text(change.detail).font(.subheadline).foregroundStyle(.secondary)
+            if let before = change.before, let after = change.after {
+                HStack(alignment: .top) {
+                    DashboardMetric(title: "Avant", value: before, accent: .secondary)
+                    Image(systemName: "arrow.right").foregroundStyle(.secondary).accessibilityHidden(true)
+                    DashboardMetric(title: "Après", value: after, accent: change.direction.color)
+                }
             }
-        }.navigationTitle("Patch " + note.patch)
+        }
     }
 }
 
@@ -165,8 +296,9 @@ struct PatchDiffView: View {
     var leftLabel = "LIVE"
     @State private var query = ""
     @State private var kind = "Tous"
+    private var allChanges: [ReferenceChange] { ReferenceChange.compare(left, right) }
     private var changes: [ReferenceChange] {
-        ReferenceChange.compare(left, right).filter { (kind == "Tous" || $0.kind == kind) && (query.isEmpty || $0.name.localizedStandardContains(query)) }
+        allChanges.filter { (kind == "Tous" || $0.kind == kind) && (query.isEmpty || $0.name.localizedStandardContains(query)) }
     }
     var body: some View {
         List {
@@ -177,7 +309,12 @@ struct PatchDiffView: View {
                     Text("Toutes").tag("Tous"); Text("Champions").tag("champion"); Text("Traits").tag("trait")
                     Text("Objets").tag("item"); Text("Optimisations").tag("augment")
                 }
-                Text("Comparaison des libellés, coûts et recettes présents dans les exports. Les valeurs absentes des exports ne sont pas déduites.").font(.caption)
+                HStack {
+                    DashboardMetric(title: "Ajouts", value: allChanges.filter { $0.old == nil }.count.formatted(), accent: .mint)
+                    DashboardMetric(title: "Modifications", value: allChanges.filter { $0.old != nil && $0.new != nil }.count.formatted())
+                    DashboardMetric(title: "Retraits", value: allChanges.filter { $0.new == nil }.count.formatted(), accent: .orange)
+                }
+                Text("Les écarts portent sur les champs présents dans les exports du client.").font(.caption)
             }
             if changes.isEmpty {
                 ContentUnavailableView("Aucun écart dans cette sélection", systemImage: "equal.circle")

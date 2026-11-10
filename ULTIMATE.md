@@ -1,10 +1,10 @@
-# HexaTFT Ultimate 0.4.1
+# HexaTFT Ultimate 0.5.0
 
 ## Audit et périmètre
 
 La version 0.3 mélangeait un seul catalogue de compositions et un seul Codex avec un cache global. Ultimate isole les versions de production, les révisions expérimentales et les archives. Les guides interactifs, favoris, plateaux personnels, recettes et notes existants sont conservés. La copie vers l’atelier utilise le Codex compatible avec ses données historiques.
 
-Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le Codex PBE de CommunityDragon, un comparateur, les notes éditoriales Riot, le calendrier et les actualités esport, un tracker iOS et un serveur Riot privé. Le patch LIVE 18.6 présente trois guides originaux Hexa, avec progression visuelle, équipement par champion, recettes, transitions et plans de secours. Ils ne comportent aucune statistique de performance. Les 48 guides observés sur 18.5 restent accessibles dans Archives. Les nouvelles données natives de composition proviennent d’un flux HTTPS autorisé. Les pages d’origine restent consultables dans l’annuaire. Les PBE historiques de Mobalytics sont des synthèses Hexa datées avec des liens. Les guides du nouveau build apparaissent lorsque le flux autorisé en fournit. L’atelier de synergies lit directement les unités et paliers du build PBE.
+Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le Codex PBE de CommunityDragon, un comparateur, les notes éditoriales Riot, le calendrier et les actualités esport, un tracker iOS et un serveur Riot privé. Le patch LIVE 18.6 présente cinq guides originaux Hexa, avec progression visuelle, équipement par champion, recettes, transitions et plans de secours. Ils ne comportent aucune statistique de performance. Les 48 guides observés sur 18.5 restent accessibles dans Archives. Les nouvelles données natives de composition proviennent d’un flux HTTPS autorisé. Les pages d’origine restent consultables dans l’annuaire. Les PBE historiques de Mobalytics sont des synthèses Hexa datées avec des liens. Les guides du nouveau build apparaissent lorsque le flux autorisé en fournit. L’atelier de synergies lit directement les unités et paliers du build PBE.
 
 ## Audit des sources
 
@@ -21,6 +21,12 @@ Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le C
 | TFTable, HexComps, TFT Handbook, TFTraits | Consultation d’origine | Pages publiques repérées. Autorisation d’import non établie pour ce projet. |
 | Compete TFT | Liens vers les tableaux des tournois | Le flux de points par manche reste à obtenir. |
 
+## Accueil, patches et esport
+
+Le Radar présente une sélection éditoriale de huit mesures publiques relevées le 10 novembre 2026 chez TFT Codex, Tactics.Tools et MetaStats.gg. La période, le rang et le lien d’origine accompagnent chaque relevé. La mention du patch 18.6 est conservée après un changement de patch. Le filtre de MetaStats.gg peut regrouper plusieurs versions, comme indiqué par le fournisseur. Hexa ne recalcule pas de classement commun à ces sources. Les guides natifs et les catalogues statistiques autorisés restent des collections séparées.
+
+Les fiches des patches 18.5 et 18.6 résument les changements de Riot avec catégories et valeurs avant/après. Le fil officiel détecte de nouvelles publications. L’esport affiche le parcours du mondial, les dates et la dotation annoncées, les tableaux officiels des tournois régionaux concernés, les diffusions et le palmarès vérifié d’AUR Huanmie.
+
 ## Actualisation
 
 Hexa vérifie les sources en premier plan sans action manuelle. Les vérifications se répètent suivant des intervalles d’au moins 10 minutes pour les catalogues, 5 minutes pour les articles Riot et 3 minutes pour le tracker configuré. Une requête d’actualisation est soumise à iOS pour l’arrière-plan. Le système choisit l’heure d’exécution. Les fichiers valides sont conservés en cas d’échec. Une nouvelle version EUW archive le précédent catalogue de compositions lorsqu’il existe. Les anciennes révisions PBE sont conservées pour comparaison.
@@ -35,9 +41,9 @@ Pour distribuer un flux, déclarer l’URL HTTPS de l’export autorisé dans la
 
 ## Tracker Riot
 
-Dans l’app, ouvrir **Tracker → Ajouter mon compte**, puis saisir le Riot ID et la région. Le profil est enregistré sur l’iPhone et la fiche publique ouvre le site d’origine Tactics.Tools. La synchronisation native démarre automatiquement lorsque l’édition distribuée comporte un service Riot Hexa actif.
+Dans l’app, ouvrir **Tracker → Ajouter mon compte**, puis saisir le Riot ID et la région. Le profil est enregistré sur l’iPhone et la fiche publique Tactics.Tools s’ouvre dans une feuille Safari du Tracker. La synchronisation native démarre automatiquement lorsque l’édition distribuée comporte un service Riot Hexa actif.
 
-Pour l’exploitation du service Hexa, le serveur Python écoute uniquement sur l’interface locale. Avec le mode proxy public, définir `HEXA_PUBLIC_PROXY=1` et `RIOT_API_KEY` côté serveur, mettre en place un proxy TLS avec limites par client et une surveillance du quota Riot, puis déclarer l’URL HTTPS dans la variable GitHub Actions `HEXA_TRACKER_SERVICE`. L’IPA ne contient que l’URL du service. Le serveur garde au maximum 32 profils en cache mémoire et complète les données de match par lots de 20. L’app conserve les parties déjà reçues et enregistre les LP à partir des relevés réellement reçus.
+Pour l’exploitation du service Hexa, le serveur Python écoute uniquement sur l’interface locale. Avec le mode proxy public, définir `HEXA_PUBLIC_PROXY=1` et `RIOT_API_KEY` côté serveur, mettre en place un proxy TLS avec limites par client et une surveillance du quota Riot, puis déclarer l’URL HTTPS dans la variable GitHub Actions `HEXA_TRACKER_SERVICE`. L’IPA ne contient que l’URL du service. Le tableau natif regroupe les classements, les filtres par mode et set, les graphiques de placements, le détail des matchs et les LP relevés. Le serveur garde au maximum 32 profils en cache mémoire et complète les données de match par lots de 20. L’app conserve les parties déjà reçues et enregistre les LP à partir des relevés réellement reçus.
 
 ## Limites de cette livraison
 

@@ -18,6 +18,11 @@ struct TrackedMatch: Codable, Identifiable {
     let traits: [Trait]
     let augments: [String]
     let lobby: [LobbyPlayer]
+    var duration: Double? = nil
+    var lastRound: Int? = nil
+    var goldLeft: Int? = nil
+    var playerDamage: Int? = nil
+    var playersEliminated: Int? = nil
     var date: Date { Date(timeIntervalSince1970: timestamp) }
     var modeName: String {
         switch queue { case 1100: return "Classé"; case 1090: return "Normal"; case 1160: return "Double Up"; case 1130: return "Hyper Roll"; default: return mode ?? "Autre" }
@@ -32,6 +37,14 @@ struct RiotProfile: Codable {
         let lp: Int
         let wins: Int
         let losses: Int
+        var name: String {
+            switch queue {
+            case "RANKED_TFT": "Classé"
+            case "RANKED_TFT_DOUBLE_UP": "Double Up"
+            case "RANKED_TFT_TURBO": "Hyper Roll"
+            default: queue
+            }
+        }
     }
     let id: String
     let riotID: String
@@ -65,6 +78,7 @@ struct RiotIdentity {
     let tag: String
     let region: String
     var riotID: String { name + "#" + tag }
+    var regionName: String { Self.regions.first(where: { $0.0 == region })?.1 ?? region.uppercased() }
 
     init?(_ input: String, region: String) {
         let parts = input.split(separator: "#", omittingEmptySubsequences: false)
@@ -205,117 +219,260 @@ struct TrackerView: View {
     @EnvironmentObject private var tracker: TrackerStore
     @State private var settings = false
     @State private var confirming = false
-    @State private var window = 20
-    @State private var mode = "Tous"
-    @State private var matchPatch = "Tous"
-    @State private var rankPeriod = 30
-    private var recent: [TrackedMatch] {
-        Array((tracker.profile?.matches ?? []).filter { (mode == "Tous" || $0.modeName == mode) && (matchPatch == "Tous" || $0.patch == matchPatch) }.prefix(window))
-    }
+    @State private var showingPublicProfile = false
+
     var body: some View {
         List {
+            Section {
+                if let identity = tracker.identity {
+                    FeatureBanner(eyebrow: "PROFIL TFT · " + identity.regionName.uppercased(),
+                                  title: identity.riotID, detail: profileStatus, icon: "person.crop.circle", accent: .mint)
+                        .accessibilityIdentifier("tracker-identity")
+                } else {
+                    FeatureBanner(eyebrow: "TRACKER RIOT", title: "Mon compte TFT",
+                                  detail: "Ton rang, tes parties et ta progression au même endroit.", icon: "chart.xyaxis.line", accent: .mint)
+                }
+            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             if let identity = tracker.identity {
                 Section {
-                    Label(identity.riotID, systemImage: "person.crop.circle.fill").font(.title3.bold())
-                    Button("Modifier le profil") { settings = true }
-                    if let url = identity.publicProfile {
-                        Link(destination: url) {
-                            Label("Consulter le profil sur Tactics.Tools", systemImage: "arrow.up.right.square")
+                    if identity.publicProfile != nil {
+                        Button {
+                            showingPublicProfile = true
+                        } label: {
+                            Label("Ouvrir la fiche publique Tactics.Tools", systemImage: "person.text.rectangle")
                         }.accessibilityIdentifier("tracker-public-profile")
                     }
-                    if !tracker.serviceAvailable {
-                        Text("Profil enregistré sur cet iPhone. Les statistiques et l’historique s’ouvrent sur Tactics.Tools. La synchronisation native attend la mise en service de la connexion Riot d’Hexa.").font(.footnote).foregroundStyle(.secondary)
-                    } else if tracker.profile == nil, !tracker.busy {
-                        Text("En attente du premier relevé Riot.").font(.footnote).foregroundStyle(.secondary)
-                    }
+                    Button("Modifier le profil") { settings = true }
                 }
             } else {
                 Section {
-                    Label("Mon compte TFT", systemImage: "person.crop.circle").font(.title3.bold())
-                    Text("Ajoute ton Riot ID et choisis ta région. Ton profil restera accessible depuis cet onglet.").font(.subheadline).foregroundStyle(.secondary)
                     Button("Ajouter mon compte") { settings = true }
+                    Text("Saisis ton Riot ID et ta région. Le profil reste enregistré sur cet iPhone.")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
             }
             if let profile = tracker.profile {
-                Section(profile.riotID) {
-                    LabeledContent("Région", value: profile.region.uppercased())
-                    LabeledContent("Synchronisé", value: Date(timeIntervalSince1970: profile.observedAt).formatted())
-                    if profile.ranks.isEmpty { Text("Aucun classement renvoyé par Riot.") }
-                    ForEach(profile.ranks) { rank in
-                        LabeledContent(rank.queue == "RANKED_TFT" ? "Classé" : rank.queue,
-                            value: "\(rank.tier) \(rank.division) · \(rank.lp) LP")
-                    }
-                }
-                recentSection(profile)
-                if !tracker.points.isEmpty { historySection }
-                if !recent.isEmpty { NavigationLink("Ma méta personnelle") { PersonalMetaView(matches: recent) } }
-                Section("Parties terminées") {
-                    ForEach(recent) { match in
-                        NavigationLink { TrackedMatchView(match: match) } label: {
-                            HStack {
-                                Badge(text: "TOP \(match.placement)", color: match.placement <= 4 ? .mint : .orange)
-                                VStack(alignment: .leading) { Text(match.modeName); Text(match.date, style: .date).font(.caption).foregroundStyle(.secondary) }
-                            }
-                        }
-                    }
-                }
-                Section {
-                    ShareLink(item: csv, subject: Text("HexaTFT · historique")) { Label("Exporter les matchs", systemImage: "square.and.arrow.up") }
-                }
-            }
-            if tracker.identity != nil {
-                Section {
-                    Button("Effacer le profil et l’historique local", role: .destructive) { confirming = true }
+                TrackerDashboard(profile: profile, points: tracker.points)
+                    .id(profile.id + ":" + profile.region)
+            } else if tracker.identity != nil {
+                Section("Données du compte") {
+                    Label("Rang et LP", systemImage: "medal")
+                    Label("Historique et compositions", systemImage: "list.bullet.rectangle")
+                    Label("Progression et statistiques par set", systemImage: "chart.bar.xaxis")
+                    Text(tracker.serviceAvailable ? "En attente du premier relevé Riot." :
+                        "La fiche publique s’ouvre dans le Tracker. Les chiffres natifs seront alimentés par le service Riot Hexa lorsqu’il sera disponible.")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
             }
             if tracker.busy { ProgressView("Synchronisation Riot") }
             if let message = tracker.message { Text(message).font(.caption).foregroundStyle(.orange) }
-            NavigationLink("Journal manuel") { JournalView() }
-        }.navigationTitle("Tracker")
+            Section {
+                NavigationLink("Journal manuel") { JournalView() }
+                if tracker.identity != nil {
+                    Button("Effacer le profil et l’historique local", role: .destructive) { confirming = true }
+                }
+            }
+        }.scrollContentBackground(.hidden).background(hexaNavy).navigationTitle("Tracker")
         .sheet(isPresented: $settings) { TrackerSettingsView() }
+        .sheet(isPresented: $showingPublicProfile) {
+            if let url = tracker.identity?.publicProfile {
+                SafariPage(url: url).ignoresSafeArea().accessibilityIdentifier("tracker-public-safari")
+            }
+        }
         .task(id: tracker.identity.map { $0.region + "/" + $0.riotID }) { await tracker.autoRefresh() }
         .refreshable { await tracker.refresh() }
         .confirmationDialog("Effacer l’historique Riot local ?", isPresented: $confirming) {
             Button("Effacer", role: .destructive) { tracker.erase() }
         }
     }
-    private func recentSection(_ profile: RiotProfile) -> some View {
-        Section("Performances récentes") {
+
+    private var profileStatus: String {
+        if let profile = tracker.profile {
+            return "Riot Games · relevé du " + Date(timeIntervalSince1970: profile.observedAt).formatted(date: .abbreviated, time: .shortened)
+        }
+        return "Riot ID enregistré sur cet iPhone"
+    }
+}
+
+struct TrackerDashboard: View {
+    @EnvironmentObject private var meta: MetaStore
+    let profile: RiotProfile
+    let points: [RankPoint]
+    @State private var tab: Tab = .summary
+    @State private var window = 20
+    @State private var mode: String?
+    @State private var selectedSet: Int?
+    @State private var rankPeriod = 30
+    @State private var rankQueue = "RANKED_TFT"
+
+    enum Tab: String, CaseIterable {
+        case summary = "Aperçu", matches = "Parties", progress = "Progression"
+    }
+
+    private var recent: [TrackedMatch] {
+        Array(profile.matches.filter {
+            (mode == nil || $0.modeName == mode) && (selectedSet == nil || $0.set == selectedSet)
+        }.prefix(window))
+    }
+
+    var body: some View {
+        Section {
+            Picker("Tableau de bord", selection: $tab) {
+                ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented)
+        }
+        switch tab {
+        case .summary:
+            ranks
+            filters
+            performance
+            if !recent.isEmpty {
+                NavigationLink("Ma méta personnelle") { PersonalMetaView(matches: recent) }
+            }
+        case .matches:
+            filters
+            matches
+        case .progress:
+            rankHistory
+            setHistory
+        }
+    }
+
+    private var ranks: some View {
+        Section("Classements Riot") {
+            if profile.ranks.isEmpty { Text("Aucun classement fourni pour ce compte.").foregroundStyle(.secondary) }
+            ForEach(profile.ranks) { rank in
+                Panel {
+                    Label(rank.name, systemImage: "medal").font(.headline).foregroundStyle(.mint)
+                    Text(rank.tier.capitalized + " " + rank.division).font(.title2.bold())
+                    HStack {
+                        DashboardMetric(title: "LP", value: rank.lp.formatted())
+                        DashboardMetric(title: "Victoires Riot", value: rank.wins.formatted(), accent: .mint)
+                        DashboardMetric(title: "Défaites Riot", value: rank.losses.formatted(), accent: .orange)
+                    }
+                }.listRowBackground(Color.clear)
+            }
+        }
+    }
+
+    private var filters: some View {
+        Section("Filtrer l’historique") {
             Picker("Mode", selection: $mode) {
-                ForEach(["Tous"] + Set(profile.matches.map(\.modeName)).sorted(), id: \.self) { Text($0).tag($0) }
+                Text("Tous").tag(nil as String?)
+                ForEach(Set(profile.matches.map(\.modeName)).sorted(), id: \.self) { Text($0).tag(Optional($0)) }
             }
-            Picker("Version Riot", selection: $matchPatch) {
-                ForEach(["Tous"] + Set(profile.matches.compactMap(\.patch)).sorted(), id: \.self) { Text($0).tag($0) }
+            Picker("Set", selection: $selectedSet) {
+                Text("Tous").tag(nil as Int?)
+                ForEach(Set(profile.matches.compactMap(\.set)).sorted(by: >), id: \.self) { Text("Set \($0)").tag(Optional($0)) }
             }
-            Picker("Fenêtre", selection: $window) { ForEach([10,20,50,100], id: \.self) { Text("\($0) parties").tag($0) } }
-            let summary = MatchSummary(recent)
-            Text("\(summary.count) parties disponibles dans cette sélection").font(.caption)
+            Picker("Fenêtre", selection: $window) {
+                ForEach([10, 20, 50, 100], id: \.self) { Text("\($0) parties").tag($0) }
+            }
+        }
+    }
+
+    private var performance: some View {
+        let summary = MatchSummary(recent)
+        return Section("Performances récentes") {
+            Text("\(summary.count) parties dans la sélection").font(.caption).foregroundStyle(.secondary)
             if let average = summary.average, let top4 = summary.top4, let wins = summary.wins {
-                LabeledContent("Moyenne", value: average.formatted(.number.precision(.fractionLength(2))))
-                LabeledContent("Top 4", value: top4.formatted(.percent.precision(.fractionLength(1))))
-                LabeledContent("Victoires", value: wins.formatted(.percent.precision(.fractionLength(1))))
-                Chart(Array(1...8), id: \.self) { place in
+                HStack {
+                    DashboardMetric(title: "Moyenne", value: average.formatted(.number.precision(.fractionLength(2))))
+                    DashboardMetric(title: "Top 4", value: top4.formatted(.percent.precision(.fractionLength(1))), accent: .mint)
+                    DashboardMetric(title: "Top 1", value: wins.formatted(.percent.precision(.fractionLength(1))))
+                }
+                Chart(1...8, id: \.self) { place in
                     BarMark(x: .value("Place", String(place)), y: .value("Parties", recent.filter { $0.placement == place }.count))
-                        .foregroundStyle(place <= 4 ? hexaGold : .gray)
+                        .foregroundStyle(place <= 4 ? Color.mint.gradient : Color.orange.gradient)
                 }.frame(height: 130).accessibilityLabel("Distribution des placements")
             }
         }
     }
-    private var historySection: some View {
-        let points = tracker.points.filter { $0.rank.queue == "RANKED_TFT" && $0.date >= Date().addingTimeInterval(-Double(rankPeriod)*86400) }
-        return Section("LP enregistrés") {
-            Picker("Période", selection: $rankPeriod) { Text("Jour").tag(1); Text("Semaine").tag(7); Text("Mois").tag(30) }.pickerStyle(.segmented)
-            if points.isEmpty { Text("Aucun relevé classé sur cette période.") }
-            else {
-                Chart(points) { point in
-                    PointMark(x: .value("Date", point.date), y: .value("LP", point.rank.lp)).foregroundStyle(hexaGold)
-                }.frame(height: 160).accessibilityLabel("Relevés de LP")
-                ForEach(points.suffix(5).reversed()) { point in
-                    LabeledContent(point.date.formatted(date: .abbreviated, time: .shortened), value: "\(point.rank.tier) \(point.rank.division) · \(point.rank.lp) LP")
+
+    private var matches: some View {
+        Section("Parties terminées") {
+            if recent.isEmpty { Text("Aucune partie pour ces filtres.").foregroundStyle(.secondary) }
+            ForEach(recent) { match in
+                NavigationLink { TrackedMatchView(match: match) } label: {
+                    HStack(spacing: 12) {
+                        Badge(text: "#\(match.placement)", color: match.placement <= 4 ? .mint : .orange)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(match.modeName).font(.headline)
+                            Text(match.date.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+                            if let reference = meta.matchReference(match) {
+                                HStack(spacing: 4) {
+                                    ForEach(Array(match.units.sorted { $0.items.count > $1.items.count }.prefix(4).enumerated()), id: \.offset) { _, unit in
+                                        if let entry = reference.entries.first(where: { $0.id == "champion:" + unit.key }) {
+                                            EntryIcon(entry: entry, size: 26)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        if let set = match.set { Text("SET \(set)").font(.caption2.bold()).foregroundStyle(.secondary) }
+                    }
+                }
+            }
+            if !recent.isEmpty {
+                ShareLink(item: csv, subject: Text("HexaTFT · historique")) {
+                    Label("Exporter les parties", systemImage: "square.and.arrow.up")
                 }
             }
         }
     }
+
+    private var rankHistory: some View {
+        let queues = Set(points.map(\.rank.queue)).sorted()
+        let activeQueue = queues.contains(rankQueue) ? rankQueue : queues.first
+        let selected = points.filter { $0.rank.queue == activeQueue && $0.date >= Date().addingTimeInterval(-Double(rankPeriod) * 86400) }
+        return Section("Évolution des LP") {
+            if queues.count > 1 {
+                Picker("File", selection: Binding(get: { activeQueue ?? rankQueue }, set: { rankQueue = $0 })) {
+                    ForEach(queues, id: \.self) { queue in Text(points.first { $0.rank.queue == queue }?.rank.name ?? queue).tag(queue) }
+                }
+            }
+            Picker("Période", selection: $rankPeriod) {
+                Text("Jour").tag(1); Text("Semaine").tag(7); Text("Mois").tag(30)
+            }.pickerStyle(.segmented)
+            if selected.isEmpty {
+                Text("Aucun relevé Riot sur cette période.").foregroundStyle(.secondary)
+            } else {
+                Chart(selected) { point in
+                    PointMark(x: .value("Date", point.date), y: .value("LP", point.rank.lp))
+                        .foregroundStyle(hexaGold)
+                }.frame(height: 160).accessibilityLabel("Relevés de LP")
+                ForEach(selected.suffix(5).reversed()) { point in
+                    LabeledContent(point.date.formatted(date: .abbreviated, time: .shortened),
+                                   value: "\(point.rank.tier.capitalized) \(point.rank.division) · \(point.rank.lp) LP")
+                }
+            }
+            Text("Le rang et les LP proviennent des relevés Riot. Les LP sont exprimés dans le rang atteint à chaque relevé.").font(.caption)
+        }
+    }
+
+    private var setHistory: some View {
+        let groups = Dictionary(grouping: profile.matches) { $0.set }
+        return Section("Bilan par set") {
+            ForEach(groups.keys.sorted { ($0 ?? 0) > ($1 ?? 0) }, id: \.self) { set in
+                let summary = MatchSummary(groups[set] ?? [])
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(set.map { "Set \($0)" } ?? "Set non renseigné").font(.headline)
+                    HStack {
+                        DashboardMetric(title: "Parties", value: summary.count.formatted())
+                        if let average = summary.average {
+                            DashboardMetric(title: "Moyenne", value: average.formatted(.number.precision(.fractionLength(2))))
+                        }
+                        if let top4 = summary.top4 {
+                            DashboardMetric(title: "Top 4", value: top4.formatted(.percent.precision(.fractionLength(1))), accent: .mint)
+                        }
+                    }
+                }
+            }
+            Text("Bilan calculé sur les parties synchronisées dans Hexa.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
     private var csv: String {
         (["match,date,placement,file,set"] + recent.map { "\($0.id),\($0.date.ISO8601Format()),\($0.placement),\($0.queue ?? 0),\($0.set ?? 0)" }).joined(separator: "\n")
     }
@@ -365,26 +522,26 @@ struct TrackerSettingsView: View {
 struct TrackedMatchView: View {
     @EnvironmentObject private var meta: MetaStore
     let match: TrackedMatch
-    private var reference: ReferenceData? {
-        let build = match.patch?.split(separator: " ").first(where: { $0.first?.isNumber == true }).map(String.init) ?? ""
-        let version = build.split(separator: ".").prefix(2).joined(separator: ".")
-        guard !version.isEmpty else { return nil }
-        return ([meta.live].compactMap { $0 } + meta.archives).first {
-            $0.pack.set == match.set.map(String.init) && $0.pack.data.first?.display_patch == version
-        }?.reference
-    }
+    private var reference: ReferenceData? { meta.matchReference(match) }
     private func name(_ key: String, kind: String) -> String {
         reference?.entries.first { $0.id == kind + ":" + key }?.name ?? key
     }
     var body: some View {
         List {
             Section {
-                LabeledContent("Placement", value: String(match.placement))
-                LabeledContent("Mode", value: match.modeName)
-                LabeledContent("Date", value: match.date.formatted())
+                FeatureBanner(eyebrow: match.modeName.uppercased(), title: "Top " + String(match.placement),
+                              detail: match.date.formatted(), icon: "flag.checkered", accent: match.placement <= 4 ? .mint : .orange)
+                    .listRowBackground(Color.clear)
                 if let set = match.set { LabeledContent("Set", value: String(set)) }
                 if let patch = match.patch { LabeledContent("Version Riot", value: patch) }
                 if let level = match.level { LabeledContent("Niveau final", value: String(level)) }
+                if let duration = match.duration, duration.isFinite, (0...86_400).contains(duration) {
+                    LabeledContent("Durée totale", value: Duration.seconds(duration).formatted(.time(pattern: .minuteSecond)))
+                }
+                if let round = match.lastRound { LabeledContent("Dernière manche Riot", value: round.formatted()) }
+                if let gold = match.goldLeft { LabeledContent("Or restant", value: gold.formatted()) }
+                if let damage = match.playerDamage { LabeledContent("Dégâts aux tacticiens", value: damage.formatted()) }
+                if let eliminated = match.playersEliminated { LabeledContent("Tacticiens éliminés", value: eliminated.formatted()) }
             }
             Section("Équipe finale") {
                 Text("Riot fournit les unités et leur équipement. Les coordonnées des cases ne figurent pas dans la réponse utilisée.").font(.caption)
@@ -394,7 +551,14 @@ struct TrackedMatchView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(name(unit.key, kind: "champion")).font(.headline)
                             if let stars = unit.stars { Text("\(stars) ★").foregroundStyle(hexaGold) }
-                            Text(unit.items.map { name($0, kind: "item") }.joined(separator: " · ")).font(.caption)
+                            ForEach(Array(unit.items.enumerated()), id: \.offset) { _, key in
+                                HStack {
+                                    if let entry = reference?.entries.first(where: { $0.id == "item:" + key }) {
+                                        EntryIcon(entry: entry, size: 22)
+                                    }
+                                    Text(name(key, kind: "item")).font(.caption)
+                                }
+                            }
                         }
                     }
                 }
@@ -408,12 +572,26 @@ struct TrackedMatchView: View {
                     LabeledContent(player.name, value: String(player.placement))
                 }
             }
-        }.navigationTitle("Partie terminée")
+        }.scrollContentBackground(.hidden).background(hexaNavy).navigationTitle("Partie terminée")
     }
 }
 
 
+extension MetaStore {
+    func matchReference(_ match: TrackedMatch) -> ReferenceData? {
+        guard let set = match.set.map(String.init) else { return nil }
+        let build = match.patch?.split(separator: " ").first { $0.first?.isNumber == true } ?? ""
+        let version = build.split(separator: ".").prefix(2).joined(separator: ".")
+        let snapshots = ([live].compactMap { $0 } + archives).filter { $0.pack.set == set }
+        let exact = snapshots.first {
+            !version.isEmpty && ($0.reference?.version.hasPrefix(version + ".") == true || $0.pack.data.first?.display_patch == version)
+        }
+        return exact?.reference ?? snapshots.first?.reference
+    }
+}
+
 struct PersonalMetaView: View {
+    @EnvironmentObject private var meta: MetaStore
     let matches: [TrackedMatch]
     private struct Row: Identifiable {
         let id: String
@@ -437,7 +615,9 @@ struct PersonalMetaView: View {
                         if let average = summary.average { LabeledContent("Moyenne", value: average.formatted(.number.precision(.fractionLength(2)))) }
                         if let rate = summary.top4 { LabeledContent("Top 4", value: rate.formatted(.percent)) }
                         if let rate = summary.wins { LabeledContent("Top 1", value: rate.formatted(.percent)) }
-                        let names = latest.units.sorted { $0.items.count > $1.items.count }.prefix(3).map(\.key)
+                        let names = latest.units.sorted { $0.items.count > $1.items.count }.prefix(3).map { unit in
+                            meta.matchReference(latest)?.entries.first { $0.id == "champion:" + unit.key }?.name ?? unit.key
+                        }
                         Text(names.joined(separator: " · ")).font(.caption)
                         NavigationLink("Voir le dernier plateau joué") { TrackedMatchView(match: latest) }
                     }
