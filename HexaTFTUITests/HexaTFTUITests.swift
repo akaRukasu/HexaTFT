@@ -4,7 +4,7 @@ final class HexaTFTUITests: XCTestCase {
     @MainActor func testBrowsePinAndSources() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.staticTexts["La méta, à portée de main."].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Archives"].waitForExistence(timeout: 15))
         app.buttons["Archives"].tap()
         snapshot("01-meta")
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "meta-card-")).firstMatch
@@ -77,10 +77,22 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Laboratoire PBE"].exists)
         snapshot("10-patches")
         app.tabBars.buttons["Tracker"].tap()
-        XCTAssertTrue(app.buttons["Configurer le tracker"].exists)
-        app.buttons["Configurer le tracker"].tap()
-        XCTAssertTrue(app.textFields["Pseudo#TAG"].exists)
+        app.buttons["Ajouter mon compte"].tap()
+        let id = app.textFields["Pseudo#TAG"]
+        XCTAssertTrue(id.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.textFields["Adresse HTTPS"].exists)
+        XCTAssertFalse(app.secureTextFields.firstMatch.exists)
         snapshot("11-tracker")
+        id.tap()
+        id.typeText("Tactikk#EUW")
+        app.buttons["Enregistrer le profil"].tap()
+        let publicProfile = app.descendants(matching: .any).matching(identifier: "tracker-public-profile").firstMatch
+        XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Tactikk#EUW"].exists)
+        app.terminate()
+        app.launch()
+        app.tabBars.buttons["Tracker"].tap()
+        XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
     }
     @MainActor private func snapshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

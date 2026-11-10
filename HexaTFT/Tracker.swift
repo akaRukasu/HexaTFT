@@ -1,5 +1,4 @@
 import Foundation
-import Security
 import SwiftUI
 import Charts
 
@@ -50,9 +49,41 @@ struct TrackerState: Codable {
     var profiles: [RiotProfile] = []
     var points: [String: [RankPoint]] = [:]
     var selected: String?
-    var endpoint: String = ""
     var region: String = "euw1"
     var riotID: String = ""
+}
+struct RiotIdentity {
+    static let regions = [
+        ("euw1", "Europe Ouest", "euw"), ("eun1", "Europe Nord et Est", "eune"),
+        ("na1", "Amérique du Nord", "na"), ("kr", "Corée", "kr"), ("jp1", "Japon", "jp"),
+        ("br1", "Brésil", "br"), ("la1", "Amérique latine Nord", "lan"), ("la2", "Amérique latine Sud", "las"),
+        ("tr1", "Turquie", "tr"), ("ru", "Russie", "ru"), ("oc1", "Océanie", "oce"),
+        ("sg2", "Asie du Sud-Est", "sea"), ("tw2", "Taïwan", "tw"), ("vn2", "Vietnam", "vn"),
+        ("me1", "Moyen-Orient", "me")
+    ]
+    let name: String
+    let tag: String
+    let region: String
+    var riotID: String { name + "#" + tag }
+
+    init?(_ input: String, region: String) {
+        let parts = input.split(separator: "#", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard parts.count == 2, (1...32).contains(parts[0].count), (1...12).contains(parts[1].count),
+              !parts.contains(where: { $0 == "." || $0 == ".." || $0.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) }),
+              Self.regions.contains(where: { $0.0 == region }) else { return nil }
+        name = parts[0]
+        tag = parts[1]
+        self.region = region
+    }
+
+    var publicProfile: URL? {
+        guard let platform = Self.regions.first(where: { $0.0 == region })?.2 else { return nil }
+        let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/%#?;"))
+        guard let name = name.addingPercentEncoding(withAllowedCharacters: allowed),
+              let tag = tag.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+        return URL(string: "https://tactics.tools/player/" + platform + "/" + name + "/" + tag)
+    }
 }
 struct MatchSummary {
     let count: Int
@@ -84,7 +115,9 @@ final class TrackerTransport: NSObject, URLSessionTaskDelegate {
     private var lastAttempt: Date?
     private var revision = 0
     private lazy var session = URLSession(configuration: .ephemeral, delegate: transport, delegateQueue: nil)
-    init() {
+    private let service: URL?
+    init(service: URL? = TrackerStore.bundledService) {
+        self.service = service
         file = URL.applicationSupportDirectory.appendingPathComponent("HexaTFT/riot-tracker.json")
         if let data = try? Data(contentsOf: file), let cached = try? JSONDecoder().decode(TrackerState.self, from: data) {
             state = cached
@@ -93,66 +126,48 @@ final class TrackerTransport: NSObject, URLSessionTaskDelegate {
     var profile: RiotProfile? { state.profiles.first { $0.id + ":" + $0.region == state.selected } }
     var points: [RankPoint] { state.selected.flatMap { state.points[$0] } ?? [] }
 
-    private var keyQuery: [String: Any] { [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "HexaTFT.Tracker", kSecAttrAccount as String: "gateway"] }
-    private func accessToken() -> String? {
-        var result: CFTypeRef?
-        var query = keyQuery
-        query[kSecReturnData as String] = true
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+    nonisolated static var bundledService: URL? {
+        guard let address = Bundle.main.object(forInfoDictionaryKey: "HexaTrackerService") as? String,
+              let components = URLComponents(string: address), components.scheme == "https",
+              components.host != nil, components.user == nil, components.password == nil,
+              components.query == nil, components.fragment == nil else { return nil }
+        return components.url
     }
+    var identity: RiotIdentity? { RiotIdentity(state.riotID, region: state.region) }
+    var serviceAvailable: Bool { service != nil }
+
     private func persist(_ next: TrackerState) throws {
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONEncoder().encode(next).write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         state = next
     }
-    func configure(endpoint: String, token: String, region: String, riotID: String) async {
-        do {
-            guard let url = URLComponents(string: endpoint), url.scheme == "https", url.host != nil,
-                  url.user == nil, url.password == nil, url.query == nil, url.fragment == nil else {
-                throw DataIssue.invalid("L’adresse du serveur doit utiliser HTTPS.")
-            }
-            let reuse = endpoint == state.endpoint && accessToken() != nil
-            guard token.count >= 24 || (token.isEmpty && reuse) else { throw DataIssue.invalid("Renseigne le jeton de ton serveur Hexa.") }
-            if !token.isEmpty {
-                let data = Data(token.utf8)
-                let attrs = [kSecValueData as String: data]
-                let status = SecItemUpdate(keyQuery as CFDictionary, attrs as CFDictionary)
-                if status == errSecItemNotFound {
-                    var entry = keyQuery
-                    entry[kSecValueData as String] = data
-                    entry[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-                    guard SecItemAdd(entry as CFDictionary, nil) == errSecSuccess else { throw DataIssue.invalid("Impossible de sauvegarder le jeton.") }
-                } else if status != errSecSuccess { throw DataIssue.invalid("Impossible de sauvegarder le jeton.") }
-            }
-            var next = state
-            next.endpoint = endpoint; next.region = region; next.riotID = riotID
-            try persist(next)
-            revision += 1
-            await refresh()
-        } catch { message = error.localizedDescription }
+    func saveProfile(_ identity: RiotIdentity) throws {
+        var next = state
+        next.region = identity.region
+        next.riotID = identity.riotID
+        next.selected = next.profiles.first {
+            $0.region == identity.region && $0.riotID.caseInsensitiveCompare(identity.riotID) == .orderedSame
+        }.map { $0.id + ":" + $0.region }
+        try persist(next)
+        revision += 1
+        busy = false
+        lastAttempt = nil
+        message = nil
     }
     func autoRefresh() async {
-        guard !state.endpoint.isEmpty, !state.riotID.isEmpty,
-              lastAttempt.map({ Date().timeIntervalSince($0) >= 180 }) ?? true else { return }
+        guard lastAttempt.map({ Date().timeIntervalSince($0) >= 180 }) ?? true else { return }
         await refresh()
     }
     func refresh() async {
-        guard !busy else { return }
+        guard !busy, let service, let identity else { return }
         busy = true; lastAttempt = Date(); message = nil
         let ticket = revision
-        defer { busy = false }
+        defer { if ticket == revision { busy = false } }
         do {
-            let id = state.riotID.split(separator: "#", omittingEmptySubsequences: false)
-            guard id.count == 2, !id[0].isEmpty, !id[1].isEmpty,
-                  let endpoint = URL(string: state.endpoint), endpoint.scheme == "https", let token = accessToken() else {
-                throw DataIssue.invalid("Configure le serveur Hexa et le Riot ID au format Pseudo#TAG.")
-            }
-            var request = URLRequest(url: endpoint.appendingPathComponent("v1/tracker"), timeoutInterval: 60)
+            var request = URLRequest(url: service.appendingPathComponent("v1/tracker"), timeoutInterval: 60)
             request.httpMethod = "POST"
-            request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(["name": String(id[0]), "tag": String(id[1]), "region": state.region])
+            request.httpBody = try JSONEncoder().encode(["name": identity.name, "tag": identity.tag, "region": identity.region])
             let (data, response) = try await session.data(for: request)
             guard ticket == revision else { return }
             guard (response as? HTTPURLResponse)?.statusCode == 200 else {
@@ -160,7 +175,7 @@ final class TrackerTransport: NSObject, URLSessionTaskDelegate {
                 throw DataIssue.invalid(error ?? "Le serveur Hexa ne répond pas.")
             }
             var incoming = try JSONDecoder().decode(RiotProfile.self, from: data)
-            guard incoming.region == state.region, incoming.matches.allSatisfy({ (1...8).contains($0.placement) }) else {
+            guard incoming.region == identity.region, incoming.matches.allSatisfy({ (1...8).contains($0.placement) }) else {
                 throw DataIssue.invalid("Les données Riot reçues sont incohérentes.")
             }
             let key = incoming.id + ":" + incoming.region
@@ -183,10 +198,11 @@ final class TrackerTransport: NSObject, URLSessionTaskDelegate {
         }
     }
     func erase() {
-        revision += 1
         do {
             try persist(TrackerState())
-            SecItemDelete(keyQuery as CFDictionary)
+            revision += 1
+            busy = false
+            lastAttempt = nil
             message = nil
         } catch { message = error.localizedDescription }
     }
@@ -205,6 +221,28 @@ struct TrackerView: View {
     }
     var body: some View {
         List {
+            if let identity = tracker.identity {
+                Section {
+                    Label(identity.riotID, systemImage: "person.crop.circle.fill").font(.title3.bold())
+                    Button("Modifier le profil") { settings = true }
+                    if let url = identity.publicProfile {
+                        Link(destination: url) {
+                            Label("Consulter le profil sur Tactics.Tools", systemImage: "arrow.up.right.square")
+                        }.accessibilityIdentifier("tracker-public-profile")
+                    }
+                    if !tracker.serviceAvailable {
+                        Text("Profil enregistré sur cet iPhone. Les statistiques et l’historique s’ouvrent sur Tactics.Tools. La synchronisation native attend la mise en service de la connexion Riot d’Hexa.").font(.footnote).foregroundStyle(.secondary)
+                    } else if tracker.profile == nil, !tracker.busy {
+                        Text("En attente du premier relevé Riot.").font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Section {
+                    Label("Mon compte TFT", systemImage: "person.crop.circle").font(.title3.bold())
+                    Text("Ajoute ton Riot ID et choisis ta région. Ton profil restera accessible depuis cet onglet.").font(.subheadline).foregroundStyle(.secondary)
+                    Button("Ajouter mon compte") { settings = true }
+                }
+            }
             if let profile = tracker.profile {
                 Section(profile.riotID) {
                     LabeledContent("Région", value: profile.region.uppercased())
@@ -230,19 +268,20 @@ struct TrackerView: View {
                 }
                 Section {
                     ShareLink(item: csv, subject: Text("HexaTFT · historique")) { Label("Exporter les matchs", systemImage: "square.and.arrow.up") }
-                    Button("Effacer les données Riot de cet iPhone", role: .destructive) { confirming = true }
                 }
-            } else {
-                ContentUnavailableView("Mon compte TFT", systemImage: "person.crop.circle", description: Text("Associe ton Riot ID à un serveur Hexa autorisé pour récupérer tes matchs terminés."))
-                Button("Configurer le tracker") { settings = true }
+            }
+            if tracker.identity != nil {
+                Section {
+                    Button("Effacer le profil et l’historique local", role: .destructive) { confirming = true }
+                }
             }
             if tracker.busy { ProgressView("Synchronisation Riot") }
             if let message = tracker.message { Text(message).font(.caption).foregroundStyle(.orange) }
             NavigationLink("Journal manuel") { JournalView() }
         }.navigationTitle("Tracker")
-        .toolbar { Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel("Réglages du tracker") }
         .sheet(isPresented: $settings) { TrackerSettingsView() }
-        .refreshable { await tracker.autoRefresh() }
+        .task(id: tracker.identity.map { $0.region + "/" + $0.riotID }) { await tracker.autoRefresh() }
+        .refreshable { await tracker.refresh() }
         .confirmationDialog("Effacer l’historique Riot local ?", isPresented: $confirming) {
             Button("Effacer", role: .destructive) { tracker.erase() }
         }
@@ -292,36 +331,33 @@ struct TrackerView: View {
 struct TrackerSettingsView: View {
     @EnvironmentObject private var tracker: TrackerStore
     @Environment(\.dismiss) private var dismiss
-    @State private var endpoint = ""
-    @State private var token = ""
     @State private var riotID = ""
     @State private var region = "euw1"
+    @State private var error: String?
+    private var identity: RiotIdentity? { RiotIdentity(riotID, region: region) }
     var body: some View {
         NavigationStack {
             Form {
-                Section("Profil") {
-                    TextField("Pseudo#TAG", text: $riotID).autocorrectionDisabled()
+                Section {
+                    TextField("Pseudo#TAG", text: $riotID)
+                        .autocorrectionDisabled().textInputAutocapitalization(.never)
                     Picker("Région", selection: $region) {
-                        ForEach(["euw1","eun1","na1","kr","jp1","br1","la1","la2","tr1","ru","oc1","sg2","tw2","vn2","me1"], id: \.self) {
-                            Text($0.uppercased()).tag($0)
-                        }
+                        ForEach(RiotIdentity.regions, id: \.0) { entry in Text(entry.1).tag(entry.0) }
                     }
+                } footer: {
+                    Text("Dans le client Riot, ton Riot ID est le nom suivi de # et de ton tag.")
                 }
-                Section("Serveur Hexa") {
-                    TextField("Adresse HTTPS", text: $endpoint).keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    SecureField("Jeton d’accès du serveur", text: $token).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Text("Le serveur conserve la clé Riot. Le jeton ci-dessus sert uniquement à protéger l’accès à ton serveur.").font(.caption)
-                }
-                if let message = tracker.message { Text(message).foregroundStyle(.orange) }
-                Button("Enregistrer et synchroniser") {
-                    Task {
-                        await tracker.configure(endpoint: endpoint, token: token, region: region, riotID: riotID.trimmingCharacters(in: .whitespacesAndNewlines))
-                        if tracker.message == nil { dismiss() }
-                    }
-                }.disabled(tracker.busy)
+                if let error { Text(error).foregroundStyle(.orange) }
+                Button("Enregistrer le profil") {
+                    guard let identity else { return }
+                    do {
+                        try tracker.saveProfile(identity)
+                        dismiss()
+                    } catch { self.error = error.localizedDescription }
+                }.disabled(identity == nil)
             }.navigationTitle("Compte Riot")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } } }
-            .onAppear { endpoint = tracker.state.endpoint; riotID = tracker.state.riotID; region = tracker.state.region }
+            .onAppear { riotID = tracker.state.riotID; region = tracker.state.region }
         }
     }
 }

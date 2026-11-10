@@ -16,7 +16,7 @@ struct ChampionLoadout {
 }
 extension MetaComp {
     var finalBoard: GuideBoard {
-        GuideBoard(units: units, positions: units_positions ?? [], sourceLabel: "Plateau final de référence", sample: stats.nb_games, isFinal: true)
+        GuideBoard(units: units, positions: units_positions ?? [], sourceLabel: authored == nil ? "Plateau final de référence" : "Plateau cible Hexa", sample: stats?.nb_games, isFinal: true)
     }
     func board(from variant: MetaVariant, label: String) -> GuideBoard {
         let keys = Set(variant.units.map(\.name))
@@ -44,7 +44,7 @@ extension MetaComp {
         return GuideBoard(units: variant.units, positions: positions, sourceLabel: source, sample: variant.nb_boards, isFinal: false)
     }
     func guideBoards(stage: Stage) -> [GuideBoard] {
-        let stageKey = String(stage.rawValue.prefix(1))
+        let stageKey = authored == nil ? String(stage.rawValue.prefix(1)) : stage.rawValue
         if let variants = variations?.stages?[stageKey]?.filter({ !$0.units.isEmpty }), !variants.isEmpty {
             return Array(variants.prefix(3)).map { board(from: $0, label: "Exemple du stade " + stageKey + "") }
         }
@@ -56,10 +56,10 @@ extension MetaComp {
             if !early.isEmpty { return Array(early.prefix(3)).map { board(from: $0, label: "Ouverture observée") } }
         }
         // Never present an empty sample as a playable board or invent positions.
-        return [GuideBoard(units: units, positions: units_positions ?? [], sourceLabel: "Pas de variante pour ce stade · plateau final de référence", sample: stats.nb_games, isFinal: true)]
+        return [GuideBoard(units: units, positions: units_positions ?? [], sourceLabel: "Pas de variante pour ce stade · plateau final de référence", sample: stats?.nb_games, isFinal: true)]
     }
     func guideBoards(level: String) -> [GuideBoard] {
-        Array((variations?.levels?[level] ?? []).filter { !$0.units.isEmpty }.prefix(3)).map { board(from: $0, label: "Plateau observé niveau " + level + "") }
+        Array((variations?.levels?[level] ?? []).filter { !$0.units.isEmpty }.prefix(3)).map { board(from: $0, label: (authored == nil ? "Plateau observé niveau " : "Plateau proposé niveau ") + level) }
     }
     func loadout(for key: String, on board: GuideBoard) -> ChampionLoadout {
         if let equipped = board.units.first(where: { $0.name == key })?.items, !equipped.isEmpty {

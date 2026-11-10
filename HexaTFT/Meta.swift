@@ -56,10 +56,18 @@ struct MetaCondition: Codable {
     let unit_star_level: Int?
     let trait_min_count: Int?
 }
+struct AuthoredGuide: Codable {
+    let title: String
+    let stages: [String: String]
+    let conditions: String
+    let pivot: String
+    let positioning: String
+    let itemPlans: [String: String]
+}
 struct MetaComp: Codable, Identifiable {
     let comp_id: String
     let slug: String
-    let stats: MetaStats
+    let stats: MetaStats?
     let units: [MetaUnit]
     let units_positions: [MetaPosition]?
     let carry_units: [String]?
@@ -75,8 +83,9 @@ struct MetaComp: Codable, Identifiable {
     let rank: String?
     let region: String?
     let sourceURL: URL?
-    var id: String { "blitz:" + comp_id }
-    var tier: String { [1:"S",2:"A",3:"B",4:"C",5:"D"][stats.tier] ?? "—" }
+    var authored: AuthoredGuide? = nil
+    var id: String { (authored == nil ? "blitz:" : "hexa:") + comp_id }
+    var tier: String { stats.flatMap { [1:"S",2:"A",3:"B",4:"C",5:"D"][$0.tier] } ?? "—" }
     var style: String {
         switch strategy?.type {
         case "fast_8": return "Fast 8"
@@ -90,6 +99,7 @@ struct MetaComp: Codable, Identifiable {
         }
     }
     func economy(at stage: Stage) -> String {
+        if let plan = authored?.stages[stage.rawValue] { return plan }
         let type = strategy?.type ?? "standard"
         let reroll = type.hasPrefix("roll_") || type.hasPrefix("slow_roll_")
         if reroll {
@@ -114,6 +124,7 @@ struct MetaComp: Codable, Identifiable {
     }
     var url: URL { URL(string: "https://blitz.gg/tft/comps/" + slug)! }
     func title(_ reference: ReferenceData?) -> String {
+        if let title = authored?.title { return title }
         let carries = (carry_units ?? []).prefix(2).map { key in reference?.entries.first { $0.id == "champion:" + key }?.name ?? key }
         return carries.isEmpty ? slug.replacingOccurrences(of: "-", with: " ").capitalized : carries.joined(separator: " · ")
     }
@@ -134,7 +145,8 @@ struct MetaPack: Codable {
         let pack = try JSONDecoder().decode(Self.self, from: data)
         guard !pack.data.isEmpty, pack.data.count <= 250, Set(pack.data.map(\.id)).count == pack.data.count,
               pack.data.allSatisfy({ comp in
-                  (1...8).contains(comp.stats.avg_placement) && (0...1).contains(comp.stats.top_4_percent) &&
+                  guard let stats = comp.stats, comp.authored == nil else { return false }
+                  return (1...8).contains(stats.avg_placement) && (0...1).contains(stats.top_4_percent) &&
                   comp.slug.range(of: #"^[a-z0-9-]+$"#, options: .regularExpression) != nil &&
                   !comp.units.isEmpty && Set(comp.units.map(\.name)).count == comp.units.count &&
                   (comp.units_positions ?? []).allSatisfy { (0..<28).contains($0.board_position) }
@@ -224,7 +236,14 @@ struct MetaPack: Codable {
               partnerGuides?.set == experimental?.entries.first?.set else { return nil }
         return partnerGuides
     }
-    var comps: [MetaComp] { (pack?.data ?? []).sorted { $0.stats.avg_placement < $1.stats.avg_placement } }
+    var editorialComps: [MetaComp] {
+        guard pack?.patch == "18.6",
+              let reference, reference.version.hasPrefix("16.22.") else { return [] }
+        return LiveGuideCatalogue.guides.filter { LiveGuideCatalogue.isCompatible($0, with: reference) }
+    }
+    var comps: [MetaComp] {
+        (pack?.data ?? []).sorted { ($0.stats?.avg_placement ?? .infinity) < ($1.stats?.avg_placement ?? .infinity) }
+    }
 
     func select(_ channel: PatchSelection.Channel, archiveID: String? = nil) {
         selection = PatchSelection(channel: channel, archiveID: archiveID ?? selection.archiveID)
@@ -332,7 +351,7 @@ struct MetaPack: Codable {
     }
 
     private func install(_ updated: PatchSnapshot) throws {
-        if let current = live, current.id != updated.id, !current.pack.data.isEmpty {
+        if let current = live, current.id != updated.id, (!current.pack.data.isEmpty || current.pack.patch == "18.6") {
             let next = [current] + archives.filter { $0.id != current.id && $0.id != updated.id }
             try save(next, to: "patch-archives.json")
             archives = next

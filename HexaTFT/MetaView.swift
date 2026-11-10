@@ -21,81 +21,94 @@ struct MetaView: View {
     @State private var style = "Tous"
     @State private var sort = "Moyenne"
     @State private var gems = false
-    private var styles: [String] { ["Tous"] + Set(meta.comps.map(\.style)).sorted() }
+    private var styles: [String] { ["Tous"] + Set((meta.comps + meta.editorialComps).map(\.style)).sorted() }
     private var filtered: [MetaComp] {
-        let comps = meta.comps.filter { comp in
+        let comps = (meta.comps + meta.editorialComps).filter { comp in
             (!favorites || store.state.favorites.contains(comp.id)) &&
             (style == "Tous" || comp.style == style) &&
-            (!gems || (comp.stats.nb_games >= 500 && comp.stats.pick_rate <= 0.03 && comp.stats.avg_placement < 4.5)) &&
+            (!gems || comp.stats.map { $0.nb_games >= 500 && $0.pick_rate <= 0.03 && $0.avg_placement < 4.5 } == true) &&
             (query.isEmpty || searchable(comp).localizedStandardContains(query))
         }
-        return sort == "Top 4" ? comps.sorted { $0.stats.top_4_percent > $1.stats.top_4_percent } : comps
+        return sort == "Top 4" ? comps.sorted { ($0.stats?.top_4_percent ?? -1) > ($1.stats?.top_4_percent ?? -1) } : comps
     }
     private func searchable(_ comp: MetaComp) -> String {
         let ids = Set(comp.units.flatMap { ["champion:" + $0.name] + ($0.items ?? []).map { "item:" + $0 } } +
             (comp.traits ?? []).map { "trait:" + $0.trait_api_name } + (comp.augments ?? []).map { "augment:" + $0 })
         let names = store.reference?.entries.filter { ids.contains($0.id) }.map(\.name) ?? []
-        return ([comp.title(store.reference), comp.style, comp.rank ?? "", comp.region ?? "", meta.sourceName] + names).joined(separator: " ")
+        return ([comp.title(store.reference), comp.style, comp.rank ?? "", comp.region ?? "", comp.authored == nil ? meta.sourceName : "Hexa"] + names).joined(separator: " ")
     }
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
+            LazyVStack(alignment: .leading, spacing: 16) {
                 HexaBrand()
                 PatchPicker()
                 HStack {
-                    Badge(text: "SET \(meta.pack?.set ?? "—")", color: hexaGold)
-                    Badge(text: "PATCH \(meta.pack?.patch ?? "—")", color: hexaGold)
-                    Spacer()
-                    Text("\(meta.comps.count) compos").font(.caption).foregroundStyle(.secondary)
+                    if meta.selection.channel == .pbe {
+                        Badge(text: "SET " + (meta.experimental?.entries.first?.set ?? "—"), color: hexaGold)
+                        if let revision = meta.experimental?.version { Badge(text: "BUILD " + revision, color: .mint) }
+                    } else {
+                        Badge(text: "SET " + (meta.pack?.set ?? "—"), color: hexaGold)
+                        Badge(text: "PATCH " + (meta.pack?.patch ?? meta.euwVersion ?? "—"), color: hexaGold)
+                        Spacer()
+                        Text("\(meta.comps.count + meta.editorialComps.count) guides").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
-                Text("La méta, à portée de main.").font(.title.bold())
-                NavigationLink { SourcesView() } label: {
-                    HStack { Image(systemName: "globe"); Text("Mobalytics · MetaTFT · Blitz").font(.subheadline.bold()); Spacer(); Image(systemName: "arrow.up.right") }
-                        .padding().background(hexaGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
-                }.buttonStyle(.plain).foregroundStyle(hexaGold)
                 if meta.selection.channel == .pbe {
                     PBEGuideList()
                 } else {
-                Text("\(meta.sourceName) · \(String((meta.pack?.retrievedAt ?? "").prefix(10)))")
-                    .font(.caption).foregroundStyle(.secondary)
-                if let message = meta.message { Text(message).font(.caption).foregroundStyle(.secondary) }
-                if meta.comps.isEmpty, meta.selection.channel == .live {
-                    Panel {
-                        Label("Méta du patch", systemImage: "chart.bar").font(.headline)
-                        Text("Le Codex suit la version EUW. Les classements natifs se mettent à jour dès qu’un flux autorisé compatible est connecté.").font(.subheadline)
-                        NavigationLink("Configurer un flux de compositions") { PartnerFeedView() }
-                        Button("Voir les guides archivés") { meta.select(.archives) }
-                        Link("Consulter la méta actuelle sur Blitz", destination: URL(string: "https://blitz.gg/tft/comps")!)
-                    }
-                    if meta.pack?.patch == "18.6" { LiveEditorialView() }
-                } else {
-                Toggle("Pépites de la méta", isOn: $gems)
-                if gems { Text("Fréquence ≤ 3 %, moyenne < 4,50 et au moins 500 parties. Consulte le rang et la région dans chaque fiche.").font(.caption).foregroundStyle(.secondary) }
-                HStack {
-                    Picker("Style", selection: $style) { ForEach(styles, id: \.self) { Text($0).tag($0) } }
-                    Picker("Trier", selection: $sort) { Text("Moyenne").tag("Moyenne"); Text("Top 4").tag("Top 4") }
-                    Spacer()
-                    Button { favorites.toggle() } label: { Image(systemName: favorites ? "star.fill" : "star") }
-                        .accessibilityLabel(favorites ? "Afficher toutes les compos" : "Afficher les favoris")
-                }.tint(hexaGold)
-                ForEach(filtered) { comp in
-                    NavigationLink { MetaDetail(comp: comp) } label: { MetaCard(comp: comp) }.buttonStyle(.plain).accessibilityIdentifier("meta-card-" + comp.comp_id)
+                    guideShelf
                 }
-                if filtered.isEmpty { ContentUnavailableView("Aucune composition", systemImage: "magnifyingglass", description: Text("Change la recherche ou les filtres.")) }
-                Text("Les statistiques et variantes reflètent les observations de la source.").font(.caption).foregroundStyle(.secondary)
-                }
-                }
+                NavigationLink { SourcesView() } label: {
+                    Label("Sources et méthodologie", systemImage: "globe")
+                }.foregroundStyle(hexaGold)
             }.padding()
         }
         .background(hexaNavy).navigationTitle("Méta").navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, prompt: "Champion, composition…")
         .refreshable { if meta.selection.channel == .live { await meta.refresh(reference: store.reference) } }
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) { NavigationLink { TrackerView() } label: { Image(systemName: "person.crop.circle") }.accessibilityLabel("Profil et journal") }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { Task { await meta.refresh(reference: store.reference) } } label: {
-                    if meta.refreshing { ProgressView() } else { Image(systemName: "arrow.clockwise") }
-                }.disabled(meta.refreshing || meta.selection.channel != .live).accessibilityLabel("Actualiser les compositions")
+        .onChange(of: meta.selection) { _, _ in style = "Tous"; gems = false }
+    }
+    private var guideShelf: some View {
+        Group {
+            Text(meta.selection.channel == .archives ? "Guides archivés" : "Guides du patch").font(.title2.bold())
+            if meta.selection.channel == .archives {
+                Text(meta.sourceName + " · " + String((meta.pack?.retrievedAt ?? "").prefix(10)))
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if !meta.comps.isEmpty || !meta.editorialComps.isEmpty {
+                HStack {
+                    if !meta.comps.isEmpty {
+                        Picker("Style", selection: $style) { ForEach(styles, id: \.self) { Text($0).tag($0) } }
+                        Picker("Trier", selection: $sort) { Text("Moyenne").tag("Moyenne"); Text("Top 4").tag("Top 4") }
+                    }
+                    Spacer()
+                    Button { favorites.toggle() } label: { Image(systemName: favorites ? "star.fill" : "star") }
+                        .accessibilityLabel(favorites ? "Afficher toutes les compos" : "Afficher les favoris")
+                }
+                ForEach(filtered) { comp in
+                    NavigationLink { MetaDetail(comp: comp) } label: { MetaCard(comp: comp) }
+                        .buttonStyle(.plain).accessibilityIdentifier("meta-card-" + comp.comp_id)
+                }
+                if filtered.isEmpty { ContentUnavailableView("Aucune composition", systemImage: "magnifyingglass", description: Text("Change la recherche ou les filtres.")) }
+                if !meta.comps.isEmpty {
+                    Toggle("Pépites de la méta", isOn: $gems)
+                    if gems { Text("Fréquence ≤ 3 %, moyenne < 4,50 et au moins 500 parties.").font(.caption).foregroundStyle(.secondary) }
+                }
+            }
+            if meta.selection.channel == .live, meta.comps.isEmpty {
+                Panel {
+                    Label("Classement statistique", systemImage: "chart.bar").font(.headline)
+                    Text("Les guides Hexa donnent des plans de jeu. Les classements chiffrés du patch restent consultables chez leurs fournisseurs.").font(.subheadline).foregroundStyle(.secondary)
+                    NavigationLink("Voir les sources du patch") { SourcesView() }
+                    if let latest = meta.archives.first(where: { !$0.pack.data.isEmpty }) {
+                        Button("Voir les \(latest.pack.data.count) guides du patch \(latest.pack.patch ?? "archivé")") {
+                            meta.select(.archives, archiveID: latest.id)
+                        }
+                    }
+                }
+            }
+            if let message = meta.message, meta.selection.channel == .live {
+                Text(message).font(.caption).foregroundStyle(.secondary)
             }
         }
     }
@@ -106,7 +119,11 @@ struct MetaCard: View {
     var body: some View {
         Panel {
             HStack(alignment: .top) {
-                Text(comp.tier).font(.title.bold()).foregroundStyle(hexaGold).frame(width: 35, height: 40)
+                if comp.authored != nil {
+                    Image(systemName: "hexagon").font(.title2).foregroundStyle(.mint).frame(width: 35, height: 40)
+                } else {
+                    Text(comp.tier).font(.title.bold()).foregroundStyle(hexaGold).frame(width: 35, height: 40)
+                }
                 VStack(alignment: .leading, spacing: 6) {
                     Text(comp.title(store.reference)).font(.title3.bold()).foregroundStyle(.white)
                     Text(comp.style).font(.caption).foregroundStyle(hexaGold)
@@ -115,7 +132,12 @@ struct MetaCard: View {
                 Image(systemName: store.state.favorites.contains(comp.id) ? "star.fill" : "chevron.right").foregroundStyle(hexaGold)
             }
             UnitStrip(units: comp.units)
-            StatsStrip(comp: comp)
+            if let stats = comp.stats {
+                StatsStrip(stats: stats)
+            } else {
+                Label("Guide Hexa · plateaux et objets", systemImage: "point.3.connected.trianglepath.dotted")
+                    .font(.caption).foregroundStyle(.mint)
+            }
         }
     }
 }
@@ -140,13 +162,13 @@ struct UnitStrip: View {
     }
 }
 struct StatsStrip: View {
-    let comp: MetaComp
+    let stats: MetaStats
     var body: some View {
         HStack {
-            metric("Place moy.", String(format: "%.2f",comp.stats.avg_placement))
-            Spacer(); metric("Top 4", String(format: "%.1f %%",comp.stats.top_4_percent * 100))
-            Spacer(); metric("Top 1", String(format: "%.1f %%",comp.stats.top_1_percent * 100))
-            Spacer(); metric("Parties", comp.stats.nb_games.formatted())
+            metric("Place moy.", String(format: "%.2f",stats.avg_placement))
+            Spacer(); metric("Top 4", String(format: "%.1f %%",stats.top_4_percent * 100))
+            Spacer(); metric("Top 1", String(format: "%.1f %%",stats.top_1_percent * 100))
+            Spacer(); metric("Parties", stats.nb_games.formatted())
         }
     }
     private func metric(_ label: String, _ value: String) -> some View {
@@ -169,18 +191,34 @@ struct MetaDetail: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack { Badge(text: "TIER \(comp.tier)", color: hexaGold); Badge(text: comp.style, color: hexaGold); Spacer() }
+                HStack {
+                    if comp.authored != nil { Badge(text: "GUIDE HEXA", color: .mint) }
+                    else { Badge(text: "TIER \(comp.tier)", color: hexaGold) }
+                    Badge(text: comp.style, color: hexaGold)
+                    Spacer()
+                }
                 Text(comp.title(store.reference)).font(.title.bold())
-                StatsStrip(comp: comp)
+                if let stats = comp.stats { StatsStrip(stats: stats) }
                 HStack {
                     Button { store.pinMeta(comp) } label: { Label(store.state.pinnedID == comp.id ? "Épinglée" : "Suivre dans Partie", systemImage: "pin.fill").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent)
                     Button { store.favorite(comp.id) } label: { Image(systemName: store.state.favorites.contains(comp.id) ? "star.fill" : "star") }.buttonStyle(.bordered).accessibilityLabel("Ajouter ou retirer des favoris")
                 }
-                Text("Set \(meta.pack?.set ?? "—") · Patch \(meta.pack?.patch ?? "—") · \(meta.sourceName)")
+                Text("Set \(meta.pack?.set ?? "—") · Patch \(meta.pack?.patch ?? "—") · \(comp.authored == nil ? meta.sourceName : "Plan éditorial Hexa")")
                     .font(.caption).foregroundStyle(.secondary)
                 VisualCompositionGuide(comp: comp, stage: $stage)
-                CompositionEvidence(comp: comp)
-                if !similar.isEmpty {
+                if let plan = comp.authored {
+                    Panel {
+                        Label("Quand jouer ce plan", systemImage: "map").font(.headline)
+                        Text(plan.conditions)
+                        Text("Placement").font(.headline)
+                        Text(plan.positioning)
+                        Text("Plan de secours").font(.headline)
+                        Text(plan.pivot)
+                    }.font(.subheadline)
+                } else {
+                    CompositionEvidence(comp: comp)
+                }
+                if comp.authored == nil, !similar.isEmpty {
                     Panel {
                         Label("Plans proches sur ce patch", systemImage: "arrow.triangle.branch").font(.headline)
                         Text("Au moins la moitié des champions sont communs sur l’ensemble des deux plateaux. Vérifie les porteurs avant de transférer tes objets.").font(.caption)
@@ -208,8 +246,12 @@ struct MetaDetail: View {
                 }
                 Panel {
                     Text("Source et contexte").font(.headline)
-                    Text("\(meta.sourceName) · \(comp.region ?? "WORLD") · \(comp.rank ?? "PLATINUM+") · \(comp.stats.nb_games.formatted()) parties").font(.caption).foregroundStyle(.secondary)
-                    Text("Version des statistiques déclarée par la source : \(comp.display_patch ?? "—"). Le patch de la page est indiqué dans Méta.").font(.caption).foregroundStyle(.secondary)
+                    if let stats = comp.stats {
+                        Text("\(meta.sourceName) · \(comp.region ?? "WORLD") · \(comp.rank ?? "PLATINUM+") · \(stats.nb_games.formatted()) parties").font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        Text("Positions et parcours proposés par Hexa. Aucun taux de victoire ni échantillon associé.").font(.caption).foregroundStyle(.secondary)
+                    }
+                    if comp.stats != nil { Text("Version des statistiques déclarée par la source : \(comp.display_patch ?? "—"). Le patch de la page est indiqué dans Méta.").font(.caption).foregroundStyle(.secondary) }
                     if meta.sourceName == "Blitz" {
                         Link("Consulter la fiche originale Blitz", destination: comp.url)
                     } else if let url = comp.sourceURL, url.scheme == "https" {

@@ -1,10 +1,10 @@
-# HexaTFT Ultimate 0.4
+# HexaTFT Ultimate 0.4.1
 
 ## Audit et périmètre
 
 La version 0.3 mélangeait un seul catalogue de compositions et un seul Codex avec un cache global. Ultimate isole les versions de production, les révisions expérimentales et les archives. Les guides interactifs, favoris, plateaux personnels, recettes et notes existants sont conservés. La copie vers l’atelier utilise le Codex compatible avec ses données historiques.
 
-Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le Codex PBE de CommunityDragon, un comparateur, les notes éditoriales Riot, le calendrier et les actualités esport, un tracker iOS et un serveur Riot privé. Le catalogue Blitz du 3 novembre reste accessible dans Archives. Les nouvelles données natives de composition proviennent d’un flux HTTPS autorisé. Les pages d’origine restent consultables dans l’annuaire. Les PBE historiques de Mobalytics sont des synthèses Hexa datées avec des liens. Les guides du nouveau build apparaissent lorsque le flux autorisé en fournit. L’atelier de synergies lit directement les unités et paliers du build PBE.
+Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le Codex PBE de CommunityDragon, un comparateur, les notes éditoriales Riot, le calendrier et les actualités esport, un tracker iOS et un serveur Riot privé. Le patch LIVE 18.6 présente trois guides originaux Hexa, avec progression visuelle, équipement par champion, recettes, transitions et plans de secours. Ils ne comportent aucune statistique de performance. Les 48 guides observés sur 18.5 restent accessibles dans Archives. Les nouvelles données natives de composition proviennent d’un flux HTTPS autorisé. Les pages d’origine restent consultables dans l’annuaire. Les PBE historiques de Mobalytics sont des synthèses Hexa datées avec des liens. Les guides du nouveau build apparaissent lorsque le flux autorisé en fournit. L’atelier de synergies lit directement les unités et paliers du build PBE.
 
 ## Audit des sources
 
@@ -35,9 +35,11 @@ Dans **Plus → Flux de compositions**, renseigner l’URL HTTPS d’un export q
 
 ## Tracker Riot
 
-Le serveur privé `server/tracker.py` utilise Python 3 sans dépendance. Le déployer derrière un proxy HTTPS et définir `RIOT_API_KEY` avec un accès TFT autorisé, puis `HEXA_ACCESS_TOKEN` avec un jeton aléatoire d’au moins 24 caractères. Le service écoute sur l’interface locale au port 8080 par défaut. Il ne doit être rendu accessible que par le proxy, avec limites de requêtes et d’expiration adaptées. Le token Riot reste côté serveur. Le serveur ne conserve pas de profil sur disque.
+Dans l’app, ouvrir **Tracker → Ajouter mon compte**, puis saisir le Riot ID et la région. Le profil est enregistré sur l’iPhone et la fiche publique ouvre le site d’origine Tactics.Tools. La synchronisation native démarre automatiquement lorsque l’édition distribuée comporte un service Riot Hexa actif.
 
-Sur iPhone, ouvrir **Tracker → Réglages**, saisir le Riot ID, la région, l’adresse HTTPS et le jeton du serveur Hexa. Le jeton est gardé dans le trousseau iOS. Le serveur charge jusqu’à 100 identifiants et complète les matchs par lots d’au plus 20 pour respecter les quotas. L’app conserve les parties déjà reçues, calcule ses statistiques par sélection et enregistre les LP à partir des relevés réellement reçus. L’effacement est disponible dans le Tracker.
+Pour l’exploitation du service Hexa, le serveur Python écoute uniquement sur l’interface locale. Avec le mode proxy public, définir `HEXA_PUBLIC_PROXY=1` et `RIOT_API_KEY` côté serveur, mettre en place un proxy TLS avec limites par client et une surveillance du quota Riot, puis déclarer l’URL HTTPS dans la variable GitHub Actions `HEXA_TRACKER_SERVICE`. L’IPA ne contient que l’URL du service. Le serveur garde au maximum 32 profils en cache mémoire et complète les données de match par lots de 20. L’app conserve les parties déjà reçues et enregistre les LP à partir des relevés réellement reçus.
+
+## Limites de cette livraison
 
 ## Limites restantes
 

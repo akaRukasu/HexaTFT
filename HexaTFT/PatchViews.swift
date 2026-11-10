@@ -231,8 +231,10 @@ struct MetaComparisonView: View {
                     if let older = previous[comp.slug] {
                         VStack(alignment: .leading, spacing: 5) {
                             Text(comp.title(new.reference)).font(.headline)
-                            Text("\(older.tier) → \(comp.tier) · moyenne \(older.stats.avg_placement, format: .number.precision(.fractionLength(2))) → \(comp.stats.avg_placement, format: .number.precision(.fractionLength(2)))")
-                            Text("\(older.stats.nb_games.formatted()) → \(comp.stats.nb_games.formatted()) parties").font(.caption).foregroundStyle(.secondary)
+                            if let earlier = older.stats, let newer = comp.stats {
+                                Text("\(older.tier) → \(comp.tier) · moyenne \(earlier.avg_placement, format: .number.precision(.fractionLength(2))) → \(newer.avg_placement, format: .number.precision(.fractionLength(2)))")
+                                Text("\(earlier.nb_games.formatted()) → \(newer.nb_games.formatted()) parties").font(.caption).foregroundStyle(.secondary)
+                            }
                             if Set(older.carry_units ?? []) != Set(comp.carry_units ?? []) { Text("Carries différents").font(.caption) }
                             if Set(older.units.flatMap { $0.items ?? [] }) != Set(comp.units.flatMap { $0.items ?? [] }) { Text("Équipements différents").font(.caption) }
                         }

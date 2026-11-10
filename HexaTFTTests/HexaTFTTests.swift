@@ -178,4 +178,33 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertEqual(summary.wins, 1.0 / 3)
         XCTAssertNil(MatchSummary([]).average)
     }
+    @MainActor func testCurrentHexaGuidesHaveValidStagesAndEquipmentWithoutInventedStats() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let meta = MetaStore(directory: directory)
+        XCTAssertEqual(meta.editorialComps.count, 3)
+        for comp in meta.editorialComps {
+            XCTAssertNil(comp.stats)
+            XCTAssertNil(comp.finalBoard.sample)
+            XCTAssertEqual(Set(comp.finalBoard.positions.map(\.unit_api_name)), comp.finalBoard.keys)
+            for stage in Stage.allCases {
+                let board = try XCTUnwrap(comp.guideBoards(stage: stage).first)
+                XCTAssertFalse(board.positions.isEmpty)
+                XCTAssertEqual(Set(board.positions.map(\.board_position)).count, board.positions.count)
+                XCTAssertNotNil(comp.authored?.stages[stage.rawValue])
+            }
+        }
+        meta.select(.pbe)
+        XCTAssertTrue(meta.editorialComps.isEmpty)
+        try? FileManager.default.removeItem(at: directory)
+    }
+
+    func testPublicRiotProfileUsesSeparateEscapedNameAndTag() throws {
+        let identity = try XCTUnwrap(RiotIdentity("Tactikk # EUW", region: "euw1"))
+        XCTAssertEqual(identity.riotID, "Tactikk#EUW")
+        XCTAssertEqual(identity.publicProfile?.absoluteString, "https://tactics.tools/player/euw/Tactikk/EUW")
+        XCTAssertEqual(RiotIdentity("Nom Avec Espace#EUW", region: "euw1")?.publicProfile?.absoluteString,
+                       "https://tactics.tools/player/euw/Nom%20Avec%20Espace/EUW")
+        XCTAssertNil(RiotIdentity("Tactikk", region: "euw1"))
+        XCTAssertNil(RiotIdentity("Tactikk#EUW", region: "invalid"))
+    }
 }

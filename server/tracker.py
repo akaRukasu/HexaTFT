@@ -15,6 +15,7 @@ CACHE = {}
 BUDGET = []
 KEY = os.environ.get("RIOT_API_KEY", "")
 TOKEN = os.environ.get("HEXA_ACCESS_TOKEN", "")
+PUBLIC_PROXY = os.environ.get("HEXA_PUBLIC_PROXY") == "1"
 
 class GatewayError(Exception):
     def __init__(self, code, message):
@@ -117,7 +118,7 @@ class Handler(BaseHTTPRequestHandler):
             if urlsplit(self.path).path != "/v1/tracker":
                 raise GatewayError(404,"Route inconnue.")
             auth = self.headers.get("Authorization","").encode()
-            if not hmac.compare_digest(auth, ("Bearer "+TOKEN).encode()):
+            if not PUBLIC_PROXY and not hmac.compare_digest(auth, ("Bearer "+TOKEN).encode()):
                 raise GatewayError(401,"Jeton d’accès au serveur invalide.")
             size = int(self.headers.get("Content-Length",0))
             if not 0 < size <= 1024:
@@ -141,6 +142,6 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
 if __name__ == "__main__":
-    if not KEY or len(TOKEN)<24:
-        raise SystemExit("Configurer RIOT_API_KEY et HEXA_ACCESS_TOKEN (24 caractères ou plus).")
+    if not KEY or (not PUBLIC_PROXY and len(TOKEN)<24):
+        raise SystemExit("Configurer RIOT_API_KEY et le mode proxy public ou le jeton privé.")
     HTTPServer(("127.0.0.1",int(os.environ.get("HEXA_PORT","8080"))),Handler).serve_forever()

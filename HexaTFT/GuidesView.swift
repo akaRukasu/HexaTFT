@@ -111,11 +111,11 @@ struct CompanionView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 PatchPicker()
-                if let composition = meta.comps.first(where: { $0.id == store.state.pinnedID }) {
+                if let composition = (meta.comps + meta.editorialComps).first(where: { $0.id == store.state.pinnedID }) {
                     Text(composition.title(store.reference)).font(.title2.bold())
                     VisualCompositionGuide(comp: composition, stage: Binding(get: { store.state.stage }, set: { store.setStage($0) }))
                     EquipmentRoster(comp: composition)
-                    NavigationLink("Guide complet et statistiques") { MetaDetail(comp: composition) }.buttonStyle(.bordered)
+                    NavigationLink(composition.stats == nil ? "Guide complet" : "Guide complet et statistiques") { MetaDetail(comp: composition) }.buttonStyle(.bordered)
                     Toggle("Garder l’écran allumé ici", isOn: $stayAwake)
                 } else if let guide = store.pinned {
                     Text(guide.name).font(.largeTitle.bold())

@@ -59,7 +59,7 @@ struct VisualCompositionGuide: View {
                         Label("Nouveau", systemImage: "plus.circle.fill").foregroundStyle(.mint)
                         Label("Objet cible", systemImage: "circle.dashed").foregroundStyle(hexaGold)
                     }.font(.system(size: 10))
-                    Text("Icônes pleines : objets observés. Pointillés : équipement visé ou à transférer, pas encore observé sur ce plateau.").font(.caption2).foregroundStyle(.secondary)
+                    Text(comp.authored == nil ? "Icônes pleines pour les objets observés, pointillés pour les objets visés ou à transférer." : "Équipement conseillé. Les pointillés indiquent les objets à transférer au porteur final.").font(.caption2).foregroundStyle(.secondary)
                     Text(board.sourceLabel).font(.caption2).foregroundStyle(.secondary)
                     if let sample = board.sample { Text("\(sample.formatted()) plateaux / parties dans cet exemple").font(.caption2).foregroundStyle(.secondary) }
                 }
@@ -70,7 +70,7 @@ struct VisualCompositionGuide: View {
                     Panel {
                         Label("Le plan à cette étape", systemImage: "flag.checkered").font(.headline)
                         Text(comp.economy(at: stage)).font(.subheadline).foregroundStyle(.secondary)
-                        Text("Repères généraux du style · plateaux observés par la source").font(.caption2).foregroundStyle(.secondary)
+                        Text(comp.authored == nil ? "Repères généraux du style · plateaux observés par la source" : "Plan de jeu et plateau proposés par Hexa").font(.caption2).foregroundStyle(.secondary)
                         HStack {
                             Button { advance(-1) } label: { Label("Précédente", systemImage: "chevron.left") }.disabled(stage == Stage.allCases.first)
                             Spacer()
@@ -279,14 +279,18 @@ struct ChampionEquipmentView: View {
                 if plan.isProjected {
                     Label(plan.target == unitKey ? "Équipement cible du plateau final" : "Porteur temporaire d’objets", systemImage: "circle.dashed").font(.headline).foregroundStyle(hexaGold)
                     if plan.target != unitKey { TransferPortraits(from: unitKey, to: plan.target) }
-                    Text("Ces objets sont un objectif du guide ; ils ne sont pas observés sur ce champion dans l’exemple sélectionné.").font(.caption).foregroundStyle(.secondary)
-                } else { Badge(text: "TRIO OBSERVÉ", color: hexaGold) }
+                    Text(comp.authored == nil ? "Ces objets sont un objectif du guide." : "Fabrique-les sur ce porteur puis transfère-les au champion cible.").font(.caption).foregroundStyle(.secondary)
+                } else if plan.hasItems { Badge(text: comp.authored == nil ? "TRIO OBSERVÉ" : "OBJETS CONSEILLÉS", color: hexaGold) }
                 if items.isEmpty {
                     Text("Aucun équipement n’est fourni pour ce porteur à cette étape. Les autres porteurs du plateau final sont détaillés dans la fiche de composition.").font(.subheadline).foregroundStyle(.secondary)
                 } else {
                     ItemIcons(keys: items, size: 48)
-                    Text(alternate == nil ? "Le trio de référence" : "Alternative observée").font(.headline)
-                    Text("Les trois objets sont présentés comme un ensemble. La source ne précise pas d’ordre de fabrication.").font(.caption).foregroundStyle(.secondary)
+                    Text(alternate == nil ? "Le trio de référence" : comp.authored == nil ? "Alternative observée" : "Trio de secours").font(.headline)
+                    if let advice = comp.authored?.itemPlans[plan.target] {
+                        Text(advice).font(.subheadline).foregroundStyle(.secondary)
+                    } else {
+                        Text("La source présente ces objets comme un ensemble, sans ordre de fabrication.").font(.caption).foregroundStyle(.secondary)
+                    }
                     ForEach(Array(items.enumerated()), id: \.offset) { index, key in
                         if let item = store.reference?.entries.first(where: { $0.id == "item:" + key }) { EquipmentRecipeCard(item: item, slot: index + 1) }
                     }
@@ -300,7 +304,7 @@ struct ChampionEquipmentView: View {
     }
     private var alternativesSection: some View {
         Panel {
-            Label("Autres trios observés", systemImage: "arrow.triangle.swap").font(.headline)
+            Label(comp.authored == nil ? "Autres trios observés" : "Remplacements selon tes composants", systemImage: "arrow.triangle.swap").font(.headline)
             Button("Revenir au trio de référence") { alternate = nil }.buttonStyle(.bordered).disabled(alternate == nil)
             ForEach(Array(alternatives.enumerated()), id: \.offset) { index, trio in
                 Button { alternate = index } label: {
@@ -314,7 +318,7 @@ struct ChampionEquipmentView: View {
                     }.padding(10).background(alternate == index ? hexaGold.opacity(0.12) : .white.opacity(0.035), in: RoundedRectangle(cornerRadius: 14))
                 }.buttonStyle(.plain).accessibilityIdentifier("equipment-alternative-\(index)")
             }
-            Text("Les résultats des trios portent sur des échantillons différents ; ils ne prouvent pas qu’une alternative est meilleure.").font(.caption2).foregroundStyle(.secondary)
+            if comp.authored == nil { Text("Les trios proviennent d’échantillons différents.").font(.caption2).foregroundStyle(.secondary) }
         }
     }
     private var transfersSection: some View {
@@ -326,7 +330,7 @@ struct ChampionEquipmentView: View {
                     ForEach(Array(holders.enumerated()), id: \.offset) { _, holder in
                         ForEach(Array(holder.stats.prefix(3).enumerated()), id: \.offset) { _, candidate in TransferPortraits(from: candidate.early_game_carry_api_name, to: unitKey) }
                     }
-                    Text("Associations de porteurs observées par la source. Vérifie ton remplacement avant de vendre le porteur temporaire pour récupérer ses objets.").font(.caption).foregroundStyle(.secondary)
+                    Text(comp.authored == nil ? "Associations de porteurs observées par la source." : "Porteurs proposés par Hexa. Sécurise le remplaçant avant de transférer les objets.").font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
