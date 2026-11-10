@@ -43,18 +43,12 @@ def make_reference(raw, number, revision, retrieved, source, art_root):
     return dict(version=revision, source=source, retrievedAt=retrieved, entries=list(entries.values()))
 
 def seed(captures):
-    archive=read(RES/"meta.json")
     base=read(RES/"reference.json")
-    page=(captures/"blitz-current.download").read_text(encoding="utf-8")
-    patch=re.search(r"Patch (\d+\.\d+[a-z]?)",page).group(1)
-    number=int(re.search(r"TFT Set (\d+)",page).group(1))
-    matches=[json.loads(json.loads(body)["body"]) for attrs,body in re.findall(r"<script([^>]*)>(.*?)</script>",page,re.S)
-             if "data-sveltekit-fetched" in attrs and "/analyzed_comps?" in attrs]
-    assert len(matches)==1
+    # 18.6 and 16.22 were cross-checked with Riot's published notes and EUW realm.
+    patch, number = "18.6", 18
     timestamp="2026-11-10"
     live_version=read(captures/"live-meta.download")["version"].split("+")[0]
     pbe_version=read(captures/"pbe-meta.download")["version"].split("+")[0]
-    assert {c["display_patch"] for c in matches[0]["data"]} == {".".join(live_version.split(".")[:2])}
     assert read(captures/"riot-euw.download")["v"].startswith(".".join(live_version.split(".")[:2])+".")
     live_raw=read(captures/"live.download")
     pbe_raw=read(captures/"pbe.download")
@@ -67,17 +61,13 @@ def seed(captures):
         prior=old.get(e["id"])
         if prior and not e["components"] and prior.get("components"):
             e["components"]=prior["components"]
-    champion_keys={e["id"].split(":",1)[1] for e in live_ref["entries"] if e["kind"]=="champion"}
-    fields=set(archive["data"][0]) | {"carousel_priority","play_conditions"}
-    data=[{k:v for k,v in c.items() if k in fields} for c in matches[0]["data"] if all(u["name"] in champion_keys for u in c["units"])]
-    assert data
-    write("live-meta.json",dict(data=data,patch=patch,set=str(number),retrievedAt=timestamp))
+    write("live-meta.json",dict(data=[],patch=patch,set=str(number),retrievedAt=timestamp))
     write("live-reference.json",live_ref)
     write("pbe-reference.json",make_reference(pbe_raw,number,pbe_version,timestamp,
         "https://raw.communitydragon.org/pbe/cdragon/tft/fr_fr.json","https://raw.communitydragon.org/pbe/game/"))
     write("ultimate-context.json",dict(liveBuild=live_version,pbeBuild=pbe_version,pbeObservedAt="2026-11-09",
         pbeDigest=hashlib.sha256((captures/"pbe.download").read_bytes()).hexdigest(),euwAssetVersion=read(captures/"riot-euw.download")["v"]))
-    print(f"LIVE {patch}: {len(data)} compositions, {len(live_ref['entries'])} entrées. PBE: {pbe_version}.")
+    print(f"LIVE {patch}: {len(live_ref['entries'])} entrées. PBE: {pbe_version}.")
 
 if __name__ == "__main__":
     seed(ROOT / "research")

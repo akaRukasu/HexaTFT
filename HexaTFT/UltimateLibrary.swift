@@ -153,6 +153,7 @@ struct UltimateLibraryView: View {
             Section("Mes données et références") {
                 NavigationLink { JournalView() } label: { Label("Journal manuel", systemImage: "book") }
                 NavigationLink { SourcesView() } label: { Label("Sources", systemImage: "globe") }
+                NavigationLink { PartnerFeedView() } label: { Label("Flux de compositions", systemImage: "arrow.trianglehead.clockwise") }
                 NavigationLink { ProviderDirectoryView() } label: { Label("Annuaire des fournisseurs", systemImage: "link") }
             }
         }.navigationTitle("Plus")
@@ -173,7 +174,7 @@ struct ProviderDirectoryView: View {
     var body: some View {
         List {
             Section("Données natives") {
-                Label("Blitz · compositions et statistiques", systemImage: "chart.bar")
+                Label("Blitz · catalogue historique", systemImage: "chart.bar")
                 Label("CommunityDragon · Codex et révisions", systemImage: "books.vertical")
                 Label("Riot · nouvelles officielles et tracker", systemImage: "person.text.rectangle")
             }
@@ -181,5 +182,34 @@ struct ProviderDirectoryView: View {
                 ForEach(sites.indices, id: \.self) { index in Link(sites[index].0, destination: URL(string: sites[index].1)!) }
             }
         }.navigationTitle("Fournisseurs")
+    }
+}
+
+
+struct PartnerFeedView: View {
+    @EnvironmentObject private var meta: MetaStore
+    @State private var address = ""
+    @State private var error: String?
+    var body: some View {
+        Form {
+            Section("Flux autorisé") {
+                TextField("Adresse HTTPS du flux", text: $address)
+                    .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                Text("Hexa synchronise ce flux en arrière-plan et vérifie la compatibilité avec les versions LIVE et PBE. L’adresse vide déconnecte le flux.").font(.caption)
+                Button("Enregistrer") {
+                    do {
+                        try meta.configureFeed(address)
+                        error = nil
+                        Task { await meta.autoRefresh() }
+                    } catch { self.error = error.localizedDescription }
+                }
+                if let error { Text(error).foregroundStyle(.orange) }
+                if let message = meta.message { Text(message).font(.caption).foregroundStyle(.secondary) }
+            }
+            Section("Catalogue historique") {
+                Text("Les guides et les plateaux déjà embarqués sont disponibles dans Archives.")
+            }
+        }.navigationTitle("Flux de compositions")
+        .onAppear { address = meta.feedURL?.absoluteString ?? "" }
     }
 }

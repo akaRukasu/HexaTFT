@@ -134,7 +134,7 @@ final class HexaTFTTests: XCTestCase {
         let meta = MetaStore(directory: directory)
         let live = try XCTUnwrap(meta.pack)
         XCTAssertEqual(live.patch, "18.6")
-        XCTAssertTrue(live.data.allSatisfy { $0.display_patch == "16.22" })
+        XCTAssertTrue(live.data.isEmpty)
         let liveCodex = try XCTUnwrap(meta.reference?.version)
         meta.select(.pbe)
         XCTAssertTrue(meta.comps.isEmpty)

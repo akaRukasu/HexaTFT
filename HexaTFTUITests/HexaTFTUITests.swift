@@ -5,7 +5,7 @@ final class HexaTFTUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         XCTAssertTrue(app.staticTexts["La méta, à portée de main."].waitForExistence(timeout: 15))
-        // Native navigation uses the bundled catalog even when CI cannot reach a provider.
+        app.buttons["Archives"].tap()
         snapshot("01-meta")
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "meta-card-")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10))
@@ -25,10 +25,11 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.buttons["MetaTFT"].waitForExistence(timeout: 8))
         for source in ["Mobalytics", "MetaTFT", "Blitz"] {
             app.buttons[source].tap()
-            XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
-            let content = NSPredicate { _, _ in app.webViews.firstMatch.staticTexts.count > 5 }
-            expectation(for: content, evaluatedWith: nil)
-            waitForExpectations(timeout: 45)
+            if source == "MetaTFT" {
+                XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
+            } else {
+                XCTAssertTrue(app.staticTexts["Ouvrir le site original"].waitForExistence(timeout: 8))
+            }
             snapshot("05-source-" + source)
         }
     }

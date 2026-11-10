@@ -86,7 +86,7 @@ struct EntryIcon: View {
     var size: CGFloat = 42
     var body: some View {
         Group {
-            if entry.imageURL.contains("blitz-cdn.blitz.gg"), let local = UIImage(named: String(entry.id.split(separator: ":").last ?? "")) {
+            if entry.set == "18", let local = UIImage(named: String(entry.id.split(separator: ":").last ?? "")) {
                 Image(uiImage: local).resizable().scaledToFill()
             } else {
                 AsyncImage(url: URL(string: entry.imageURL)) { image in image.resizable().scaledToFill() }

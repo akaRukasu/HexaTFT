@@ -35,7 +35,7 @@ struct MetaView: View {
         let ids = Set(comp.units.flatMap { ["champion:" + $0.name] + ($0.items ?? []).map { "item:" + $0 } } +
             (comp.traits ?? []).map { "trait:" + $0.trait_api_name } + (comp.augments ?? []).map { "augment:" + $0 })
         let names = store.reference?.entries.filter { ids.contains($0.id) }.map(\.name) ?? []
-        return ([comp.title(store.reference), comp.style, comp.rank ?? "", comp.region ?? "", "Blitz"] + names).joined(separator: " ")
+        return ([comp.title(store.reference), comp.style, comp.rank ?? "", comp.region ?? "", meta.sourceName] + names).joined(separator: " ")
     }
     var body: some View {
         ScrollView {
@@ -56,11 +56,21 @@ struct MetaView: View {
                 if meta.selection.channel == .pbe {
                     PBEGuideList()
                 } else {
-                Text("Fiches natives : Blitz · \(String((meta.pack?.retrievedAt ?? "").prefix(10))) · Monde · Platine+")
+                Text("\(meta.sourceName) · \(String((meta.pack?.retrievedAt ?? "").prefix(10)))")
                     .font(.caption).foregroundStyle(.secondary)
                 if let message = meta.message { Text(message).font(.caption).foregroundStyle(.secondary) }
+                if meta.comps.isEmpty, meta.selection.channel == .live {
+                    Panel {
+                        Label("Méta du patch", systemImage: "chart.bar").font(.headline)
+                        Text("Le Codex suit la version EUW. Les classements natifs se mettent à jour dès qu’un flux autorisé compatible est connecté.").font(.subheadline)
+                        NavigationLink("Configurer un flux de compositions") { PartnerFeedView() }
+                        Button("Voir les guides archivés") { meta.select(.archives) }
+                        Link("Consulter la méta actuelle sur Blitz", destination: URL(string: "https://blitz.gg/tft/comps")!)
+                    }
+                    if meta.pack?.patch == "18.6" { LiveEditorialView() }
+                } else {
                 Toggle("Pépites de la méta", isOn: $gems)
-                if gems { Text("Fréquence Blitz ≤ 3 %, moyenne < 4,50 et au moins 500 parties. Les données sont mondiales, classées Platine+ et reflètent une observation.").font(.caption).foregroundStyle(.secondary) }
+                if gems { Text("Fréquence ≤ 3 %, moyenne < 4,50 et au moins 500 parties. Consulte le rang et la région dans chaque fiche.").font(.caption).foregroundStyle(.secondary) }
                 HStack {
                     Picker("Style", selection: $style) { ForEach(styles, id: \.self) { Text($0).tag($0) } }
                     Picker("Trier", selection: $sort) { Text("Moyenne").tag("Moyenne"); Text("Top 4").tag("Top 4") }
@@ -72,7 +82,8 @@ struct MetaView: View {
                     NavigationLink { MetaDetail(comp: comp) } label: { MetaCard(comp: comp) }.buttonStyle(.plain).accessibilityIdentifier("meta-card-" + comp.comp_id)
                 }
                 if filtered.isEmpty { ContentUnavailableView("Aucune composition", systemImage: "magnifyingglass", description: Text("Change la recherche ou les filtres.")) }
-                Text("Statistiques observées, sans garantie de résultat. Les variantes sont des plateaux relevés dans les données de la source.").font(.caption).foregroundStyle(.secondary)
+                Text("Les statistiques et variantes reflètent les observations de la source.").font(.caption).foregroundStyle(.secondary)
+                }
                 }
             }.padding()
         }
@@ -165,7 +176,7 @@ struct MetaDetail: View {
                     Button { store.pinMeta(comp) } label: { Label(store.state.pinnedID == comp.id ? "Épinglée" : "Suivre dans Partie", systemImage: "pin.fill").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent)
                     Button { store.favorite(comp.id) } label: { Image(systemName: store.state.favorites.contains(comp.id) ? "star.fill" : "star") }.buttonStyle(.bordered).accessibilityLabel("Ajouter ou retirer des favoris")
                 }
-                Text("Set \(meta.pack?.set ?? "—") · Patch \(meta.pack?.patch ?? "—") · Blitz")
+                Text("Set \(meta.pack?.set ?? "—") · Patch \(meta.pack?.patch ?? "—") · \(meta.sourceName)")
                     .font(.caption).foregroundStyle(.secondary)
                 VisualCompositionGuide(comp: comp, stage: $stage)
                 CompositionEvidence(comp: comp)
@@ -197,9 +208,13 @@ struct MetaDetail: View {
                 }
                 Panel {
                     Text("Source et contexte").font(.headline)
-                    Text("Blitz · \(comp.region ?? "WORLD") · \(comp.rank ?? "PLATINUM+") · \(comp.stats.nb_games.formatted()) parties").font(.caption).foregroundStyle(.secondary)
-                    Text("Version des statistiques déclarée par Blitz : \(comp.display_patch ?? "—"). Le patch de la page est indiqué dans Méta.").font(.caption).foregroundStyle(.secondary)
-                    NavigationLink("Consulter la fiche complète Blitz") { EmbeddedPage(url: comp.url).navigationTitle("Blitz").navigationBarTitleDisplayMode(.inline) }
+                    Text("\(meta.sourceName) · \(comp.region ?? "WORLD") · \(comp.rank ?? "PLATINUM+") · \(comp.stats.nb_games.formatted()) parties").font(.caption).foregroundStyle(.secondary)
+                    Text("Version des statistiques déclarée par la source : \(comp.display_patch ?? "—"). Le patch de la page est indiqué dans Méta.").font(.caption).foregroundStyle(.secondary)
+                    if meta.sourceName == "Blitz" {
+                        Link("Consulter la fiche originale Blitz", destination: comp.url)
+                    } else if let url = comp.sourceURL, url.scheme == "https" {
+                        Link("Consulter la source originale", destination: url)
+                    }
                 }
             }.padding()
         }.background(hexaNavy).navigationTitle("Composition").navigationBarTitleDisplayMode(.inline)
@@ -214,7 +229,7 @@ struct CompositionEvidence: View {
         Panel {
             Label("Préparer ce plan", systemImage: "map").font(.headline)
             if let priorities = comp.carousel_priority, !priorities.isEmpty {
-                Text("Composants prioritaires selon Blitz").font(.subheadline.bold())
+                Text("Composants prioritaires selon la source").font(.subheadline.bold())
                 ItemIcons(keys: Array(priorities.prefix(3)))
             }
             if let conditions = comp.play_conditions, !conditions.isEmpty {
@@ -229,7 +244,7 @@ struct CompositionEvidence: View {
                         }
                     }
                 }
-                Text("Association statistique sur l’échantillon Blitz. Une unité améliorée peut aussi refléter une partie déjà favorable.").font(.caption2).foregroundStyle(.secondary)
+                Text("Association statistique sur l’échantillon du fournisseur. Une unité améliorée peut aussi refléter une partie déjà favorable.").font(.caption2).foregroundStyle(.secondary)
             }
             if let traits = comp.traits, !traits.isEmpty {
                 let names = traits.prefix(8).compactMap { trait in

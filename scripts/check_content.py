@@ -94,7 +94,7 @@ def main():
     pbe_ref = json.loads((ROOT/'HexaTFT/Resources/pbe-reference.json').read_text(encoding='utf-8'))
     assert live['patch'] != meta['patch']
     assert live_ref['version'] != pbe_ref['version']
-    assert len(live['data']) > 10
+    assert live['data'] == [], 'A new statistics snapshot requires an authorized provider feed'
     live_ids = {e['id'] for e in live_ref['entries']}
     assert len(live_ids) == len(live_ref['entries'])
     assert {e['set'] for e in live_ref['entries']} == {live['set']}

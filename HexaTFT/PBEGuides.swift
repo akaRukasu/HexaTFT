@@ -39,11 +39,34 @@ struct PBEGuideList: View {
         VStack(alignment: .leading, spacing: 12) {
             Panel {
                 Label("Révision expérimentale", systemImage: "flask").font(.headline)
-                Text("Aucun guide de composition vérifié pour ce build. Les exemples ci-dessous appartiennent à une révision antérieure.").font(.subheadline)
+                if meta.activePartnerGuides == nil {
+                    Text("Aucun guide vérifié dans le flux pour ce build. Les exemples historiques restent disponibles ci-dessous.").font(.subheadline)
+                }
                 if let date = meta.pbeCheckedAt { Text("Build vérifié le \(date.formatted())").font(.caption).foregroundStyle(.secondary) }
                 NavigationLink("Voir le Codex PBE") { CodexView() }
                 if let reference = meta.experimental {
                     NavigationLink("Explorer les synergies du build") { PBELabView(reference: reference) }
+                }
+            }
+            if let active = meta.activePartnerGuides {
+                Text("Guides du build \(active.revision)").font(.headline)
+                Text("Collecte \(active.retrievedAt)").font(.caption).foregroundStyle(.secondary)
+                ForEach(active.guides) { guide in
+                    NavigationLink {
+                        List {
+                            Section("Expérimental · \(active.revision)") {
+                                Text(guide.style)
+                                Text(guide.core.joined(separator: " · "))
+                                Text(guide.plan)
+                                Link(guide.provider, destination: guide.source)
+                            }
+                        }.navigationTitle(guide.title)
+                    } label: {
+                        Panel {
+                            Text(guide.title).font(.headline)
+                            Text(guide.provider).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }.buttonStyle(.plain)
                 }
             }
             Text("Les pistes du dernier guide PBE retrouvé").font(.headline)
@@ -126,6 +149,58 @@ struct PBELabView: View {
             }
             Spacer()
             Text("\(entry.cost) PO").font(.caption).foregroundStyle(hexaGold)
+        }
+    }
+}
+
+
+struct LiveEditorialView: View {
+    private struct Plan: Identifiable {
+        let name: String
+        let style: String
+        let opener: String
+        let transition: String
+        let risk: String
+        var id: String { name }
+    }
+    private let plans = [
+        Plan(name: "Nidalee AP · ligne Colosse", style: "Fast 8",
+             opener: "Garde une première ligne stable et un porteur AP amélioré. Un départ qui économise des PV laisse plus de temps pour atteindre le niveau 8.",
+             transition: "Au niveau 8, cherche Nidalee AP et une première ligne assez solide pour lui laisser plusieurs attaques. Vérifie le placement pour qu’elle puisse continuer à attaquer.",
+             risk: "Riot signale un renforcement de la forme AP sur 18.6. Une forme AD ou une Nidalee à une étoile change le plan et peut justifier un pivot."),
+        Plan(name: "Ahri · Zyra", style: "Fast 8",
+             opener: "Joue tes unités améliorées et un porteur provisoire pour tes objets de mana et de puissance.",
+             transition: "Cherche Ahri et une première ligne au niveau 8. Affecte le reste de tes objets AP à Zyra si tu peux l’intégrer sans fragiliser la défense.",
+             risk: "Deux porteurs AP concurrencent les mêmes composants. Priorise le premier porteur amélioré et les objets défensifs nécessaires à la transition."),
+        Plan(name: "Karma · Yunara solaire", style: "Reroll 5 puis 6",
+             opener: "Privilégie les copies de Karma et les unités qui tiennent la première ligne. Prépare des composants de mana ou de puissance.",
+             transition: "Concentre les relances du niveau 5 sur les unités les moins chères, puis utilise le niveau 6 pour poursuivre les améliorations de Yunara.",
+             risk: "Sans copies suffisantes ou si la compo est contestée, conserve un porteur AP et privilégie un plateau stable plutôt qu’une longue série de relances.")
+    ]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Plans à préparer · 18.6").font(.headline)
+            Text("Synthèses Hexa à partir de sources identifiées, sans classement chiffré.").font(.caption).foregroundStyle(.secondary)
+            ForEach(plans) { plan in
+                NavigationLink {
+                    List {
+                        Section("Plan Hexa · Set 18 · 18.6") { Text(plan.style) }
+                        Section("Ouverture") { Text(plan.opener) }
+                        Section("Transition") { Text(plan.transition) }
+                        Section("Points à surveiller") { Text(plan.risk) }
+                        Section("Sources à consulter") {
+                            Link("Notes Riot 18.6", destination: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/game-updates/teamfight-tactics-patch-18-6/")!)
+                            Link("Sélection de Sologesang", destination: URL(string: "https://www.metatft.com/pro-comps")!)
+                            Link("Plans TFT Flow", destination: URL(string: "https://tftflow.com/")!)
+                        }
+                    }.navigationTitle(plan.name)
+                } label: {
+                    Panel {
+                        Text(plan.name).font(.headline)
+                        Text(plan.style).font(.caption).foregroundStyle(.secondary)
+                    }
+                }.buttonStyle(.plain)
+            }
         }
     }
 }

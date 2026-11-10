@@ -70,7 +70,7 @@ struct VisualCompositionGuide: View {
                     Panel {
                         Label("Le plan à cette étape", systemImage: "flag.checkered").font(.headline)
                         Text(comp.economy(at: stage)).font(.subheadline).foregroundStyle(.secondary)
-                        Text("Repères généraux du style · plateaux observés chez Blitz").font(.caption2).foregroundStyle(.secondary)
+                        Text("Repères généraux du style · plateaux observés par la source").font(.caption2).foregroundStyle(.secondary)
                         HStack {
                             Button { advance(-1) } label: { Label("Précédente", systemImage: "chevron.left") }.disabled(stage == Stage.allCases.first)
                             Spacer()
@@ -280,7 +280,7 @@ struct ChampionEquipmentView: View {
                     Label(plan.target == unitKey ? "Équipement cible du plateau final" : "Porteur temporaire d’objets", systemImage: "circle.dashed").font(.headline).foregroundStyle(hexaGold)
                     if plan.target != unitKey { TransferPortraits(from: unitKey, to: plan.target) }
                     Text("Ces objets sont un objectif du guide ; ils ne sont pas observés sur ce champion dans l’exemple sélectionné.").font(.caption).foregroundStyle(.secondary)
-                } else { Badge(text: "TRIO OBSERVÉ CHEZ BLITZ", color: hexaGold) }
+                } else { Badge(text: "TRIO OBSERVÉ", color: hexaGold) }
                 if items.isEmpty {
                     Text("Aucun équipement n’est fourni pour ce porteur à cette étape. Les autres porteurs du plateau final sont détaillés dans la fiche de composition.").font(.subheadline).foregroundStyle(.secondary)
                 } else {
@@ -326,7 +326,7 @@ struct ChampionEquipmentView: View {
                     ForEach(Array(holders.enumerated()), id: \.offset) { _, holder in
                         ForEach(Array(holder.stats.prefix(3).enumerated()), id: \.offset) { _, candidate in TransferPortraits(from: candidate.early_game_carry_api_name, to: unitKey) }
                     }
-                    Text("Associations de porteurs observées par Blitz. Vérifie ton remplacement avant de vendre le porteur temporaire pour récupérer ses objets.").font(.caption).foregroundStyle(.secondary)
+                    Text("Associations de porteurs observées par la source. Vérifie ton remplacement avant de vendre le porteur temporaire pour récupérer ses objets.").font(.caption).foregroundStyle(.secondary)
                 }
             }
         }

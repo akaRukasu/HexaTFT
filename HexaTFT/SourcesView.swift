@@ -92,7 +92,14 @@ struct SourcesView: View {
             ZStack {
                 ForEach(ContentSource.allCases) { source in
                     if visited.contains(source) {
-                        EmbeddedPage(url: source.url).opacity(selected == source ? 1 : 0)
+                        Group {
+                            if source == .mobalytics || source == .blitz {
+                                VStack(spacing: 12) {
+                                    Text(source.rawValue).font(.title2.bold())
+                                    Link("Ouvrir le site original", destination: source.url).buttonStyle(.borderedProminent)
+                                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                            } else { EmbeddedPage(url: source.url) }
+                        }.opacity(selected == source ? 1 : 0)
                             .allowsHitTesting(selected == source).accessibilityHidden(selected != source)
                     }
                 }

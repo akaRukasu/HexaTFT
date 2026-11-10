@@ -3,7 +3,9 @@ import Foundation
 struct PatchSnapshot: Codable, Identifiable {
     let pack: MetaPack
     let reference: ReferenceData?
-    var id: String { "\(pack.set ?? "?")-\(pack.patch ?? "?")" }
+    var provider: String? = nil
+    var id: String { "\(pack.set ?? "?")-\(pack.patch ?? reference?.version ?? "?")" }
+    var sourceName: String { provider ?? "Blitz" }
 }
 
 struct PatchSelection: Codable, Hashable {
@@ -43,4 +45,25 @@ struct ReferenceChange: Identifiable {
             return Self(id: id, old: old, new: new)
         }.sorted { ($0.kind, $0.name, $0.id) < ($1.kind, $1.name, $1.id) }
     }
+}
+
+
+struct PartnerGuide: Codable, Identifiable {
+    let id: String
+    let title: String
+    let style: String
+    let core: [String]
+    let plan: String
+    let source: URL
+    let provider: String
+}
+struct ExperimentalGuides: Codable {
+    let revision: String
+    let set: String
+    let retrievedAt: String
+    let guides: [PartnerGuide]
+}
+struct PartnerFeed: Codable {
+    let live: PatchSnapshot?
+    let pbe: ExperimentalGuides?
 }

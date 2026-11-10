@@ -74,6 +74,7 @@ struct MetaComp: Codable, Identifiable {
     let display_patch: String?
     let rank: String?
     let region: String?
+    let sourceURL: URL?
     var id: String { "blitz:" + comp_id }
     var tier: String { [1:"S",2:"A",3:"B",4:"C",5:"D"][stats.tier] ?? "—" }
     var style: String {
@@ -134,6 +135,7 @@ struct MetaPack: Codable {
         guard !pack.data.isEmpty, pack.data.count <= 250, Set(pack.data.map(\.id)).count == pack.data.count,
               pack.data.allSatisfy({ comp in
                   (1...8).contains(comp.stats.avg_placement) && (0...1).contains(comp.stats.top_4_percent) &&
+                  comp.slug.range(of: #"^[a-z0-9-]+$"#, options: .regularExpression) != nil &&
                   !comp.units.isEmpty && Set(comp.units.map(\.name)).count == comp.units.count &&
                   (comp.units_positions ?? []).allSatisfy { (0..<28).contains($0.board_position) }
               }) else { throw DataIssue.invalid("Les compositions reçues sont incomplètes.") }
@@ -154,6 +156,8 @@ struct MetaPack: Codable {
     private var pbeBusy = false
     private var lastPBEAttempt: Date?
     @Published private(set) var euwVersion: String?
+    @Published private(set) var feedURL: URL?
+    @Published private(set) var partnerGuides: ExperimentalGuides?
     let context: UltimateContext?
     private let directory: URL
     private var lastAttempt: Date?
@@ -162,7 +166,12 @@ struct MetaPack: Codable {
         self.directory = directory ?? URL.applicationSupportDirectory.appendingPathComponent("HexaTFT")
         experimental = Self.bundle("pbe-reference")
         context = Self.bundle("ultimate-context")
-        live = Self.loadBundledSnapshot(packName: "live-meta", referenceName: "live-reference")
+        let livePack: MetaPack? = Self.bundle("live-meta")
+        if let livePack {
+            live = PatchSnapshot(pack: livePack, reference: Self.bundle("live-reference"), provider: "Riot · CommunityDragon")
+        }
+        feedURL = read("partner-url.json")
+        partnerGuides = read("partner-pbe.json")
         if let legacy = Self.loadBundledSnapshot(packName: "meta", referenceName: "reference") {
             archives = [legacy]
         }
@@ -171,10 +180,17 @@ struct MetaPack: Codable {
             archives = [PatchSnapshot(pack: previous, reference: legacy.reference)]
         }
         if let saved: [PatchSnapshot] = read("patch-archives.json") {
-            for snapshot in saved where !archives.contains(where: { $0.id == snapshot.id }) { archives.append(snapshot) }
+            let bundled = archives
+            archives = saved + bundled.filter { snapshot in !saved.contains(where: { $0.id == snapshot.id }) }
         }
-        if let saved: PatchSnapshot = read("patch-live.json"),
-           live == nil || (saved.pack.retrievedAt ?? "") >= (live?.pack.retrievedAt ?? "") { live = saved }
+        if let saved: PatchSnapshot = read("patch-live.json") {
+            if live == nil || (saved.pack.retrievedAt ?? "") >= (live?.pack.retrievedAt ?? "") {
+                if let bundled = live, bundled.id != saved.id, !archives.contains(where: { $0.id == bundled.id }) { archives.insert(bundled, at: 0) }
+                live = saved
+            } else if saved.id != live?.id, !archives.contains(where: { $0.id == saved.id }) {
+                archives.insert(saved, at: 0)
+            }
+        }
         if let saved: ReferenceData = read("patch-pbe.json"),
            (experimental?.retrievedAt ?? "") <= saved.retrievedAt { experimental = saved }
         experimentalHistory = read("patch-pbe-history.json") ?? []
@@ -199,6 +215,14 @@ struct MetaPack: Codable {
         case .pbe: return experimental
         case .archives: return archive?.reference
         }
+    }
+    var sourceName: String {
+        selection.channel == .archives ? archive?.sourceName ?? "Archive" : live?.sourceName ?? "Riot"
+    }
+    var activePartnerGuides: ExperimentalGuides? {
+        guard partnerGuides?.revision == experimental?.version,
+              partnerGuides?.set == experimental?.entries.first?.set else { return nil }
+        return partnerGuides
     }
     var comps: [MetaComp] { (pack?.data ?? []).sorted { $0.stats.avg_placement < $1.stats.avg_placement } }
 
@@ -241,51 +265,80 @@ struct MetaPack: Codable {
         await refresh(reference: live?.reference)
     }
 
+    func configureFeed(_ address: String) throws {
+        let clean = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        var next: URL?
+        if !clean.isEmpty {
+            guard let components = URLComponents(string: clean), components.scheme == "https", components.host != nil,
+                  components.user == nil, components.password == nil, components.query == nil,
+                  components.fragment == nil, let url = components.url else {
+                throw DataIssue.invalid("Renseigne une adresse HTTPS sans identifiant ni jeton.")
+            }
+            next = url
+        }
+        try save(next, to: "partner-url.json")
+        feedURL = next
+        lastAttempt = nil
+    }
+
     func refresh(reference _: ReferenceData?) async {
         guard !refreshing else { return }
         refreshing = true; message = nil; lastAttempt = Date()
         defer { refreshing = false }
         do {
-            let request = URLRequest(url: URL(string: "https://blitz.gg/tft/comps")!, timeoutInterval: 25)
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                throw DataIssue.invalid("Blitz est temporairement indisponible.")
-            }
-            var pack = try Self.parseBlitz(data)
-            guard let set = pack.set, let patch = pack.patch,
-                  let version = pack.data.first?.display_patch, version.range(of: #"^[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil,
-                  pack.data.allSatisfy({ $0.display_patch == version }) else {
-                throw DataIssue.invalid("La version des compositions reçues est incohérente.")
+            let euw = try await DragonFeed.liveEUW()
+            euwVersion = euw
+            let branch = euw.split(separator: ".").prefix(2).joined(separator: ".")
+            guard branch.range(of: #"^[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil else {
+                throw DataIssue.invalid("Riot n’a pas fourni de version EUW exploitable.")
             }
             let current = live
-            let reference: ReferenceData
-            if let current, current.pack.set == set, current.pack.patch == patch,
-               current.pack.data.first?.display_patch == version, let same = current.reference {
-                reference = same
-            } else {
-                let euw = try await DragonFeed.liveEUW()
-                euwVersion = euw
-                guard euw.hasPrefix(version + ".") else {
-                    throw DataIssue.invalid("Le catalogue et la version EUW des ressources ne concordent pas encore.")
+            let currentBranch = current?.reference?.version.split(separator: ".").prefix(2).joined(separator: ".")
+            if currentBranch != branch {
+                let revision = try await DragonFeed.build(at: branch)
+                let reference = try await DragonFeed.reference(branch: branch, revision: revision, set: nil)
+                let pack = MetaPack(data: [], retrievedAt: Date().ISO8601Format(), set: reference.entries.first?.set, patch: nil)
+                try install(PatchSnapshot(pack: pack, reference: reference, provider: "Riot · CommunityDragon"))
+            }
+            guard let feedURL else { return }
+            let data = try await DragonFeed.get(feedURL, max: 20_000_000)
+            let feed = try JSONDecoder().decode(PartnerFeed.self, from: data)
+            guard self.feedURL == feedURL else { return }
+            if let pbe = feed.pbe {
+                guard pbe.guides.count <= 100, pbe.guides.allSatisfy({ $0.source.scheme == "https" && !$0.provider.isEmpty && !$0.title.isEmpty }),
+                      Set(pbe.guides.map(\.id)).count == pbe.guides.count else {
+                    throw DataIssue.invalid("Guides PBE du flux incompatibles.")
                 }
-                let build = try await DragonFeed.build(at: version)
-                reference = try await DragonFeed.reference(branch: version, revision: build, set: set)
+                try save(pbe, to: "partner-pbe.json")
+                partnerGuides = pbe
             }
-            let known = Set(reference.entries.filter { $0.kind == "champion" }.map { String($0.id.dropFirst(9)) })
-            guard pack.data.allSatisfy({ $0.units.allSatisfy { known.contains($0.name) } }) else {
-                throw DataIssue.invalid("Les champions reçus ne correspondent pas au Codex de ce patch.")
+            if let offered = feed.live {
+                let validated = try MetaPack.decode(JSONEncoder().encode(offered.pack))
+                guard let reference = live?.reference, let source = offered.provider, !source.isEmpty,
+                      validated.set == reference.entries.first?.set, validated.patch?.isEmpty == false,
+                      validated.data.allSatisfy({ $0.display_patch == branch }) else {
+                    throw DataIssue.invalid("Le catalogue partenaire ne correspond pas au build EUW.")
+                }
+                let ids = Set(reference.entries.map(\.id))
+                guard validated.data.allSatisfy({ $0.units.allSatisfy { ids.contains("champion:" + $0.name) } }) else {
+                    throw DataIssue.invalid("Les champions du flux ne correspondent pas au Codex.")
+                }
+                try install(PatchSnapshot(pack: validated, reference: reference, provider: source))
+                message = "Catalogue du flux actualisé."
             }
-            pack.retrievedAt = ISO8601DateFormatter().string(from: Date())
-            let updated = PatchSnapshot(pack: pack, reference: reference)
-            if let current, current.id != updated.id, !archives.contains(where: { $0.id == current.id }) {
-                let next = [current] + archives
-                try save(next, to: "patch-archives.json")
-                archives = next
-            }
-            try save(updated, to: "patch-live.json")
-            live = updated
-            message = "Compositions actualisées."
-        } catch { if !Task.isCancelled { message = "\(error.localizedDescription) Les dernières fiches restent disponibles." } }
+        } catch {
+            if !Task.isCancelled { message = "\(error.localizedDescription) Les dernières fiches restent disponibles." }
+        }
+    }
+
+    private func install(_ updated: PatchSnapshot) throws {
+        if let current = live, current.id != updated.id, !current.pack.data.isEmpty {
+            let next = [current] + archives.filter { $0.id != current.id && $0.id != updated.id }
+            try save(next, to: "patch-archives.json")
+            archives = next
+        }
+        try save(updated, to: "patch-live.json")
+        live = updated
     }
 
     func autoRefreshPBE() async {
@@ -309,28 +362,6 @@ struct MetaPack: Codable {
             pbeCheckedAt = Date()
             pbeMessage = nil
         } catch { if !Task.isCancelled { pbeMessage = error.localizedDescription } }
-    }
-
-    nonisolated static func parseBlitz(_ data: Data) throws -> MetaPack {
-        guard data.count <= 20_000_000, let html = String(data: data, encoding: .utf8) else {
-            throw DataIssue.invalid("Réponse Blitz illisible.")
-        }
-        let ns = html as NSString
-        let range = NSRange(location: 0, length: ns.length)
-        func match(_ pattern: String) throws -> String? {
-            let regex = try NSRegularExpression(pattern: pattern)
-            return regex.firstMatch(in: html, range: range).map { ns.substring(with: $0.range(at: 1)) }
-        }
-        let regex = try NSRegularExpression(pattern: #"<script([^>]*)>(.*?)</script>"#, options: [.dotMatchesLineSeparators])
-        guard let hit = regex.matches(in: html, range: range).first(where: {
-            let attrs = ns.substring(with: $0.range(at: 1))
-            return attrs.contains("data-sveltekit-fetched") && attrs.contains("/analyzed_comps?")
-        }), let payload = try JSONSerialization.jsonObject(with: Data(ns.substring(with: hit.range(at: 2)).utf8)) as? [String: Any],
-            let body = payload["body"] as? String else { throw DataIssue.invalid("Le format Blitz a changé.") }
-        var result = try MetaPack.decode(Data(body.utf8))
-        result.patch = try match(#"Patch ([0-9]+\.[0-9]+[a-z]?)"#)
-        result.set = try match(#"TFT Set ([0-9]+)"#)
-        return result
     }
 
     private static func bundle<T: Decodable>(_ name: String) -> T? {

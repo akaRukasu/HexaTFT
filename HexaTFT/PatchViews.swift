@@ -56,12 +56,12 @@ struct PatchHubView: View {
             switch meta.selection.channel {
             case .live:
                 Section("Production") {
-                    LabeledContent("Catalogue TFT", value: meta.live?.pack.patch ?? "Indisponible")
+                    LabeledContent("Patch TFT associé", value: meta.live?.pack.patch ?? "À confirmer")
                     if let context = meta.context {
                         LabeledContent("Version EUW des ressources Riot", value: meta.euwVersion ?? context.euwAssetVersion)
                         LabeledContent("Build du Codex", value: meta.live?.reference?.version ?? context.liveBuild)
                     }
-                    Text("Le catalogue Blitz reflète un échantillon mondial Platine+. La version des ressources EUW ne donne pas l’heure exacte du déploiement.").font(.caption).foregroundStyle(.secondary)
+                    Text("La version des ressources EUW sert à vérifier la correspondance du Codex. L’heure de déploiement reste à confirmer auprès de Riot.").font(.caption).foregroundStyle(.secondary)
                 }
                 notesSection(patch: meta.live?.pack.patch)
             case .pbe:
@@ -102,8 +102,10 @@ struct PatchHubView: View {
                 if let live = meta.live?.reference, let pbe = meta.experimental {
                     NavigationLink("Comparer LIVE et PBE") { PatchDiffView(left: live, right: pbe) }
                 }
-                if let archive = meta.archives.first, let live = meta.live, archive.pack.set == live.pack.set {
-                    NavigationLink("Comparer la méta archivée et le LIVE") { MetaComparisonView(old: archive, new: live) }
+                if let live = meta.live {
+                    ForEach(meta.archives.filter { $0.pack.set == live.pack.set && $0.sourceName == live.sourceName && !live.pack.data.isEmpty }) { archive in
+                        NavigationLink("Méta \(archive.pack.patch ?? "—") et LIVE") { MetaComparisonView(old: archive, new: live) }
+                    }
                 }
                 NavigationLink("Calendrier officiel") { PatchCalendarView() }
                 Button("Importer un instantané archivable") { importing = true }
