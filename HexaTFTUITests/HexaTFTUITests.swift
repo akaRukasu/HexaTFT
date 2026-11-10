@@ -124,8 +124,14 @@ final class HexaTFTUITests: XCTestCase {
         app.buttons["LIVE EUW"].tap()
         app.segmentedControls["meta-library"].buttons["Guides"].tap()
         let card = app.buttons["meta-card-hexa-ahri-zyra"]
-        XCTAssertTrue(card.waitForExistence(timeout: 8))
-        for _ in 0..<3 where !card.isHittable { app.swipeUp() }
+        for _ in 0..<12 {
+            if card.isHittable { break }
+            app.swipeUp()
+        }
+        guard card.isHittable else {
+            XCTFail("Le guide Ahri · Zyra est introuvable dans le catalogue LIVE.")
+            return
+        }
         snapshot("12-live-guides")
         card.tap()
         let mode = app.segmentedControls["guide-mode"]
