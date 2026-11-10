@@ -334,6 +334,7 @@ struct TrackerSettingsView: View {
                 Section {
                     TextField("Pseudo#TAG", text: $riotID)
                         .autocorrectionDisabled().textInputAutocapitalization(.never)
+                        .submitLabel(.done).onSubmit(save)
                     Picker("Région", selection: $region) {
                         ForEach(RiotIdentity.regions, id: \.0) { entry in Text(entry.1).tag(entry.0) }
                     }
@@ -341,17 +342,23 @@ struct TrackerSettingsView: View {
                     Text("Dans le client Riot, ton Riot ID est le nom suivi de # et de ton tag.")
                 }
                 if let error { Text(error).foregroundStyle(.orange) }
-                Button("Enregistrer le profil") {
-                    guard let identity else { return }
-                    do {
-                        try tracker.saveProfile(identity)
-                        dismiss()
-                    } catch { self.error = error.localizedDescription }
-                }.disabled(identity == nil)
             }.navigationTitle("Compte Riot")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Enregistrer", action: save).disabled(identity == nil)
+                        .accessibilityIdentifier("tracker-save")
+                }
+            }
             .onAppear { riotID = tracker.state.riotID; region = tracker.state.region }
         }
+    }
+    private func save() {
+        guard let identity else { return }
+        do {
+            try tracker.saveProfile(identity)
+            dismiss()
+        } catch { self.error = error.localizedDescription }
     }
 }
 

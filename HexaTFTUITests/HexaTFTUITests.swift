@@ -85,10 +85,14 @@ final class HexaTFTUITests: XCTestCase {
         snapshot("11-tracker")
         id.tap()
         id.typeText("Tactikk#EUW")
-        app.buttons["Enregistrer le profil"].tap()
+        XCTAssertEqual(id.value as? String, "Tactikk#EUW")
+        let save = app.buttons["tracker-save"]
+        XCTAssertTrue(save.isEnabled)
+        save.tap()
         let publicProfile = app.descendants(matching: .any).matching(identifier: "tracker-public-profile").firstMatch
-        XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
+        XCTAssertTrue(publicProfile.waitForExistence(timeout: 8), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Tactikk#EUW"].exists)
+        snapshot("15-tracker-profil")
         app.terminate()
         app.launch()
         app.tabBars.buttons["Tracker"].tap()
