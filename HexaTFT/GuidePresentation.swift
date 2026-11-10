@@ -114,6 +114,7 @@ private enum Set18ItemEffects {
         "item:DA_GargoyleStoneplate": "Augmente les résistances du porteur lorsque plusieurs ennemis le ciblent. Place-le sur le premier tank exposé.",
         "item:DA_GiantSlayer": "Amplifie les dégâts contre les champions de rôle tank.",
         "item:DA_HandOfJustice": "Combine dégâts et soin. Un substitut quand il faut à la fois survivre et infliger des dégâts.",
+        "item:DA_HextechGunblade": "Une partie des dégâts du porteur soigne le porteur et un allié blessé.",
         "item:DA_InfinityEdge": "Permet aux compétences de bénéficier des coups critiques. À privilégier sur un carry physique.",
         "item:DA_JeweledGauntlet": "Permet aux compétences de critiquer. Un bon choix pour un carry qui inflige l’essentiel de ses dégâts avec son sort.",
         "item:DA_KrakensFury": "Récompense les attaques répétées. Donne à son porteur le temps de rester en vie pour en profiter.",

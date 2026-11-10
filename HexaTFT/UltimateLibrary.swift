@@ -73,20 +73,32 @@ struct EsportEvent: Identifiable {
     let title: String
     let region: String
     let dates: String
+    let end: Date
     let format: String
     let icon: String
     let url: URL
 
-    static let crown = Self(id: "crown", title: "Tactician’s Crown", region: "Mondial", dates: "13–15 novembre 2026",
+    static let crown = Self(id: "crown", title: "Tactician’s Crown", region: "Mondial", dates: "13–15 novembre 2026", end: finish("2026-11-16T00:00:00+01:00"),
         format: "La finale mondiale du set 18 réunit 40 tacticiens en trois journées.",
         icon: "crown", url: URL(string: "https://teamfighttactics.leagueoflegends.com/fr-fr/news/esports/regional-finals-2026-everything-you-need-to-know/")!)
-    static let superbrawl = Self(id: "superbrawl", title: "Tactician’s Superbrawl", region: "EMEA · AMER · APAC", dates: "6–8 novembre 2026",
+    static let superbrawl = Self(id: "superbrawl", title: "Tactician’s Superbrawl", region: "EMEA · AMER · APAC", dates: "6–8 novembre 2026", end: finish("2026-11-09T00:00:00+01:00"),
         format: "Tournoi par équipes de quatre, avec une finale en cinq manches maximum.",
         icon: "person.3.sequence", url: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/tacticians-superbrawl-teams-dates-and-format/")!)
-    static let regional = Self(id: "regional", title: "Finales régionales", region: "EMEA · AMER · APAC", dates: "23–25 oct. et 30 oct.–1 nov. 2026",
+    static let regional = Self(id: "regional", title: "Finales régionales", region: "EMEA · AMER · APAC", dates: "23–25 oct. et 30 oct.–1 nov. 2026", end: finish("2026-11-02T00:00:00+01:00"),
         format: "Deux week-ends de qualification pour le mondial, avec 64 tacticiens dans chaque région.",
         icon: "globe.europe.africa", url: crown.url)
 
+    static let vegas = Self(id: "vegas", title: "TFT Vegas Open", region: "LAN · Las Vegas", dates: "11–13 décembre 2026", end: finish("2026-12-14T00:00:00-08:00"),
+        format: "Open du set 19. Jusqu’à 1 024 participants dans le tournoi principal.",
+        icon: "ticket", url: URL(string: "https://teamfighttactics.leagueoflegends.com/fr-fr/news/esports/tft-vegas-open-2026-competitor-info/")!)
+    static let emeaResults = URL(string: "https://competetft.com/en-US/tournament/116912974691526392/overview")!
+    static let ladder = URL(string: "https://tactics.tools/leaderboards")!
+    static let standings = URL(string: "https://tftlobby.gg/")!
+    static let events = [regional, superbrawl, crown, vegas]
+
+    private static func finish(_ instant: String) -> Date {
+        ISO8601DateFormatter().date(from: instant) ?? .distantPast
+    }
     static let roadmap = URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/compete-in-enchanted-wilds/")!
     static let schedule = URL(string: "https://competetft.com/schedule")!
     static let twitch = URL(string: "https://www.twitch.tv/teamfighttactics")!
@@ -98,6 +110,12 @@ struct EsportView: View {
     @EnvironmentObject private var news: RiotNewsStore
     @State private var tab: Tab = .watch
     @AppStorage("hexa.follow.huanmie") private var followHuanmie = false
+    @AppStorage("hexa.esport.followedPlayers") private var followedPlayers = ""
+    @State private var playerSection: PlayerSection = .tournament
+
+    private enum PlayerSection: String, CaseIterable {
+        case tournament = "Tournois", ladder = "Ladder", clubs = "Clubs FR"
+    }
 
     enum Tab: String, CaseIterable {
         case watch = "En direct", calendar = "Calendrier", results = "Résultats", players = "Joueurs"
@@ -127,7 +145,9 @@ struct EsportView: View {
     private var watch: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("À l’affiche", systemImage: "sparkle").font(.title2.bold())
-            eventCard(.crown)
+            if let next = EsportEvent.events.first(where: { $0.end > .now }) {
+                eventCard(next)
+            }
             HStack {
                 Link(destination: EsportEvent.twitch) { Label("Twitch officiel", systemImage: "play.rectangle") }
                 Link(destination: EsportEvent.youtube) { Label("YouTube", systemImage: "play.circle") }
@@ -138,26 +158,45 @@ struct EsportView: View {
     }
 
     private var calendar: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Le calendrier", systemImage: "calendar").font(.title2.bold())
-            eventCard(.crown)
-            Panel {
-                Label("Le parcours du mondial", systemImage: "point.3.connected.trianglepath.dotted").font(.headline)
-                phase("13 NOV.", "40 → 32", "Six manches pour établir le classement initial.")
-                phase("14 NOV.", "32 → 8", "Éliminations successives jusqu’à la table finale.")
-                phase("15 NOV.", "Finale", "Les huit qualifiés se disputent le titre.")
-                Link("Règlement et calendrier du set", destination: EsportEvent.roadmap)
+        let upcoming = EsportEvent.events.filter { $0.end > .now }
+        let finished = EsportEvent.events.filter { $0.end <= .now }.reversed()
+        return VStack(alignment: .leading, spacing: 12) {
+            Label("À venir et en cours", systemImage: "calendar").font(.title2.bold())
+            if upcoming.isEmpty {
+                Text("Consulte le calendrier officiel pour les prochaines dates.").font(.caption).foregroundStyle(.secondary)
             }
-            eventCard(.superbrawl)
-            eventCard(.regional)
+            ForEach(upcoming) { event in
+                eventCard(event)
+                if event.id == EsportEvent.crown.id { crownSchedule }
+            }
+            Label("Événements terminés", systemImage: "checkmark.circle").font(.title3.bold())
+            ForEach(finished) { event in
+                eventCard(event)
+                if event.id == EsportEvent.crown.id { crownSchedule }
+            }
             Link("Planning officiel Compete TFT", destination: EsportEvent.schedule)
                 .buttonStyle(.bordered)
+        }
+    }
+
+    private var crownSchedule: some View {
+        Panel {
+            Label("Le parcours du mondial", systemImage: "point.3.connected.trianglepath.dotted").font(.headline)
+            phase("13 NOV.", "40 → 32", "Six manches pour établir le classement initial.")
+            phase("14 NOV.", "32 → 8", "Éliminations successives jusqu’à la table finale.")
+            phase("15 NOV.", "Finale", "Les huit qualifiés se disputent le titre.")
+            Link("Règlement et calendrier du set", destination: EsportEvent.roadmap)
         }
     }
 
     private var results: some View {
         VStack(alignment: .leading, spacing: 12) {
             Label("Résultats et rediffusions", systemImage: "medal").font(.title2.bold())
+            Panel {
+                Label("Finales régionales EMEA", systemImage: "trophy").font(.headline)
+                ForEach(EsportPlayer.emea) { player in playerRow(player) }
+                sourceLink("Tableau officiel EMEA", icon: "list.number", url: EsportEvent.emeaResults)
+            }
             Panel {
                 Label("Superbrawl · tableaux officiels", systemImage: "list.number").font(.headline)
                 sourceLink("EMEA", icon: "globe.europe.africa", url: URL(string: "https://competetft.com/en-US/tournament/117008552290488714/overview")!)
@@ -175,19 +214,69 @@ struct EsportView: View {
     }
 
     private var players: some View {
-        Panel {
-            Label("CHINE · SPACE GODS", systemImage: "globe.asia.australia")
-                .font(.caption.bold()).foregroundStyle(.mint)
-            Text("AUR Huanmie").font(.title2.bold())
-            HStack {
-                DashboardMetric(title: "Titres internationaux", value: "3")
-                DashboardMetric(title: "Titre mondial", value: "Set 17", accent: .mint)
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("Liste des joueurs", selection: $playerSection) {
+                ForEach(PlayerSection.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }.pickerStyle(.segmented).accessibilityIdentifier("esport-player-sections")
+            switch playerSection {
+            case .tournament:
+                Panel {
+                    Label("Finale régionale EMEA", systemImage: "medal").font(.headline)
+                    Text("Classement final · 1er novembre 2026").font(.caption).foregroundStyle(.secondary)
+                    ForEach(EsportPlayer.emea) { player in playerRow(player) }
+                    sourceLink("Voir le tableau officiel", icon: "list.number", url: EsportEvent.emeaResults)
+                    sourceLink("Détail des manches sur TFT Lobby", icon: "tablecells", url: EsportEvent.standings)
+                }
+                Panel {
+                    Label("Champion du monde du set 17", systemImage: "crown").font(.headline)
+                    Text("AUR Huanmie · Chine").font(.title2.bold())
+                    Toggle("Suivre AUR Huanmie", isOn: $followHuanmie)
+                    sourceLink("Portrait Riot", icon: "person.text.rectangle", url: EsportEvent.huanmie)
+                }
+            case .ladder:
+                Panel {
+                    Label("Ladder mondial TFT", systemImage: "chart.line.uptrend.xyaxis").font(.headline)
+                    Text("Relevé du 10 novembre 2026 · file classée").font(.caption).foregroundStyle(.secondary)
+                    ForEach(EsportPlayer.ladder) { player in playerRow(player) }
+                    sourceLink("Classement mondial actualisé", icon: "arrow.up.right.square", url: EsportEvent.ladder)
+                    sourceLink("Classement EUW actualisé", icon: "globe.europe.africa", url: URL(string: "https://tactics.tools/leaderboards/euw")!)
+                }
+            case .clubs:
+                ForEach(EsportClub.french) { club in
+                    Panel {
+                        Label(club.name, systemImage: "flag.fill").font(.title3.bold()).foregroundStyle(hexaGold)
+                        Text(club.context).font(.caption).foregroundStyle(.secondary)
+                        ForEach(club.players) { player in playerRow(player) }
+                        sourceLink("Effectif publié par le club", icon: "person.3", url: club.source)
+                    }
+                }
             }
-            Text("Riot recense trois titres internationaux, Reckoning, TFT Paris Open et Tactician’s Crown Space Gods.")
-                .font(.subheadline).foregroundStyle(.secondary)
-            Toggle("Suivre AUR Huanmie", isOn: $followHuanmie)
-            sourceLink("Portrait et stratégie de la finale", icon: "person.text.rectangle", url: EsportEvent.huanmie)
         }
+    }
+
+    private func playerRow(_ player: EsportPlayer) -> some View {
+        HStack(spacing: 10) {
+            if let rank = player.rank { Badge(text: "#\(rank)", color: rank == 1 ? hexaGold : .mint) }
+            VStack(alignment: .leading, spacing: 4) {
+                if let url = player.url {
+                    Link(player.name, destination: url).font(.subheadline.bold())
+                } else {
+                    Text(player.name).font(.subheadline.bold())
+                }
+                Text(player.detail).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            let followed = followedPlayers.split(separator: "|").contains(Substring(player.id))
+            Button {
+                var ids = Set(followedPlayers.split(separator: "|").map(String.init))
+                if followed { ids.remove(player.id) } else { ids.insert(player.id) }
+                followedPlayers = ids.sorted().joined(separator: "|")
+            } label: {
+                Image(systemName: followed ? "star.fill" : "star")
+                    .padding(6).foregroundStyle(hexaGold)
+            }.buttonStyle(.plain).accessibilityLabel((followed ? "Ne plus suivre " : "Suivre ") + player.name)
+        }
+        .padding(.vertical, 3)
     }
 
     private var newsShelf: some View {
@@ -242,6 +331,57 @@ struct EsportView: View {
             }.font(.subheadline.weight(.semibold))
         }
     }
+}
+
+struct EsportPlayer: Identifiable {
+    let id: String
+    let name: String
+    let detail: String
+    var rank: Int? = nil
+    var url: URL? = nil
+
+    static let coco = Self(id: "coco", name: "L3S Coco", detail: "Gentle Mates · France",
+                           url: URL(string: "https://www.gentlemates.com/en/esports/player/L3SCOCO"))
+    static let bensac = Self(id: "bensac", name: "Bensac", detail: "Mihos eSport · France",
+                             url: URL(string: "https://mihosesport.com/"))
+    static let emea: [Self] = [
+        .init(id: coco.id, name: coco.name, detail: "Gentle Mates · 34 points", rank: 1, url: coco.url),
+        .init(id: bensac.id, name: bensac.name, detail: "Mihos eSport · 32 points", rank: 2, url: bensac.url),
+        .init(id: "yakumo", name: "Yakumo", detail: "33 points · Checkmate", rank: 3),
+        .init(id: "oskuu", name: "oskuu", detail: "26 points · Checkmate", rank: 4),
+        .init(id: "cynarr", name: "Cynarr", detail: "28 points · Checkmate", rank: 5),
+        .init(id: "whyyoumadpro", name: "whyyoumadpro", detail: "24 points", rank: 6),
+        .init(id: "etre-infame", name: "Etre Infame", detail: "19 points", rank: 7),
+        .init(id: "snoodyboo", name: "EPSI Snoodyboo", detail: "20 points", rank: 8)
+    ]
+    static let ladder: [Self] = [
+        .init(id: "7yearsold", name: "7YearsOld", detail: "SEA · 1 968 LP", rank: 1),
+        .init(id: "geolo69", name: "geolo69", detail: "EUNE · 1 949 LP", rank: 2),
+        .init(id: "kurapika", name: "Kurapika", detail: "LAN · 1 936 LP", rank: 3),
+        .init(id: "araye", name: "ARaye", detail: "SEA · 1 919 LP", rank: 4)
+    ]
+}
+
+struct EsportClub: Identifiable {
+    let name: String
+    let context: String
+    let players: [EsportPlayer]
+    let source: URL
+    var id: String { name }
+
+    static let french: [Self] = [
+        .init(name: "Gentle Mates", context: "Section TFT · France", players: [
+            .coco, .init(id: "jedusor", name: "Jedusor", detail: "France", url: URL(string: "https://www.gentlemates.com/en/esports/player/jedusor"))
+        ], source: URL(string: "https://www.gentlemates.com/esports?game=teamfight-tactics")!),
+        .init(name: "Mihos eSport", context: "Section TFT · France", players: [.bensac],
+              source: URL(string: "https://mihosesport.com/")!),
+        .init(name: "Team Vitality", context: "Club français · joueurs AMER affichés par Vitality", players: [
+            .init(id: "setsuko", name: "setsuko", detail: "AMER", url: URL(string: "https://vitality.gg/en/pages/athletes/setsuko")),
+            .init(id: "k3soju", name: "k3soju", detail: "AMER", url: URL(string: "https://vitality.gg/en/pages/athletes/k3soju")),
+            .init(id: "milk", name: "Milk", detail: "AMER", url: URL(string: "https://vitality.gg/en/pages/athletes/milk")),
+            .init(id: "prestivent", name: "Prestivent", detail: "AMER", url: URL(string: "https://vitality.gg/en/pages/athletes/prestivent"))
+        ], source: URL(string: "https://vitality.gg/en/pages/athletes/setsuko")!)
+    ]
 }
 
 struct UltimateLibraryView: View {

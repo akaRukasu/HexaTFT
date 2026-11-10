@@ -57,12 +57,41 @@ struct MetaObservation: Codable, Identifiable {
         .init(id: "metastats-raptor", provider: .metastats, title: "Maman Raptor · Zyra", champions: ["DA_CrimsonRaptor18", "DA_18_Zyra", "DA_18_Hecarim"],
               average: 4.17, top4: 0.57, top1: 0.10, games: 6_330, source: metaStats("summoner-mama-beak")),
         .init(id: "metastats-teemo", provider: .metastats, title: "Teemo · LeBlanc Incantateur", champions: ["DA_18_Teemo", "DA_18_LeBlanc", "DA_18_Alistar"],
-              average: 4.37, top4: 0.55, top1: 0.06, games: 19_262, source: metaStats("invoker-teemo"))
+              average: 4.37, top4: 0.55, top1: 0.06, games: 19_262, source: metaStats("invoker-teemo")),
+        .init(id: "codex-veigar", provider: .codex, title: "Veigar · Sylvestre", champions: ["DA_18_Veigar", "DA_18_Ornn", "DA_18_Alistar"],
+              average: 4.37, top4: 0.525, top1: 0.122, games: 50_037, source: codexURL),
+        .init(id: "codex-azir", provider: .codex, title: "Rammus · Azir Ami de la forêt", champions: ["DA_18_Rammus", "DA_18_Azir", "DA_18_Teemo"],
+              average: 4.28, top4: 0.546, top1: 0.122, games: 21_212, source: codexURL),
+        .init(id: "codex-ahri-zyra", provider: .codex, title: "Ahri · Zyra avec Lillia", champions: ["DA_18_Ahri", "DA_18_Zyra", "DA_18_Lillia"],
+              average: 4.67, top4: 0.475, top1: 0.091, games: 51_075, source: codexURL),
+        .init(id: "codex-aphelios", provider: .codex, title: "Aphelios · Nidalee Primitif", champions: ["DA_18_Aphelios", "DA_Nidalee18_AP", "DA_Vi18"],
+              average: 4.68, top4: 0.481, top1: 0.048, games: 42_399, source: codexURL),
+        .init(id: "codex-soraka", provider: .codex, title: "Soraka · Malphite Exécuteur", champions: ["DA_18_Soraka", "DA_18_Malphite", "DA_18_Azir"],
+              average: 4.64, top4: 0.481, top1: 0.083, games: 35_013, source: codexURL),
+        .init(id: "codex-sivir", provider: .codex, title: "Sivir · Ashe Primitif", champions: ["DA_18_Sivir", "DA_18_Ashe", "DA_Vi18"],
+              average: 4.49, top4: 0.499, top1: 0.143, games: 22_769, source: codexURL),
+        .init(id: "codex-cassiopeia", provider: .codex, title: "Cassiopeia · Fiddlesticks Défenseur", champions: ["DA_18_Cassiopeia", "DA_Fiddlesticks18", "DA_18_Rammus"],
+              average: 4.51, top4: 0.50, top1: 0.089, games: 16_862, source: codexURL),
+        .init(id: "codex-tristana", provider: .codex, title: "Tristana Fæ", champions: ["DA_18_Tristana", "DA_18_Lillia", "DA_18_Rakan"],
+              average: 4.77, top4: 0.443, top1: 0.122, games: 19_565, source: codexURL),
+        .init(id: "tactics-ezreal-aphelios", provider: .tactics, title: "Ezreal · Aphelios Sylvestre", champions: ["DA_18_Ezreal", "DA_18_Aphelios", "DA_18_Hecarim"],
+              average: 4.33, top4: 0.536, top1: 0.128, source: tacticsURL)
     ]
 
+    private static let codexURL = URL(string: "https://tftcodex.com/comps/")!
     private static let tacticsURL = URL(string: "https://tactics.tools/team-compositions/top")!
     private static func metaStats(_ path: String) -> URL {
         URL(string: "https://www.metastats.gg/en/tft/comps/" + path + "?bucket=diamond_plus&days=3&region=all")!
+    }
+
+    var relatedGuide: String? {
+        switch id {
+        case "codex-ahri-zyra": "hexa-ahri-zyra"
+        case "codex-yunara": "hexa-yunara-solaire"
+        case "tactics-yi": "hexa-yi-vi"
+        case "metastats-teemo": "hexa-teemo-leblanc"
+        default: nil
+        }
     }
 
     func matches(_ query: String) -> Bool {
@@ -94,7 +123,7 @@ struct MetaRadarSnapshot: Codable {
     func isValid(for reference: ReferenceData?, patch expectedPatch: String?) -> Bool {
         guard matches(reference), expectedPatch == nil || expectedPatch == patch,
               patch.range(of: #"^\d{1,2}\.\d{1,2}$"#, options: .regularExpression) != nil,
-              (1...60).contains(readings.count), Set(readings.map(\.id)).count == readings.count else { return false }
+              !readings.isEmpty, Set(readings.map(\.id)).count == readings.count else { return false }
         let champions = Set(reference?.entries.filter { $0.kind == "champion" }.map(\.id) ?? [])
         return readings.allSatisfy { reading in
             !reading.title.isEmpty && reading.title.count <= 100 && !reading.id.isEmpty &&
@@ -109,91 +138,11 @@ struct MetaRadarSnapshot: Codable {
     }
 }
 
-struct MetaRadarPreview: View {
-    let snapshot: MetaRadarSnapshot
+struct MetaObservationCard: View {
+    let entry: MetaObservation
     let reference: ReferenceData?
-    let query: String
-    private var entries: [MetaObservation] {
-        let filtered = snapshot.readings.filter { $0.matches(query) }
-        var seen: Set<MetaObservation.Provider> = []
-        let firstByProvider = filtered.filter { seen.insert($0.provider).inserted }
-        let highlights = Set(firstByProvider.map(\.id))
-        return firstByProvider + filtered.filter { !highlights.contains($0.id) }
-    }
 
     var body: some View {
-        if !entries.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                NavigationLink {
-                    ScrollView {
-                        MetaObservationShelf(snapshot: snapshot, reference: reference, query: query).padding()
-                    }.background(hexaNavy).navigationTitle("Radar des compos").navigationBarTitleDisplayMode(.inline)
-                } label: {
-                    HStack {
-                        Label("Radar des compos", systemImage: "chart.line.uptrend.xyaxis").font(.title3.bold())
-                        Spacer()
-                        Text(entries.count.formatted()).font(.caption)
-                        Image(systemName: "chevron.right").font(.caption)
-                    }
-                }.buttonStyle(.plain).accessibilityIdentifier("meta-radar")
-                Text(snapshot.label).font(.caption).foregroundStyle(.secondary)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top) {
-                        ForEach(entries) { entry in
-                            Link(destination: entry.source) {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(entry.provider.rawValue).font(.caption2.bold()).foregroundStyle(entry.provider.color)
-                                    Text(entry.title).font(.subheadline.bold()).lineLimit(2, reservesSpace: true)
-                                    Text(entry.top4.formatted(.percent.precision(.fractionLength(1))) + " Top 4")
-                                        .font(.caption.bold()).foregroundStyle(.mint)
-                                }
-                                .frame(width: 145, alignment: .leading).padding(12)
-                                .background(entry.provider.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
-                            }.buttonStyle(.plain).accessibilityIdentifier("radar-preview-" + entry.id)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct MetaObservationShelf: View {
-    let snapshot: MetaRadarSnapshot
-    let reference: ReferenceData?
-    let query: String
-    @State private var provider: MetaObservation.Provider?
-
-    private var entries: [MetaObservation] {
-        snapshot.readings.filter {
-            (provider == nil || $0.provider == provider) && $0.matches(query)
-        }
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Radar des compos", systemImage: "chart.line.uptrend.xyaxis").font(.title2.bold())
-                Spacer()
-                Picker("Source", selection: $provider) {
-                    Text("Toutes").tag(nil as MetaObservation.Provider?)
-                    ForEach(MetaObservation.Provider.allCases) { Text($0.rawValue).tag(Optional($0)) }
-                }.labelsHidden().accessibilityIdentifier("meta-observation-source")
-            }
-            Text(snapshot.label)
-                .font(.caption).foregroundStyle(.secondary)
-            if !snapshot.matches(reference) {
-                Text("Instantané antérieur au patch sélectionné.").font(.caption).foregroundStyle(.orange)
-            }
-            ForEach(entries) { entry in
-                Link(destination: entry.source) { card(entry) }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("observation-" + entry.id)
-            }
-            Text("Les rangs, périodes et regroupements de plateaux varient selon le fournisseur. MetaStats.gg signale des valeurs agrégées entre patches dans son atlas.")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-    private func card(_ entry: MetaObservation) -> some View {
         Panel {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 5) {
@@ -204,7 +153,7 @@ struct MetaObservationShelf: View {
                 Spacer()
                 Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(entry.provider.color)
             }
-            if snapshot.matches(reference), let reference {
+            if let reference {
                 HStack(spacing: 6) {
                     ForEach(entry.champions, id: \.self) { key in
                         if let champion = reference.entries.first(where: { $0.id == "champion:" + key }) {
@@ -213,13 +162,20 @@ struct MetaObservationShelf: View {
                     }
                 }
             }
-            ViewThatFits(in: .horizontal) {
-                HStack { metrics(entry) }
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) { metrics(entry) }
-            }
+            MetaObservationMetrics(entry: entry)
         }
     }
-    @ViewBuilder private func metrics(_ entry: MetaObservation) -> some View {
+}
+
+struct MetaObservationMetrics: View {
+    let entry: MetaObservation
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack { metrics }
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())]) { metrics }
+        }
+    }
+    @ViewBuilder private var metrics: some View {
         DashboardMetric(title: "Moyenne", value: entry.average.formatted(.number.precision(.fractionLength(2))))
         DashboardMetric(title: "Top 4", value: entry.top4.formatted(.percent.precision(.fractionLength(1))), accent: .mint)
         if let top1 = entry.top1 { DashboardMetric(title: "Top 1", value: top1.formatted(.percent.precision(.fractionLength(1)))) }

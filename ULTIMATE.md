@@ -1,10 +1,10 @@
-# HexaTFT Ultimate 0.5.0
+# HexaTFT Ultimate 0.6.0
 
 ## Audit et périmètre
 
 La version 0.3 mélangeait un seul catalogue de compositions et un seul Codex avec un cache global. Ultimate isole les versions de production, les révisions expérimentales et les archives. Les guides interactifs, favoris, plateaux personnels, recettes et notes existants sont conservés. La copie vers l’atelier utilise le Codex compatible avec ses données historiques.
 
-Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le Codex PBE de CommunityDragon, un comparateur, les notes éditoriales Riot, le calendrier et les actualités esport, un tracker iOS et un serveur Riot privé. Le patch LIVE 18.6 présente cinq guides originaux Hexa, avec progression visuelle, équipement par champion, recettes, transitions et plans de secours. Ils ne comportent aucune statistique de performance. Les 48 guides observés sur 18.5 restent accessibles dans Archives. Les nouvelles données natives de composition proviennent d’un flux HTTPS autorisé. Les pages d’origine restent consultables dans l’annuaire. Les PBE historiques de Mobalytics sont des synthèses Hexa datées avec des liens. Les guides du nouveau build apparaissent lorsque le flux autorisé en fournit. L’atelier de synergies lit directement les unités et paliers du build PBE.
+Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le Codex PBE de CommunityDragon, un comparateur, les notes éditoriales Riot, le calendrier et les actualités esport, un tracker iOS et un serveur Riot privé. Le patch LIVE 18.6 présente neuf guides originaux Hexa, avec progression visuelle, équipement par champion, recettes, transitions et plans de secours. Ils ne comportent aucune statistique de performance. Les 48 guides observés sur 18.5 restent accessibles dans Archives. Les nouvelles données natives de composition proviennent d’un flux HTTPS autorisé. Les pages d’origine restent consultables dans l’annuaire. Les PBE historiques de Mobalytics sont des synthèses Hexa datées avec des liens. Les guides du nouveau build apparaissent lorsque le flux autorisé en fournit. L’atelier de synergies lit directement les unités et paliers du build PBE.
 
 ## Audit des sources
 
@@ -23,9 +23,9 @@ Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le C
 
 ## Accueil, patches et esport
 
-Le Radar présente une sélection éditoriale de huit mesures publiques relevées le 10 novembre 2026 chez TFT Codex, Tactics.Tools et MetaStats.gg. La période, le rang et le lien d’origine accompagnent chaque relevé. La mention du patch 18.6 est conservée après un changement de patch. Le filtre de MetaStats.gg peut regrouper plusieurs versions, comme indiqué par le fournisseur. Hexa ne recalcule pas de classement commun à ces sources. Les guides natifs et les catalogues statistiques autorisés restent des collections séparées.
+L’accueil affiche les cartes statistiques par source avec les chiffres sous les portraits. L’onglet Guides présente les compositions jouables. Le Radar présente une sélection éditoriale de dix-sept mesures publiques relevées le 10 novembre 2026 chez TFT Codex, Tactics.Tools et MetaStats.gg. La période, le rang et le lien d’origine accompagnent chaque relevé. La mention du patch 18.6 est conservée après un changement de patch. Le filtre de MetaStats.gg peut regrouper plusieurs versions, comme indiqué par le fournisseur. Hexa ne recalcule pas de classement commun à ces sources. Les guides natifs et les catalogues statistiques autorisés restent des collections séparées.
 
-Les fiches des patches 18.5 et 18.6 résument les changements de Riot avec catégories et valeurs avant/après. Le fil officiel détecte de nouvelles publications. À l’ouverture d’une nouvelle note, Hexa lit les valeurs avant/après quand elles sont structurées dans la page Riot. L’esport affiche le parcours du mondial, les dates et la dotation annoncées, les tableaux officiels des tournois régionaux concernés, les diffusions et le palmarès vérifié d’AUR Huanmie.
+Les fiches des patches 18.5 et 18.6 résument les changements de Riot avec catégories et valeurs avant/après. Le fil officiel détecte de nouvelles publications. À l’ouverture d’une nouvelle note, Hexa lit les valeurs avant/après quand elles sont structurées dans la page Riot. L’esport distingue résultats de tournoi, ladder daté et effectifs des clubs français vérifiés. Le calendrier regroupe les prochaines compétitions et les événements terminés. Le catalogue PBE génère des noyaux de trait avec des plateaux interactifs à partir du Codex expérimental.
 
 ## Actualisation
 

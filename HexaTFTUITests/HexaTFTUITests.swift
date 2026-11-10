@@ -69,9 +69,12 @@ final class HexaTFTUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         app.buttons["PBE"].tap()
-        for _ in 0..<3 where !app.staticTexts["Les pistes du dernier guide PBE retrouvé"].isHittable { app.swipeUp() }
-        XCTAssertTrue(app.staticTexts["Les pistes du dernier guide PBE retrouvé"].exists)
+        let pbeCard = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "meta-card-pbe-")).firstMatch
+        XCTAssertTrue(pbeCard.waitForExistence(timeout: 8))
         snapshot("09-pbe")
+        pbeCard.tap()
+        XCTAssertTrue(app.segmentedControls["guide-mode"].waitForExistence(timeout: 8))
+        snapshot("21-pbe-guide")
         app.tabBars.buttons["Patches"].tap()
         XCTAssertTrue(app.navigationBars["Patches"].exists)
         XCTAssertTrue(app.staticTexts["Laboratoire PBE"].exists)
@@ -103,6 +106,7 @@ final class HexaTFTUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         app.buttons["LIVE EUW"].tap()
+        app.segmentedControls["meta-library"].buttons["Guides"].tap()
         let card = app.buttons["meta-card-hexa-ahri-zyra"]
         XCTAssertTrue(card.waitForExistence(timeout: 8))
         for _ in 0..<3 where !card.isHittable { app.swipeUp() }
@@ -125,14 +129,12 @@ final class HexaTFTUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         app.buttons["LIVE EUW"].tap()
-        let radar = app.buttons["meta-radar"]
-        XCTAssertTrue(radar.waitForExistence(timeout: 8))
-        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "radar-preview-tactics-ezreal").firstMatch.exists)
-        snapshot("16-home-radar")
-        radar.tap()
-        let card = app.descendants(matching: .any).matching(identifier: "observation-codex-roncier").firstMatch
+        let card = app.buttons["observation-codex-roncier"]
         XCTAssertTrue(card.waitForExistence(timeout: 8))
-        XCTAssertTrue(app.navigationBars["Radar des compos"].exists)
+        snapshot("16-home-radar")
+        card.tap()
+        XCTAssertTrue(app.navigationBars["Composition"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Top 4")).firstMatch.exists)
         snapshot("17-multi-sources")
         app.tabBars.buttons["Patches"].tap()
         let notes = app.buttons["Notes du patch 18.6"]
@@ -152,6 +154,13 @@ final class HexaTFTUITests: XCTestCase {
         for _ in 0..<3 where !phases.isHittable { app.swipeUp() }
         XCTAssertTrue(phases.exists)
         snapshot("20-esport-calendrier")
+        for _ in 0..<4 where !tabs.isHittable { app.swipeDown() }
+        tabs.buttons["Joueurs"].tap()
+        let players = app.segmentedControls["esport-player-sections"]
+        XCTAssertTrue(players.waitForExistence(timeout: 8))
+        players.buttons["Clubs FR"].tap()
+        XCTAssertTrue(app.staticTexts["Gentle Mates"].waitForExistence(timeout: 8))
+        snapshot("22-esport-clubs")
     }
     @MainActor private func snapshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

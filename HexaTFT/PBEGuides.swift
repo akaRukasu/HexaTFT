@@ -157,7 +157,48 @@ struct PBELabView: View {
 
 enum LiveGuideCatalogue {
     private typealias Cell = (Int, String)
-    static let guides: [MetaComp] = [ahri, solar, nidalee, teemo, masterYi]
+    static let guides: [MetaComp] = [ahri, solar, nidalee, teemo, masterYi, ezreal, veigar, cassiopeia, azir]
+
+    static func experimentalGuides(reference: ReferenceData) -> [MetaComp] {
+        let champions = reference.entries.filter { $0.kind == "champion" && (1...7).contains($0.cost) }
+        return reference.entries.filter { $0.kind == "trait" }.compactMap { trait in
+            let tiers = (trait.traitThresholds ?? []).filter { $0 >= 2 }.sorted()
+            guard let firstTier = tiers.first, firstTier <= 8 else { return nil }
+            var names: Set<String> = []
+            let members = champions.filter { ($0.traitNames ?? []).contains(trait.name) }
+                .sorted { ($0.cost, $0.name, $0.id) < ($1.cost, $1.name, $1.id) }
+                .filter {
+                    let family = $0.name.split(separator: "(").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? $0.name
+                    return names.insert(family).inserted
+                }
+            guard members.count >= firstTier else { return nil }
+            let key = trait.id.lowercased().replacingOccurrences(of: #"[^a-z0-9]+"#, with: "-", options: .regularExpression)
+            let membersForBoard = Array(members.prefix(8))
+            let snapshots = Set([firstTier, min(membersForBoard.count, max(4, firstTier)), membersForBoard.count]).sorted()
+            let layouts = snapshots.map { size in
+                var front = [3, 2, 4, 1, 5, 0, 6, 10]
+                var back = [24, 22, 26, 21, 27, 23, 25, 17]
+                let cells: [Cell] = membersForBoard.prefix(size).compactMap { unit in
+                    guard let key = unit.id.split(separator: ":").last else { return nil }
+                    let cell = (unit.balance?["range"] ?? 0) > 2 ? back.removeFirst() : front.removeFirst()
+                    return (cell, String(key))
+                }
+                return (size, cells)
+            }
+            let stageLevels = Stage.allCases.indices.map { snapshots[min($0 / 2, snapshots.count - 1)] }
+            let stages = Dictionary(uniqueKeysWithValues: zip(Stage.allCases, stageLevels).map { stage, count in
+                (stage.rawValue, "Essaie un noyau de \(count) unités \(trait.name). Complète les places libres avec les meilleurs soutiens que tu trouves.")
+            })
+            return make("pbe-" + key, style: "Atelier PBE", carries: [],
+                        source: reference.source, levels: layouts, stageLevels: stageLevels, builds: [:],
+                        substitutes: [:], transfers: [:],
+                        plan: AuthoredGuide(title: trait.name, stages: stages,
+                            conditions: "Le premier palier affiché dans ce build demande \(firstTier) unités. Le plateau rassemble des membres du trait par coût d’achat croissant.",
+                            pivot: "Si tu ne peux pas atteindre le prochain palier, joue le noyau déjà amélioré et complète avec une autre synergie.",
+                            positioning: "Placement proposé selon la portée du client. Ajuste la position des combattants de mêlée selon leur rôle et la menace adverse.",
+                            itemPlans: [:], traitThresholds: tiers))
+        }.sorted { $0.title(reference).localizedStandardCompare($1.title(reference)) == .orderedAscending }
+    }
 
     static func isCompatible(_ comp: MetaComp, with reference: ReferenceData) -> Bool {
         let ids = Set(reference.entries.map(\.id))
@@ -365,4 +406,89 @@ enum LiveGuideCatalogue {
                "DA_Vi18":"Priorise les résistances et les PV. Ajoute Cape solaire si l’équipe manque d’anti-soin.",
                "DA_18_Sivir":"Dernier souffle apporte la réduction d’armure. Complète avec des objets de dégâts physiques."
            ]))
+
+    private static let ezreal = make("hexa-ezreal-sylvestre", style: "fast_8",
+        carries: ["DA_18_Ezreal", "DA_18_Hecarim"], source: "https://tactics.tools/team-compositions/top",
+        levels: [
+            (4, [(1,"DA_18_Ornn"), (4,"DA_18_Alistar"), (22,"DA_18_Xayah"), (26,"DA_18_Varus")]),
+            (6, [(1,"DA_18_Ornn"), (3,"DA_18_Hecarim"), (5,"DA_18_Alistar"), (22,"DA_18_Xayah"), (24,"DA_18_LeBlanc"), (26,"DA_18_Varus")]),
+            (8, [(1,"DA_18_Ornn"), (3,"DA_18_Hecarim"), (5,"DA_18_Alistar"), (9,"DA_Fiddlesticks18"), (12,"DA_18_Lillia"), (21,"DA_18_Ezreal"), (24,"DA_18_LeBlanc"), (27,"DA_18_Soraka")])
+        ], stageLevels: [4,4,6,8,8,8],
+        builds: ["DA_18_Ezreal":["DA_SpearOfShojin","DA_InfinityEdge","DA_LastWhisper"], "DA_18_Hecarim":["DA_GargoyleStoneplate","DA_WarmogsArmor","DA_SpiritVisage"]],
+        substitutes: ["DA_18_Ezreal":["DA_SpearOfShojin","DA_InfinityEdge","DA_GiantSlayer"]],
+        transfers: ["DA_18_Xayah":"DA_18_Ezreal"],
+        plan: AuthoredGuide(title: "Ezreal · Sylvestre", stages: [
+            "2-1":"Ouvre avec Ornn et Xayah. Préfère une unité deux étoiles au palier Sylvestre si ton premier plateau manque de dégâts.",
+            "2-5":"Prépare le premier objet AD sur Xayah. Ajoute le meilleur soutien disponible au niveau 5.",
+            "3-2":"Monte 6 et cherche Hecarim pour stabiliser. Conserve les composants défensifs pour ton tank amélioré.",
+            "4-1":"Monte 8 entre 4-1 et 4-2. Stabilise Ezreal et la première ligne avant de transférer les objets.",
+            "5-1":"Ajoute Soraka comme deuxième menace et garde une solution d’anti-soin si le lobby se soigne beaucoup.",
+            "6-1":"Écarte Ezreal de Soraka et place Hecarim vers le groupe adverse qui menace le plus ton arrière."
+        ], conditions: "Départ Sylvestre avec un porteur AD et un tank amélioré. Garde de l’or pour trouver Ezreal à deux étoiles.",
+           pivot: "Si Ezreal tarde, conserve Xayah équipée ou transfère l’équipement sur un carry AD amélioré.",
+           positioning: "Hecarim et Alistar prennent le premier contact. Place Ezreal sur le côté qui protège le mieux ses premiers lancers.",
+           itemPlans: ["DA_18_Ezreal":"Shojin pour accélérer les tirs. Dernier souffle est prioritaire si l’équipe manque de réduction d’armure."]))
+
+    private static let veigar = make("hexa-veigar-sylvestre", style: "slow_roll_5",
+        carries: ["DA_18_Veigar", "DA_18_Ornn"], source: "https://tftcodex.com/comps/",
+        levels: [
+            (4, [(1,"DA_18_Ornn"), (4,"DA_18_RekSai"), (22,"DA_18_Xayah"), (26,"DA_18_Veigar")]),
+            (5, [(1,"DA_18_Ornn"), (4,"DA_18_RekSai"), (6,"DA_18_Alistar"), (22,"DA_18_Xayah"), (26,"DA_18_Veigar")]),
+            (7, [(1,"DA_18_Ornn"), (4,"DA_18_RekSai"), (6,"DA_18_Alistar"), (10,"DA_Fiddlesticks18"), (21,"DA_18_LeBlanc"), (24,"DA_18_Cassiopeia"), (26,"DA_18_Veigar")])
+        ], stageLevels: [4,5,5,5,7,7],
+        builds: ["DA_18_Veigar":["DA_BlueBuff","DA_JeweledGauntlet","DA_RabadonsDeathcap"], "DA_18_Ornn":["DA_GargoyleStoneplate","DA_WarmogsArmor","DA_SpiritVisage"]],
+        substitutes: ["DA_18_Veigar":["DA_SpearOfShojin","DA_JeweledGauntlet","DA_NashorsTooth"]], transfers: [:],
+        plan: AuthoredGuide(title: "Veigar · Sylvestre", stages: [
+            "2-1":"Ramasse les paires de Veigar et Ornn. Préserve tes paliers d’intérêts.",
+            "2-5":"Garde la première ligne assez solide pour que Veigar lance plusieurs fois.",
+            "3-2":"Relance au niveau 5 si Veigar et Ornn sont proches des trois étoiles. Stabilise d’abord à deux étoiles.",
+            "4-1":"Dépense davantage seulement si tes PV ou le nombre de copies justifient le pari.",
+            "5-1":"Monte de niveau après les améliorations et ajoute les Tisseurs de sorts disponibles.",
+            "6-1":"Écarte Veigar des autres porteurs AP et vérifie que son côté reste protégé."
+        ], conditions: "Beaucoup de copies naturelles à un PO et un départ mana/AP.",
+           pivot: "Si Veigar est contesté, garde ses objets pour LeBlanc ou un autre carry AP en montant de niveau.",
+           positioning: "Ornn attire le focus au centre. Veigar occupe le coin le moins exposé.",
+           itemPlans: ["DA_18_Veigar":"Buff bleu accélère les incantations courtes. Complète avec les critiques de sort et la puissance."]))
+
+    private static let cassiopeia = make("hexa-cassiopeia-fiddlesticks", style: "slow_roll_7",
+        carries: ["DA_18_Cassiopeia", "DA_Fiddlesticks18"], source: "https://tftcodex.com/comps/",
+        levels: [
+            (4, [(1,"DA_18_Leona"), (4,"DA_18_Ornn"), (7,"DA_18_Camille"), (24,"DA_Karma18")]),
+            (6, [(1,"DA_18_Leona"), (4,"DA_18_Ornn"), (6,"DA_18_Shen"), (10,"DA_Fiddlesticks18"), (22,"DA_Karma18"), (26,"DA_18_Cassiopeia")]),
+            (7, [(0,"DA_18_Leona"), (2,"DA_18_Ornn"), (4,"DA_18_Rammus"), (6,"DA_18_Shen"), (8,"DA_Fiddlesticks18"), (11,"DA_18_Lillia"), (25,"DA_18_Cassiopeia")])
+        ], stageLevels: [4,4,6,7,7,7],
+        builds: ["DA_18_Cassiopeia":["DA_SpearOfShojin","DA_RabadonsDeathcap","DA_JeweledGauntlet"], "DA_18_Rammus":["DA_GargoyleStoneplate","DA_WarmogsArmor","DA_DragonsClaw"]],
+        substitutes: ["DA_18_Rammus":["DA_SteadfastHeart","DA_WarmogsArmor","DA_SunfireCape"]], transfers: ["DA_Karma18":"DA_18_Cassiopeia"],
+        plan: AuthoredGuide(title: "Cassiopeia · Fiddlesticks", stages: [
+            "2-1":"Prépare deux Défenseurs avec Karma comme porteuse AP provisoire.",
+            "2-5":"Joue tes unités améliorées et réserve les composants de tank à ta première ligne.",
+            "3-2":"Au niveau 6, ajoute Cassiopeia et Fiddlesticks quand ils améliorent ton plateau.",
+            "4-1":"Au niveau 7, stabilise Cassiopeia et Rammus puis compte les copies avant de relancer.",
+            "5-1":"Priorise les trois étoiles que tu peux réellement atteindre et ajoute Lillia dès qu’elle renforce la défense.",
+            "6-1":"Place Fiddlesticks sur le côté où son contrôle couvre plusieurs cibles. Protège Cassiopeia."
+        ], conditions: "Bon départ avec des composants de mana et un noyau Défenseur amélioré.",
+           pivot: "Si Cassiopeia est trop contestée, monte vers un carry AP à quatre PO.",
+           positioning: "Rammus absorbe le premier contact, Fiddlesticks contrôle le côté le plus dense et Cassiopeia reste au fond.",
+           itemPlans: ["DA_18_Cassiopeia":"Shojin aide à multiplier les applications du poison. Ajoute ensuite puissance et critiques."]))
+
+    private static let azir = make("hexa-azir-rammus", style: "slow_roll_7",
+        carries: ["DA_18_Azir", "DA_18_Rammus"], source: "https://tftcodex.com/comps/",
+        levels: [
+            (4, [(2,"DA_18_Ornn"), (4,"DA_18_Kobuko"), (22,"DA_18_Veigar"), (26,"DA_18_Teemo")]),
+            (6, [(2,"DA_18_Ornn"), (4,"DA_18_Rammus"), (6,"DA_18_Kobuko"), (21,"DA_18_Azir"), (24,"DA_18_Veigar"), (27,"DA_18_Teemo")]),
+            (7, [(2,"DA_18_Ornn"), (4,"DA_18_Rammus"), (6,"DA_Fiddlesticks18"), (21,"DA_18_Azir"), (24,"DA_18_Veigar"), (26,"DA_18_Teemo"), (27,"DA_18_Soraka")])
+        ], stageLevels: [4,4,6,7,7,7],
+        builds: ["DA_18_Azir":["DA_GuinsoosRageblade","DA_RabadonsDeathcap","DA_JeweledGauntlet"], "DA_18_Rammus":["DA_GargoyleStoneplate","DA_WarmogsArmor","DA_SpiritVisage"]],
+        substitutes: ["DA_18_Azir":["DA_GuinsoosRageblade","DA_JeweledGauntlet","DA_HextechGunblade"]], transfers: [:],
+        plan: AuthoredGuide(title: "Azir · Rammus", stages: [
+            "2-1":"Garde un noyau Ami de la forêt avec Veigar comme premier lanceur de sorts.",
+            "2-5":"Prépare l’Arc et la Baguette pour Azir. Privilégie les unités deux étoiles.",
+            "3-2":"Cherche Azir et Rammus au niveau 6 sans sacrifier tes intérêts.",
+            "4-1":"Monte 7 et relance pour Azir et Rammus à deux étoiles. Poursuis vers trois étoiles si tu as assez de copies.",
+            "5-1":"Ajoute Soraka ou le meilleur soutien AP disponible. Renforce Rammus avant de répartir les objets secondaires.",
+            "6-1":"Écarte Azir du carry secondaire et replace Rammus devant le noyau adverse."
+        ], conditions: "Cherche cette ligne avec plusieurs copies d’Azir ou de Rammus, des Arcs et de la puissance.",
+           pivot: "Si Azir est contesté, fais porter les objets de puissance à Soraka et monte de niveau.",
+           positioning: "Place Rammus au premier contact. Azir doit rester à portée d’attaque sans être exposé aux contrôles.",
+           itemPlans: ["DA_18_Azir":"Guinsoo accélère ses attaques. Les deux autres objets renforcent les dégâts de ses soldats."]))
 }

@@ -21,6 +21,11 @@ struct MetaView: View {
     @State private var style = "Tous"
     @State private var sort = "Moyenne"
     @State private var gems = false
+    @State private var showingObservations = true
+    @State private var provider: MetaObservation.Provider?
+    private var availableReadings: [MetaObservation] {
+        meta.radar.readings.filter { $0.matches(query) && (provider == nil || $0.provider == provider) }
+    }
     private var styles: [String] { ["Tous"] + Set((meta.comps + meta.editorialComps).map(\.style)).sorted() }
     private var filtered: [MetaComp] {
         let comps = (meta.comps + meta.editorialComps).filter { comp in
@@ -53,13 +58,21 @@ struct MetaView: View {
                         Text("\(meta.comps.count + meta.editorialComps.count) guides").font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                if meta.selection.channel == .pbe {
-                    PBEGuideList()
-                } else {
-                    if meta.selection.channel == .live, !favorites, !gems {
-                        MetaRadarPreview(snapshot: meta.radar, reference: store.reference, query: query)
+                if meta.selection.channel == .live {
+                    Picker("Catalogue", selection: $showingObservations) {
+                        Text("Stats et compos").tag(true)
+                        Text("Guides").tag(false)
+                    }.pickerStyle(.segmented).accessibilityIdentifier("meta-library")
+                    if showingObservations {
+                        observations
+                    } else {
+                        guideShelf
                     }
+                } else {
                     guideShelf
+                    if meta.selection.channel == .pbe {
+                        NavigationLink("Archives et sources PBE") { ScrollView { PBEGuideList().padding() }.navigationTitle("Sources PBE") }
+                    }
                 }
                 NavigationLink { SourcesView() } label: {
                     Label("Sources et méthodologie", systemImage: "globe")
@@ -71,17 +84,72 @@ struct MetaView: View {
         .refreshable { if meta.selection.channel == .live { await meta.refresh(reference: store.reference) } }
         .onChange(of: meta.selection) { _, _ in style = "Tous"; gems = false }
     }
+    private var observations: some View {
+        Group {
+            HStack {
+                Label("Compositions et statistiques", systemImage: "chart.bar.xaxis").font(.headline)
+                Spacer()
+                Picker("Source", selection: $provider) {
+                    Text("Toutes").tag(nil as MetaObservation.Provider?)
+                    ForEach(MetaObservation.Provider.allCases) { Text($0.rawValue).tag(Optional($0)) }
+                }.labelsHidden().accessibilityIdentifier("meta-observation-source")
+            }
+            Text(meta.radar.label).font(.caption).foregroundStyle(.secondary)
+            if !meta.radar.matches(meta.reference) {
+                Text("Relevé d’un patch antérieur").font(.caption.bold()).foregroundStyle(.orange)
+            }
+            archiveShortcut
+            ForEach(availableReadings) { entry in
+                NavigationLink {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            MetaObservationCard(entry: entry, reference: meta.radar.matches(store.reference) ? store.reference : nil)
+                            Link("Ouvrir le relevé d’origine", destination: entry.source).buttonStyle(.bordered)
+                            if let guide = meta.editorialComps.first(where: { entry.relatedGuide == $0.comp_id }) {
+                                NavigationLink("Ouvrir le guide Hexa associé") { MetaDetail(comp: guide) }.buttonStyle(.borderedProminent)
+                                Text("Les chiffres décrivent le regroupement du fournisseur. Le plateau Hexa est une proposition de jeu pour cet archétype.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }.padding()
+                    }.background(hexaNavy).navigationTitle("Composition")
+                } label: {
+                    MetaObservationCard(entry: entry, reference: meta.radar.matches(store.reference) ? store.reference : nil)
+                }.buttonStyle(.plain).accessibilityIdentifier("observation-" + entry.id)
+            }
+            if availableReadings.isEmpty {
+                ContentUnavailableView.search(text: query)
+            }
+        }
+    }
+
+    @ViewBuilder private var archiveShortcut: some View {
+        if query.isEmpty, let latest = meta.archives.first(where: { !$0.pack.data.isEmpty }) {
+            Button {
+                meta.select(.archives, archiveID: latest.id)
+            } label: {
+                Label("\(latest.pack.data.count) guides avec stats · Patch \(latest.pack.patch ?? "archivé")",
+                      systemImage: "archivebox").font(.subheadline.bold())
+            }.buttonStyle(.bordered)
+        }
+    }
+
     private var guideShelf: some View {
         Group {
-            Text(meta.selection.channel == .archives ? "Guides archivés" : "Guides du patch").font(.title2.bold())
+            Text(meta.selection.channel == .archives ? "Guides archivés" : meta.selection.channel == .pbe ? "Compositions PBE" : "Guides du patch").font(.title2.bold())
             if meta.selection.channel == .archives {
                 Text(meta.sourceName + " · " + String((meta.pack?.retrievedAt ?? "").prefix(10)))
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if meta.selection.channel == .pbe {
+                Text("Plateaux à tester sur cette révision. Les cartes indiquent les paliers et la taille du noyau. Les statistiques LIVE restent dans leur onglet.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if !meta.comps.isEmpty || !meta.editorialComps.isEmpty {
                 HStack {
-                    if !meta.comps.isEmpty {
+                    if styles.count > 1 {
                         Picker("Style", selection: $style) { ForEach(styles, id: \.self) { Text($0).tag($0) } }
+                    }
+                    if !meta.comps.isEmpty {
                         Picker("Trier", selection: $sort) { Text("Moyenne").tag("Moyenne"); Text("Top 4").tag("Top 4") }
                     }
                     Spacer()
@@ -98,16 +166,7 @@ struct MetaView: View {
                     if gems { Text("Fréquence ≤ 3 %, moyenne < 4,50 et au moins 500 parties.").font(.caption).foregroundStyle(.secondary) }
                 }
             }
-            if meta.selection.channel == .live, !favorites, !gems, query.isEmpty,
-               let latest = meta.archives.first(where: { !$0.pack.data.isEmpty }) {
-                Button {
-                    meta.select(.archives, archiveID: latest.id)
-                } label: {
-                    Label("\(latest.pack.data.count) guides archivés · \(latest.sourceName) · \(latest.pack.patch ?? "ancien patch")",
-                          systemImage: "archivebox")
-                        .font(.subheadline.bold())
-                }.buttonStyle(.bordered)
-            }
+            if meta.selection.channel == .live, !favorites, !gems { archiveShortcut }
             if let message = meta.message, meta.selection.channel == .live {
                 Text(message).font(.caption).foregroundStyle(.secondary)
             }
@@ -116,6 +175,7 @@ struct MetaView: View {
 }
 struct MetaCard: View {
     @EnvironmentObject private var store: Store
+    @EnvironmentObject private var meta: MetaStore
     let comp: MetaComp
     var body: some View {
         Panel {
@@ -135,6 +195,17 @@ struct MetaCard: View {
             UnitStrip(units: comp.units)
             if let stats = comp.stats {
                 StatsStrip(stats: stats)
+            } else if meta.selection.channel == .pbe {
+                HStack {
+                    DashboardMetric(title: "Unités", value: comp.units.count.formatted(), accent: .mint)
+                    if let tiers = comp.authored?.traitThresholds, !tiers.isEmpty {
+                        DashboardMetric(title: "Paliers du trait", value: tiers.map(String.init).joined(separator: " / "))
+                    }
+                }
+            } else if meta.selection.channel == .live, meta.radar.matches(store.reference),
+                      let reading = meta.radar.readings.first(where: { $0.relatedGuide == comp.comp_id }) {
+                MetaObservationMetrics(entry: reading)
+                Text("Archétype observé · " + reading.provider.rawValue).font(.caption2).foregroundStyle(.secondary)
             } else {
                 Label("Guide Hexa · plateaux et objets", systemImage: "point.3.connected.trianglepath.dotted")
                     .font(.caption).foregroundStyle(.mint)
@@ -204,7 +275,8 @@ struct MetaDetail: View {
                     Button { store.pinMeta(comp) } label: { Label(store.state.pinnedID == comp.id ? "Épinglée" : "Suivre dans Partie", systemImage: "pin.fill").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent)
                     Button { store.favorite(comp.id) } label: { Image(systemName: store.state.favorites.contains(comp.id) ? "star.fill" : "star") }.buttonStyle(.bordered).accessibilityLabel("Ajouter ou retirer des favoris")
                 }
-                Text("Set \(meta.pack?.set ?? "—") · Patch \(meta.pack?.patch ?? "—") · \(comp.authored == nil ? meta.sourceName : "Plan éditorial Hexa")")
+                Text(meta.selection.channel == .pbe ? "PBE · " + (meta.experimental?.version ?? "—") + " · Plateau à tester" :
+                     "Set \(meta.pack?.set ?? "—") · Patch \(meta.pack?.patch ?? "—") · \(comp.authored == nil ? meta.sourceName : "Plan éditorial Hexa")")
                     .font(.caption).foregroundStyle(.secondary)
                 VisualCompositionGuide(comp: comp, stage: $stage)
                 if let plan = comp.authored {

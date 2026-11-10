@@ -181,7 +181,7 @@ final class HexaTFTTests: XCTestCase {
     @MainActor func testCurrentHexaGuidesHaveValidStagesAndEquipmentWithoutInventedStats() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let meta = MetaStore(directory: directory)
-        XCTAssertEqual(meta.editorialComps.count, 5)
+        XCTAssertEqual(meta.editorialComps.count, 9)
         let reference = try XCTUnwrap(meta.reference)
         for comp in meta.editorialComps {
             XCTAssertNil(comp.stats)
@@ -200,7 +200,13 @@ final class HexaTFTTests: XCTestCase {
             }
         }
         meta.select(.pbe)
-        XCTAssertTrue(meta.editorialComps.isEmpty)
+        XCTAssertGreaterThan(meta.editorialComps.count, 12)
+        for comp in meta.editorialComps {
+            XCTAssertNil(comp.stats)
+            XCTAssertFalse(comp.finalBoard.positions.isEmpty)
+            XCTAssertEqual(Set(comp.finalBoard.positions.map(\.board_position)).count, comp.finalBoard.positions.count)
+            XCTAssertTrue(LiveGuideCatalogue.isCompatible(comp, with: try XCTUnwrap(meta.reference)))
+        }
         try? FileManager.default.removeItem(at: directory)
     }
 
@@ -240,5 +246,23 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertFalse(valid.isValid(for: reference, patch: "18.7"))
         let wrongBuild = MetaRadarSnapshot(patch: "18.6", build: "16.23", set: "18", retrievedAt: Date(), readings: [reading])
         XCTAssertFalse(wrongBuild.isValid(for: reference, patch: "18.6"))
+    }
+
+    @MainActor func testTrackerCachesAuthorizedProfileAndRejectsOtherAccount() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let tracker = TrackerStore(service: nil, directory: directory)
+        let identity = try XCTUnwrap(RiotIdentity("Fixture#EUW", region: "euw1"))
+        try tracker.saveProfile(identity)
+        let match = TrackedMatch(id: "EUW1_fixture", timestamp: 100, patch: "16.22.1", set: 18, queue: 1100,
+                                 mode: nil, placement: 2, level: 8, units: [], traits: [], augments: [], lobby: [])
+        let rank = RiotProfile.Rank(queue: "RANKED_TFT", tier: "GOLD", division: "I", lp: 42, wins: 10, losses: 8)
+        let profile = RiotProfile(id: "fixture", riotID: "Fixture#EUW", region: "euw1", observedAt: 200, matches: [match], ranks: [rank])
+        try tracker.ingest(profile, for: identity)
+        XCTAssertEqual(tracker.profile?.matches.first?.placement, 2)
+        XCTAssertEqual(TrackerStore(service: nil, directory: directory).points.first?.rank.lp, 42)
+        let wrong = RiotProfile(id: "other", riotID: "Other#EUW", region: "euw1", observedAt: 300, matches: [], ranks: [])
+        XCTAssertThrowsError(try tracker.ingest(wrong, for: identity))
+        XCTAssertEqual(tracker.profile?.riotID, identity.riotID)
     }
 }

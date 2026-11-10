@@ -130,9 +130,9 @@ final class TrackerTransport: NSObject, URLSessionTaskDelegate {
     private var revision = 0
     private lazy var session = URLSession(configuration: .ephemeral, delegate: transport, delegateQueue: nil)
     private let service: URL?
-    init(service: URL? = DragonFeed.bundledEndpoint("HexaTrackerService")) {
+    init(service: URL? = DragonFeed.bundledEndpoint("HexaTrackerService"), directory: URL? = nil) {
         self.service = service
-        file = URL.applicationSupportDirectory.appendingPathComponent("HexaTFT/riot-tracker.json")
+        file = (directory ?? URL.applicationSupportDirectory.appendingPathComponent("HexaTFT")).appendingPathComponent("riot-tracker.json")
         if let data = try? Data(contentsOf: file), let cached = try? JSONDecoder().decode(TrackerState.self, from: data) {
             state = cached
         }
@@ -181,29 +181,38 @@ final class TrackerTransport: NSObject, URLSessionTaskDelegate {
                 let error = (try? JSONDecoder().decode([String:String].self, from: data))?["error"]
                 throw DataIssue.invalid(error ?? "Le serveur Hexa ne répond pas.")
             }
-            var incoming = try JSONDecoder().decode(RiotProfile.self, from: data)
-            guard incoming.region == identity.region, incoming.matches.allSatisfy({ (1...8).contains($0.placement) }) else {
-                throw DataIssue.invalid("Les données Riot reçues sont incohérentes.")
-            }
-            let key = incoming.id + ":" + incoming.region
-            var next = state
-            let previous = next.profiles.first { $0.id + ":" + $0.region == key }
-            let merged = Dictionary((incoming.matches + (previous?.matches ?? [])).map { ($0.id, $0) }, uniquingKeysWith: { fresh, _ in fresh })
-            incoming.matches = merged.values.sorted { $0.timestamp > $1.timestamp }
-            next.profiles.removeAll { $0.id + ":" + $0.region == key }
-            next.profiles.append(incoming); next.selected = key
-            let date = Date(timeIntervalSince1970: incoming.observedAt)
-            for rank in incoming.ranks {
-                let last = next.points[key]?.last { $0.rank.queue == rank.queue }
-                if last.map({ $0.date < date && ($0.rank.lp != rank.lp || $0.rank.division != rank.division || $0.rank.tier != rank.tier || date.timeIntervalSince($0.date) >= 86400) }) ?? true {
-                    next.points[key, default: []].append(RankPoint(date: date, rank: rank))
-                }
-            }
-            try persist(next)
+            try ingest(JSONDecoder().decode(RiotProfile.self, from: data), for: identity)
         } catch {
             if ticket == revision, !Task.isCancelled { message = error.localizedDescription }
         }
     }
+    func ingest(_ profile: RiotProfile, for identity: RiotIdentity) throws {
+        guard let saved = self.identity, saved.region == identity.region,
+              saved.riotID == identity.riotID, profile.region == identity.region,
+              profile.riotID.caseInsensitiveCompare(identity.riotID) == .orderedSame,
+              !profile.id.isEmpty, profile.observedAt.isFinite, profile.observedAt > 0,
+              profile.matches.allSatisfy({ (1...8).contains($0.placement) && $0.timestamp.isFinite }) else {
+            throw DataIssue.invalid("Les données Riot reçues ne correspondent pas au profil enregistré.")
+        }
+        var incoming = profile
+        let key = incoming.id + ":" + incoming.region
+        var next = state
+        let previous = next.profiles.first { $0.id + ":" + $0.region == key }
+        guard previous.map({ $0.observedAt <= incoming.observedAt }) != false else { return }
+        let merged = Dictionary((incoming.matches + (previous?.matches ?? [])).map { ($0.id, $0) }, uniquingKeysWith: { fresh, _ in fresh })
+        incoming.matches = merged.values.sorted { $0.timestamp > $1.timestamp }
+        next.profiles.removeAll { $0.id + ":" + $0.region == key }
+        next.profiles.append(incoming); next.selected = key
+        let date = Date(timeIntervalSince1970: incoming.observedAt)
+        for rank in incoming.ranks {
+            let last = next.points[key]?.last { $0.rank.queue == rank.queue }
+            if last.map({ $0.date < date && ($0.rank.lp != rank.lp || $0.rank.division != rank.division || $0.rank.tier != rank.tier || date.timeIntervalSince($0.date) >= 86400) }) ?? true {
+                next.points[key, default: []].append(RankPoint(date: date, rank: rank))
+            }
+        }
+        try persist(next)
+    }
+
     func erase() {
         do {
             try persist(TrackerState())
@@ -256,11 +265,10 @@ struct TrackerView: View {
                     .id(profile.id + ":" + profile.region)
             } else if tracker.identity != nil {
                 Section("Données du compte") {
-                    Label("Rang et LP", systemImage: "medal")
-                    Label("Historique et compositions", systemImage: "list.bullet.rectangle")
-                    Label("Progression et statistiques par set", systemImage: "chart.bar.xaxis")
-                    Text(tracker.serviceAvailable ? "En attente du premier relevé Riot." :
-                        "La fiche publique s’ouvre dans le Tracker. Les chiffres natifs seront alimentés par le service Riot Hexa lorsqu’il sera disponible.")
+                    Label(tracker.serviceAvailable ? "En attente du premier relevé Riot" : "Synchronisation Riot indisponible",
+                          systemImage: tracker.serviceAvailable ? "clock" : "antenna.radiowaves.left.and.right.slash")
+                    Text(tracker.serviceAvailable ? "Le rang, les LP et les parties apparaîtront ici après la synchronisation." :
+                        "Le service Riot d’Hexa n’est pas actif sur cette version. Ton Riot ID est déjà enregistré.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }

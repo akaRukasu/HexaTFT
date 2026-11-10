@@ -63,6 +63,7 @@ struct AuthoredGuide: Codable {
     let pivot: String
     let positioning: String
     let itemPlans: [String: String]
+    var traitThresholds: [Int]? = nil
 }
 struct MetaComp: Codable, Identifiable {
     let comp_id: String
@@ -143,7 +144,7 @@ struct MetaPack: Codable {
     static func decode(_ data: Data) throws -> MetaPack {
         guard data.count <= 20_000_000 else { throw DataIssue.invalid("Réponse trop volumineuse.") }
         let pack = try JSONDecoder().decode(Self.self, from: data)
-        guard !pack.data.isEmpty, pack.data.count <= 250, Set(pack.data.map(\.id)).count == pack.data.count,
+        guard !pack.data.isEmpty, Set(pack.data.map(\.id)).count == pack.data.count,
               pack.data.allSatisfy({ comp in
                   guard let stats = comp.stats, comp.authored == nil else { return false }
                   return (1...8).contains(stats.avg_placement) && (0...1).contains(stats.top_4_percent) &&
@@ -244,7 +245,16 @@ struct MetaPack: Codable {
               partnerGuides?.set == experimental?.entries.first?.set else { return nil }
         return partnerGuides
     }
+    private var pbeCatalogueVersion: String?
+    private var pbeCatalogue: [MetaComp] = []
     var editorialComps: [MetaComp] {
+        if selection.channel == .pbe, let reference {
+            if pbeCatalogueVersion != reference.version {
+                pbeCatalogue = LiveGuideCatalogue.experimentalGuides(reference: reference)
+                pbeCatalogueVersion = reference.version
+            }
+            return pbeCatalogue
+        }
         guard pack?.patch == "18.6",
               let reference, reference.version.hasPrefix("16.22.") else { return [] }
         return LiveGuideCatalogue.guides.filter { LiveGuideCatalogue.isCompatible($0, with: reference) }
