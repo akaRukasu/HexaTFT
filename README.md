@@ -1,5 +1,7 @@
 # Hexa TFT — iPhone companion
 
+Pour la branche Ultimate 0.4, voir [le guide de livraison et des sources](ULTIMATE.md). La suite décrit le fonctionnement historique de Hexa 0.3.
+
 Native SwiftUI app, in French, intended to sit beside TFT on PC. Version 0.3 extends the visual stage/level guide, interactive boards and champion equipment recipes. Version 0.2 replaced the example-only landing screen with real native composition sheets and adds the full source websites inside the app.
 
 - **Méta**: Blitz compositions, search by champion, style filters, favorites and sorting by average placement or top-4 rate. Source, patch and retrieval date are visible.

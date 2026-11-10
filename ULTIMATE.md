@@ -6,6 +6,21 @@ La version 0.3 mélangeait un seul catalogue de compositions et un seul Codex av
 
 Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le Codex PBE de CommunityDragon, un comparateur, les notes éditoriales Riot, le calendrier et les actualités esport, un tracker iOS et un serveur Riot privé. Le catalogue Blitz du 3 novembre reste accessible dans Archives. Les nouvelles données natives de composition proviennent d’un flux HTTPS autorisé. Les pages d’origine restent consultables dans l’annuaire. Les PBE historiques de Mobalytics sont des synthèses Hexa datées avec des liens. Les guides du nouveau build apparaissent lorsque le flux autorisé en fournit. L’atelier de synergies lit directement les unités et paliers du build PBE.
 
+## Audit des sources
+
+| Source | Usage dans Ultimate | Vérification et limites |
+|---|---|---|
+| Riot Games | Profil et matchs via la passerelle, version des ressources EUW, publications et calendrier | Les API de compte, de classement et de matchs nécessitent un accès approuvé. Le calendrier annonce des dates. |
+| CommunityDragon | Codex LIVE/PBE, paliers et comparateur | Export de fichiers du client, provenance communautaire. Aucun résultat de partie. |
+| Blitz | Archive déjà embarquée et lien vers la méta actuelle | Conditions du fournisseur vérifiées. Les nouvelles collectes et redistributions nécessitent une autorisation. |
+| Mobalytics | Liens d’origine et synthèses de préparation Hexa datées | Conditions vérifiées. L’application ouvre les pages originales dans le navigateur. |
+| TFT Academy | Annuaire et consultation d’origine | Conditions consultées. Aucun flux autorisé identifié pour ce projet. |
+| TFTips et Tactics.tools | Annuaire et références expérimentales | Les pages de calendrier ou de changements PBE ne confirment pas les performances d’une composition. |
+| MetaTFT et Sologesang | Consultation d’origine et lien depuis des plans éditoriaux | Les classements experts et les statistiques ne sont pas importés ni fusionnés. |
+| TFT Flow, TFT Codex, TFT Ninja, La Casita del TFT, BunnyMuffins | Consultation d’origine | Pages publiques repérées. Autorisation d’import non établie pour ce projet. |
+| TFTable, HexComps, TFT Handbook, TFTraits | Consultation d’origine | Pages publiques repérées. Autorisation d’import non établie pour ce projet. |
+| Compete TFT | Liens vers les tableaux des tournois | Le flux de points par manche reste à obtenir. |
+
 ## Actualisation
 
 Hexa vérifie les sources en premier plan sans action manuelle. Les vérifications se répètent suivant des intervalles d’au moins 10 minutes pour les catalogues, 5 minutes pour les articles Riot et 3 minutes pour le tracker configuré. Une requête d’actualisation est soumise à iOS pour l’arrière-plan. Le système choisit l’heure d’exécution. Les fichiers valides sont conservés en cas d’échec. Une nouvelle version EUW archive le précédent catalogue de compositions lorsqu’il existe. Les anciennes révisions PBE sont conservées pour comparaison.
