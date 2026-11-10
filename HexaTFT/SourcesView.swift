@@ -96,7 +96,9 @@ struct SourcesView: View {
                             if source == .mobalytics || source == .blitz {
                                 VStack(spacing: 12) {
                                     Text(source.rawValue).font(.title2.bold())
-                                    Link("Ouvrir le site original", destination: source.url).buttonStyle(.borderedProminent)
+                                    Link("Ouvrir le site original", destination: source.url)
+                                        .buttonStyle(.borderedProminent)
+                                        .accessibilityIdentifier("source-original-" + source.rawValue)
                                 }.frame(maxWidth: .infinity, maxHeight: .infinity)
                             } else { EmbeddedPage(url: source.url) }
                         }.opacity(selected == source ? 1 : 0)

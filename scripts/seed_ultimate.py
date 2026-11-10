@@ -43,7 +43,6 @@ def make_reference(raw, number, revision, retrieved, source, art_root):
     return dict(version=revision, source=source, retrievedAt=retrieved, entries=list(entries.values()))
 
 def seed(captures):
-    base=read(RES/"reference.json")
     # 18.6 and 16.22 were cross-checked with Riot's published notes and EUW realm.
     patch, number = "18.6", 18
     timestamp="2026-11-10"
@@ -54,13 +53,6 @@ def seed(captures):
     pbe_raw=read(captures/"pbe.download")
     live_tag=".".join(live_version.split(".")[:2])
     live_ref=make_reference(live_raw,number,live_version,timestamp,f"https://raw.communitydragon.org/{live_tag}/cdragon/tft/fr_fr.json",f"https://raw.communitydragon.org/{live_tag}/game/")
-    old={e["id"]:e for e in base["entries"]}
-    # Keep the established French names and complete localized recipes when the new
-    # export gives the same item recipe. Patch-specific descriptions stay isolated.
-    for e in live_ref["entries"]:
-        prior=old.get(e["id"])
-        if prior and not e["components"] and prior.get("components"):
-            e["components"]=prior["components"]
     write("live-meta.json",dict(data=[],patch=patch,set=str(number),retrievedAt=timestamp))
     write("live-reference.json",live_ref)
     write("pbe-reference.json",make_reference(pbe_raw,number,pbe_version,timestamp,

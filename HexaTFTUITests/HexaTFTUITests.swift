@@ -28,7 +28,7 @@ final class HexaTFTUITests: XCTestCase {
             if source == "MetaTFT" {
                 XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
             } else {
-                XCTAssertTrue(app.staticTexts["Ouvrir le site original"].waitForExistence(timeout: 8))
+                XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "source-original-" + source).firstMatch.waitForExistence(timeout: 8))
             }
             snapshot("05-source-" + source)
         }
