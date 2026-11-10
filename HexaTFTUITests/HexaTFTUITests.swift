@@ -102,21 +102,24 @@ final class HexaTFTUITests: XCTestCase {
         let save = app.buttons["tracker-save"]
         XCTAssertTrue(save.isEnabled)
         save.tap()
+        let profileTabs = app.segmentedControls["tracker-profile-tabs"]
+        XCTAssertTrue(profileTabs.waitForExistence(timeout: 8))
+        XCTAssertTrue(profileTabs.buttons["Vue d’ensemble"].isSelected)
+        profileTabs.buttons["Tactics.Tools"].tap()
         let publicProfile = app.webViews.firstMatch
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 8), app.debugDescription)
         XCTAssertTrue(app.staticTexts["Tactikk#EUW"].exists ||
                       app.descendants(matching: .any).matching(identifier: "tracker-identity").firstMatch.exists)
-        let profileTabs = app.segmentedControls["tracker-profile-tabs"]
         XCTAssertTrue(profileTabs.buttons["Tactics.Tools"].isSelected)
         snapshot("15-tracker-profil")
-        profileTabs.buttons["Mon suivi Hexa"].tap()
+        profileTabs.buttons["Vue d’ensemble"].tap()
+        app.buttons["Options du compte"].tap()
         XCTAssertTrue(app.buttons["Modifier le profil"].waitForExistence(timeout: 8))
-        profileTabs.buttons["Tactics.Tools"].tap()
-        XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
         app.terminate()
         app.launch()
         app.tabBars.buttons["Tracker"].tap()
-        XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
+        XCTAssertTrue(profileTabs.waitForExistence(timeout: 8))
+        XCTAssertTrue(profileTabs.buttons["Vue d’ensemble"].isSelected)
     }
     @MainActor func testLiveGuideShowsPlayableBoardAndItemPlan() {
         let app = XCUIApplication()
@@ -147,6 +150,29 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "Fabrique d’abord Shojin")).firstMatch.exists)
         snapshot("14-live-objets")
     }
+    @MainActor func testTrackerNativeOverviewOpensAnOPGGMatch() {
+        let app = XCUIApplication()
+        app.launchEnvironment["HEXA_TRACKER_UI_FIXTURE"] = """
+        {"region":"euw1","riotID":"Fixture#EUW","selected":"opgg:fixture#euw:euw1","points":{},
+         "profiles":[{"id":"opgg:fixture#euw","region":"euw1","riotID":"Fixture#EUW","source":"OP.GG","observedAt":1794271042,
+         "ranks":[{"queue":"RANKED_TFT","tier":"SILVER","division":"II","lp":22,"games":14,"top4Count":6}],
+         "matches":[{"id":"EUW1_fixture","timestamp":1794271042,"patch":"18.6","set":18,"queue":1100,"placement":2,
+         "level":8,"units":[{"key":"DA_18_Hecarim","stars":2,"items":["DA_WarmogsArmor"]}],"traits":[],"augments":[],"lobby":[],"source":"OP.GG"}]}]}
+        """
+        app.launch()
+        app.tabBars.buttons["Tracker"].tap()
+        XCTAssertTrue(app.staticTexts["Argent II"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["22 LP"].exists)
+        XCTAssertTrue(app.segmentedControls["tracker-native-tabs"].exists)
+        snapshot("25-tracker-vue-ensemble")
+        let match = app.buttons["tracker-recent-EUW1_fixture"]
+        for _ in 0..<5 where !match.isHittable { app.swipeUp() }
+        XCTAssertTrue(match.isHittable)
+        match.tap()
+        XCTAssertTrue(app.navigationBars["Partie terminée"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "OP.GG")).firstMatch.exists)
+        snapshot("26-tracker-partie")
+    }
     @MainActor func testRadarPatchDetailsAndEsport() {
         let app = XCUIApplication()
         app.launch()
@@ -155,6 +181,8 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 8))
         XCTAssertEqual(card.identifier, "observation-metastats-raptor")
         for _ in 0..<3 where !card.isHittable { app.swipeUp() }
+        XCTAssertTrue(card.label.contains("8 unités") ||
+                      card.staticTexts["Plateau conseillé par Hexa · 8 unités"].exists)
         snapshot("16-home-radar")
         card.tap()
         XCTAssertTrue(app.navigationBars["Composition"].waitForExistence(timeout: 8))
@@ -191,6 +219,7 @@ final class HexaTFTUITests: XCTestCase {
         let phases = app.staticTexts["Le parcours du mondial"]
         for _ in 0..<3 where !phases.isHittable { app.swipeUp() }
         XCTAssertTrue(phases.exists)
+        XCTAssertTrue(app.staticTexts["13 h chaque jour · heure de Paris"].exists)
         snapshot("20-esport-calendrier")
         for _ in 0..<4 where !tabs.isHittable { app.swipeDown() }
         tabs.buttons["Joueurs"].tap()

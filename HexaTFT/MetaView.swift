@@ -163,14 +163,15 @@ struct MetaView: View {
     }
 
     private func observationRow(_ entry: MetaObservation, radar: MetaRadarSnapshot, catalogue: PatchSnapshot?) -> some View {
-        NavigationLink {
-            if let guide = meta.nativeGuide(for: entry, in: radar, catalogue: catalogue) {
+        let guide = meta.nativeGuide(for: entry, in: radar, catalogue: catalogue)
+        return NavigationLink {
+            if let guide {
                 MetaDetail(comp: guide, snapshot: catalogue, reading: entry)
             } else {
                 ObservationCoreView(entry: entry, reference: catalogue?.reference, patch: radar.patch)
             }
         } label: {
-            MetaObservationCard(entry: entry, reference: catalogue?.reference)
+            MetaObservationCard(entry: entry, reference: catalogue?.reference, guide: guide)
         }.buttonStyle(.plain).accessibilityIdentifier("observation-" + entry.id)
     }
 
@@ -201,7 +202,7 @@ struct MetaView: View {
             Text(snapshot.sourceName + " · Patch " + (snapshot.pack.patch ?? "archivé"))
                 .font(.caption).foregroundStyle(.secondary)
             if let reference = snapshot.reference {
-                UnitStrip(units: comp.units, reference: reference)
+                MetaRoster(keys: comp.units.map(\.name), reference: reference)
             }
             if let stats = comp.stats { StatsStrip(stats: stats) }
         }
@@ -281,7 +282,7 @@ struct MetaCard: View {
                 Spacer()
                 Image(systemName: store.state.favorites.contains(comp.id) ? "star.fill" : "chevron.right").foregroundStyle(hexaGold)
             }
-            UnitStrip(units: comp.units)
+            MetaRoster(keys: comp.units.map(\.name), reference: store.reference)
             if let stats = comp.stats {
                 StatsStrip(stats: stats)
             } else if meta.selection.channel == .pbe {
@@ -302,6 +303,23 @@ struct MetaCard: View {
         }
     }
 }
+struct MetaRoster: View {
+    let keys: [String]
+    let reference: ReferenceData?
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 37), spacing: 5, alignment: .leading)], alignment: .leading, spacing: 6) {
+            ForEach(keys, id: \.self) { key in
+                let entry = reference?.champion(key: key) ?? ReferenceEntry.boardEntity(key)
+                EntryIcon(entry: entry, size: 36)
+                    .accessibilityHidden(false)
+                    .accessibilityLabel(entry.name)
+            }
+        }.accessibilityElement(children: .ignore)
+            .accessibilityLabel(keys.map { reference?.champion(key: $0)?.name ?? ReferenceEntry.boardEntity($0).name }.joined(separator: ", "))
+            .accessibilityIdentifier("meta-roster")
+    }
+}
+
 struct UnitStrip: View {
     @GuideReference private var guideReference: ReferenceData?
     let units: [MetaUnit]

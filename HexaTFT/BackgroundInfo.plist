@@ -4,8 +4,6 @@
 <dict>
     <key>HexaMetaService</key>
     <string>$(HEXA_META_SERVICE)</string>
-    <key>HexaTrackerService</key>
-    <string>$(HEXA_TRACKER_SERVICE)</string>
     <key>BGTaskSchedulerPermittedIdentifiers</key>
     <array>
         <string>com.example.HexaTFT.refresh</string>

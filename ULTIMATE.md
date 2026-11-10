@@ -1,4 +1,4 @@
-# HexaTFT Ultimate 0.6.2
+# HexaTFT Ultimate 0.7.0
 
 ## Audit et périmètre
 
@@ -10,7 +10,7 @@ Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le C
 
 | Source | Usage dans Ultimate | Vérification et limites |
 |---|---|---|
-| Riot Games | Profil et matchs via la passerelle, version des ressources EUW, publications et calendrier | Les API de compte, de classement et de matchs nécessitent un accès approuvé. Le calendrier annonce des dates. |
+| Riot Games | Version des ressources EUW, publications et calendrier | Le calendrier officiel est public. |
 | CommunityDragon | Codex LIVE/PBE, paliers et comparateur | Export de fichiers du client, provenance communautaire. Aucun résultat de partie. |
 | Blitz | Archive déjà embarquée et lien vers la méta actuelle | Conditions du fournisseur vérifiées. Les nouvelles collectes et redistributions nécessitent une autorisation. |
 | Mobalytics | Liens d’origine et synthèses de préparation Hexa datées | Conditions vérifiées. L’application ouvre les pages originales dans le navigateur. |
@@ -19,17 +19,18 @@ Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le C
 | MetaTFT et Sologesang | Consultation d’origine et lien depuis des plans éditoriaux | Les classements experts et les statistiques ne sont pas importés ni fusionnés. |
 | TFT Flow, TFT Codex, TFT Ninja, La Casita del TFT, BunnyMuffins | Consultation d’origine | Pages publiques repérées. Autorisation d’import non établie pour ce projet. |
 | TFTable, HexComps, TFT Handbook, TFTraits | Consultation d’origine | Pages publiques repérées. Autorisation d’import non établie pour ce projet. |
-| Compete TFT | Liens vers les tableaux des tournois | Le flux de points par manche reste à obtenir. |
+| Compete TFT | Calendrier public du set 18, qualifications, résultats et liens vers les tableaux de tournoi | Les horaires annoncés sont distingués des scores de diffusion. |
+| OP.GG | Rang, historique public et relevés de LP du compte | Le fournisseur publie ses données à son rythme. Hexa indique la source et la date du relevé. |
 
 ## Accueil, patches et esport
 
-L’accueil affiche les cartes statistiques par source avec les chiffres sous les portraits. L’onglet Guides présente les compositions jouables. Le Radar présente une sélection éditoriale de dix-sept mesures publiques relevées le 10 novembre 2026 chez TFT Codex, Tactics.Tools et MetaStats.gg. La période, le rang et le lien d’origine accompagnent chaque relevé. La mention du patch 18.6 est conservée après un changement de patch. Le filtre de MetaStats.gg peut regrouper plusieurs versions, comme indiqué par le fournisseur. Hexa ne recalcule pas de classement commun à ces sources. Chaque carte du Radar inclus ouvre directement un guide natif sur son plateau final. Le guide précise que les placements et objets sont proposés par Hexa. Les cartes archivées ouvrent leur plateau avec le Codex du patch correspondant.
+L’accueil affiche les cartes statistiques par source avec les chiffres sous les portraits. L’onglet Guides présente les compositions jouables. Le Radar présente une sélection éditoriale de dix-sept mesures publiques relevées le 10 novembre 2026 chez TFT Codex, Tactics.Tools et MetaStats.gg. La période, le rang et le lien d’origine accompagnent chaque relevé. La mention du patch 18.6 est conservée après un changement de patch. Le filtre de MetaStats.gg peut regrouper plusieurs versions, comme indiqué par le fournisseur. Hexa ne recalcule pas de classement commun à ces sources. Chaque carte du Radar inclus ouvre directement un guide natif sur son plateau final. Le guide précise que les placements et objets sont proposés par Hexa. Les cartes avec un guide complet affichent tous ses champions sur l’accueil. Les cartes archivées ouvrent leur plateau avec le Codex du patch correspondant.
 
 Les fiches des patches 18.5 et 18.6 résument les changements de Riot avec catégories et valeurs avant/après. Le fil officiel détecte de nouvelles publications. À l’ouverture d’une nouvelle note, Hexa lit les valeurs avant/après quand elles sont structurées dans la page Riot. L’esport distingue résultats de tournoi, ladder daté et effectifs des clubs français vérifiés. Le calendrier regroupe les prochaines compétitions et les événements terminés. Le catalogue PBE génère des noyaux de trait avec des plateaux interactifs à partir du Codex expérimental.
 
 ## Actualisation
 
-Hexa vérifie les sources en premier plan sans action manuelle. Les vérifications se répètent suivant des intervalles d’au moins 10 minutes pour les catalogues, 5 minutes pour les articles Riot et 3 minutes pour le tracker configuré. Une requête d’actualisation est soumise à iOS pour l’arrière-plan. Le système choisit l’heure d’exécution. Les fichiers valides sont conservés en cas d’échec. Une nouvelle version EUW archive le précédent catalogue de compositions lorsqu’il existe. Les anciennes révisions PBE sont conservées pour comparaison.
+Hexa vérifie les sources en premier plan sans action manuelle. Les vérifications se répètent suivant des intervalles d’au moins 10 minutes pour les catalogues, 5 minutes pour les articles Riot et le calendrier Compete TFT et 15 minutes pour le tracker OP.GG. Une requête d’actualisation est soumise à iOS pour l’arrière-plan. Le système choisit l’heure d’exécution. Les fichiers valides sont conservés en cas d’échec. Une nouvelle version EUW archive le précédent catalogue de compositions lorsqu’il existe. Les anciennes révisions PBE sont conservées pour comparaison.
 
 ## Flux de compositions
 
@@ -40,20 +41,17 @@ Pour distribuer un flux, déclarer l’URL HTTPS de l’export autorisé dans la
 - `radar` met à jour les cartes du Radar. Il fournit `patch`, `build` (branche ou build), `set`, `retrievedAt` (ISO 8601) et `readings`. Chaque relevé exige une source HTTPS du fournisseur, le rang et la période dans `scope` et les chiffres sur une seule population. Le champ facultatif `guideID` désigne le `comp_id` d’un guide du même patch fourni dans `live.pack`. Une carte qui reçoit seulement son noyau affiche les champions fournis et un placement indicatif dans Hexa. Un relevé compatible plus récent remplace le cache local. Avec `nextCursor`, Hexa charge la suite automatiquement via le même point d’accès et le paramètre `cursor`. Les pages du même instantané s’ajoutent sans doublon. Le classement par Top 4 est le défaut et le mode Découverte alterne les sources. Les archives suivent dans des sections séparées par patch.
 - L’import d’archive accepte le format `PatchSnapshot` avec `pack`, `reference` et éventuellement `provider`. Il valide les identifiants et la compatibilité de set avant d’enregistrer.
 
-## Tracker Riot
+## Tracker
 
-Dans l’app, ouvrir **Tracker → Ajouter mon compte**, puis saisir le Riot ID et la région. Le profil est enregistré sur l’iPhone et la fiche originale Tactics.Tools se charge directement dans le Tracker. La synchronisation native démarre automatiquement lorsque l’édition distribuée comporte un service Riot Hexa actif.
-
-Pour l’exploitation du service Hexa, le serveur Python écoute uniquement sur l’interface locale. Avec le mode proxy public, définir `HEXA_PUBLIC_PROXY=1` et `RIOT_API_KEY` côté serveur, mettre en place un proxy TLS avec limites par client et une surveillance du quota Riot, puis déclarer l’URL HTTPS dans la variable GitHub Actions `HEXA_TRACKER_SERVICE`. L’IPA ne contient que l’URL du service. Le tableau natif regroupe les classements, les filtres par mode et set, les graphiques de placements, le détail des matchs et les LP relevés. Le serveur garde au maximum 32 profils en cache mémoire et complète les données de match par lots de 20. L’app conserve les parties déjà reçues et enregistre les LP à partir des relevés réellement reçus.
+Dans **Tracker → Ajouter mon compte**, saisir le Riot ID et sélectionner le serveur. Hexa charge automatiquement la page publique OP.GG correspondant au compte et en affiche le rang, les LP, les parties et l’équipement disponible. Le premier écran est la vue d’ensemble native. Tactics.Tools reste accessible depuis le même onglet. La vérification et le relevé publié ont des dates distinctes. Le cache local permet de consulter les derniers résultats si la page du fournisseur devient indisponible.
 
 ## Limites de cette livraison
 
-- Le serveur Riot est livré mais n’est pas hébergé ou relié à un compte réel. Les tests du serveur utilisent des données identifiées comme fixtures.
 - Les chiffres LIVE du fournisseur et les guides de la révision PBE active exigent un flux autorisé. Les conditions de Blitz et Mobalytics ne constituent pas une permission de redistribuer leurs guides ou bases. Les sources supplémentaires sont des liens documentés.
 - Le comparateur PBE utilise les champs présents dans les exports. Le PBE et les archives n’empruntent pas les statistiques de production.
-- Le calendrier esport réunit les dates annoncées et les liens officiels. Les classements, scores manche par manche, horaires précis et listes de joueurs dépendent d’un flux de tournoi vérifié. Les actualités Riot se rafraîchissent automatiquement.
+- Le calendrier esport et les actualités se rafraîchissent automatiquement. Les qualifiés, effectifs et résultats intégrés sont des relevés datés. Pour les scores manche par manche, l’application renvoie aux tableaux officiels.
 - L’actualisation en arrière-plan dépend d’iOS. La diffusion immédiate à l’app fermée demanderait une infrastructure de notifications et une app signée.
-- L’équipe finale d’un match présente les unités réellement reçues. Les coordonnées de placement et un historique de LP antérieur aux relevés ne figurent pas dans les réponses utilisées.
+- L’équipe finale d’un match présente les unités réellement reçues. Les coordonnées de placement, les optimisations et les autres participants dépendent des données publiées par la source.
 - Les options restantes du cahier des charges incluent les collections avancées, les notifications d’événements, les comparaisons multi-fournisseurs et la couverture exhaustive des historiques et des tournois.
 
 Le workflow GitHub Actions produit une IPA non signée et les résultats de tests. L’IPA requiert une signature pour une installation physique.

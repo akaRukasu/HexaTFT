@@ -245,6 +245,70 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertNil(RiotIdentity("Tactikk#EUW", region: "invalid"))
     }
 
+    func testOPGGPublicProfileNormalizesMatchesAndUsesProviderPoints() throws {
+        let json = """
+        ["$","$L2",null,{"data":{
+          "selectedSet":18,"queueType":"RANKED_TFT",
+          "profile":{"gameName":"Fixture","tagLine":"EUW","region":"euw","updatedAt":"2026-11-09T02:39:49.987Z",
+                     "ranks":[{"queueType":"RANKED_TFT","tier":"SILVER","division":"II","pointsType":"LP","points":22,"games":14,"top4Count":6}]},
+          "matches":{"matches":[{"id":"EUW1_fixture","region":"euw","set":18,"version":"18.6","queueId":1100,
+                    "playedAt":1794271042143,"placement":2,"level":8,"units":[{"key":"DA_18_Hecarim","name":"Hecarim",
+                    "star":2,"items":[{"key":"DA_WarmogsArmor"},"$1:props:data:matches:matches:0:units:0:items:0"]}],
+                    "traits":[{"key":"DA_18_Elderwood","count":3,"style":2}]}]},
+          "lpHistory":{"period":"day","points":[{"date":"2026-11-08","tier":"SILVER","division":"II","leaguePoints":12}]}
+        }}]
+        """
+        let compact = try JSONSerialization.jsonObject(with: Data(json.utf8))
+        let line = "1:" + String(decoding: try JSONSerialization.data(withJSONObject: compact), as: UTF8.self) + "\n"
+        let chunk = String(decoding: try JSONSerialization.data(withJSONObject: [1, line]), as: UTF8.self)
+        let html = "<script>self.__next_f.push(\(chunk))</script>"
+        let identity = try XCTUnwrap(RiotIdentity("fixture#EUW", region: "euw1"))
+        let profile = try OPGGTracker.parse(html, identity: identity)
+        XCTAssertEqual(profile.sourceName, "OP.GG")
+        XCTAssertEqual(profile.ranks.first?.displayTier, "Argent II")
+        XCTAssertEqual(profile.ranks.first?.top4Count, 6)
+        XCTAssertNil(profile.ranks.first?.wins)
+        XCTAssertEqual(profile.matches.first?.placement, 2)
+        XCTAssertEqual(profile.matches.first?.units.first?.items, ["DA_WarmogsArmor", "DA_WarmogsArmor"])
+        XCTAssertEqual(profile.matches.first?.timestamp, 1794271042.143)
+        XCTAssertEqual(profile.publishedPoints?.first?.rank.lp, 12)
+        let wrong = try XCTUnwrap(RiotIdentity("other#EUW", region: "euw1"))
+        XCTAssertThrowsError(try OPGGTracker.parse(html, identity: wrong))
+    }
+
+    func testOfficialCalendarKeepsDatesInParisAndRejectsCancelledEvents() throws {
+        let calendar = """
+        BEGIN:VCALENDAR
+        BEGIN:VEVENT
+        UID:worlds
+        DTSTART;VALUE=DATE:20261113
+        DTEND;VALUE=DATE:20261116
+        SUMMARY:Tactician's Crown
+        END:VEVENT
+        BEGIN:VEVENT
+        UID:stream
+        DTSTART;TZID=America/Los_Angeles:20261113T040000
+        DTEND:20261113T160000Z
+        SUMMARY:Worlds
+          broadcast
+        END:VEVENT
+        BEGIN:VEVENT
+        UID:cancelled
+        DTSTART;VALUE=DATE:20261114
+        STATUS:CANCELLED
+        SUMMARY:Cancelled event
+        END:VEVENT
+        END:VCALENDAR
+        """
+        let entries = CompeteSchedule.parse(calendar.replacingOccurrences(of: "\n", with: "\r\n"))
+        XCTAssertEqual(entries.map(\.id), ["worlds", "stream"])
+        XCTAssertEqual(entries.first?.allDay, true)
+        XCTAssertTrue(try XCTUnwrap(entries.first?.displayDate).contains("15"))
+        let stream = try XCTUnwrap(entries.last)
+        XCTAssertEqual(stream.title, "Worlds broadcast")
+        XCTAssertEqual(stream.start.ISO8601Format(), "2026-11-13T12:00:00Z")
+    }
+
     func testNativePatchParserKeepsNumericChangesAndTheirNestedSubject() throws {
         let html = #"<h2>Équilibrage</h2><h4>Champions</h4><ul><li><strong>Nidalee</strong><ul><li><strong>Forme puissance</strong><ul><li>Attaques&nbsp;: 185/275 <span>⇒</span> 195/295</li></ul></li></ul></li><li>Un correctif de texte</li></ul>"#
         let note = try XCTUnwrap(RiotPatchParser.parse(html, patch: "18.7"))
@@ -276,7 +340,7 @@ final class HexaTFTTests: XCTestCase {
     @MainActor func testTrackerCachesAuthorizedProfileAndRejectsOtherAccount() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let tracker = TrackerStore(service: nil, directory: directory)
+        let tracker = TrackerStore(directory: directory)
         let identity = try XCTUnwrap(RiotIdentity("Fixture#EUW", region: "euw1"))
         try tracker.saveProfile(identity)
         let match = TrackedMatch(id: "EUW1_fixture", timestamp: 100, patch: "16.22.1", set: 18, queue: 1100,
@@ -285,7 +349,7 @@ final class HexaTFTTests: XCTestCase {
         let profile = RiotProfile(id: "fixture", riotID: "Fixture#EUW", region: "euw1", observedAt: 200, matches: [match], ranks: [rank])
         try tracker.ingest(profile, for: identity)
         XCTAssertEqual(tracker.profile?.matches.first?.placement, 2)
-        XCTAssertEqual(TrackerStore(service: nil, directory: directory).points.first?.rank.lp, 42)
+        XCTAssertEqual(TrackerStore(directory: directory).points.first?.rank.lp, 42)
         let wrong = RiotProfile(id: "other", riotID: "Other#EUW", region: "euw1", observedAt: 300, matches: [], ranks: [])
         XCTAssertThrowsError(try tracker.ingest(wrong, for: identity))
         XCTAssertEqual(tracker.profile?.riotID, identity.riotID)

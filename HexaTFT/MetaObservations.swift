@@ -221,6 +221,7 @@ struct MetaRadarSnapshot: Codable {
 struct MetaObservationCard: View {
     let entry: MetaObservation
     let reference: ReferenceData?
+    var guide: MetaComp? = nil
 
     var body: some View {
         Panel {
@@ -234,13 +235,11 @@ struct MetaObservationCard: View {
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(entry.provider.color).accessibilityHidden(true)
             }
             if let reference {
-                HStack(spacing: 6) {
-                    ForEach(entry.champions, id: \.self) { key in
-                        if let champion = reference.entries.first(where: { $0.id == "champion:" + key }) {
-                            EntryIcon(entry: champion, size: 32)
-                        }
-                    }
-                }
+                let keys = guide?.finalBoard.units.map(\.name) ?? entry.champions
+                MetaRoster(keys: keys, reference: reference)
+                Text(guide.map { $0.authored == nil ? "Plateau final · \(keys.count) unités" : "Plateau conseillé par Hexa · \(keys.count) unités" }
+                     ?? "Noyau publié · \(keys.count) unités")
+                    .font(.caption2).foregroundStyle(.secondary)
             }
             MetaObservationMetrics(entry: entry)
         }
