@@ -17,11 +17,9 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Guide visuel"].waitForExistence(timeout: 8))
         snapshot("03-partie")
         app.tabBars.buttons["Plus"].tap()
-        app.buttons["Codex"].tap()
-        XCTAssertTrue(app.navigationBars["Codex"].waitForExistence(timeout: 8))
-        snapshot("04-codex")
-        app.navigationBars["Codex"].buttons.firstMatch.tap()
-        app.buttons["Sources"].tap()
+        let sources = app.buttons["Sources"]
+        XCTAssertTrue(sources.waitForExistence(timeout: 8))
+        sources.tap()
         XCTAssertTrue(app.buttons["MetaTFT"].waitForExistence(timeout: 8))
         for source in ["Mobalytics", "MetaTFT", "Blitz"] {
             app.buttons[source].tap()
@@ -32,6 +30,16 @@ final class HexaTFTUITests: XCTestCase {
             }
             snapshot("05-source-" + source)
         }
+    }
+    @MainActor func testCodexOpensFromLibrary() {
+        let app = XCUIApplication()
+        app.launch()
+        app.tabBars.buttons["Plus"].tap()
+        let codex = app.buttons["Codex"]
+        XCTAssertTrue(codex.waitForExistence(timeout: 8))
+        codex.tap()
+        XCTAssertTrue(app.navigationBars["Codex"].waitForExistence(timeout: 8))
+        snapshot("04-codex")
     }
     @MainActor func testVisualStagesAndChampionRecipes() {
         let app = XCUIApplication()
