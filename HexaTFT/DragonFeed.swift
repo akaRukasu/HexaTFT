@@ -24,9 +24,18 @@ enum DragonFeed {
         let icon: String?
         let squareIcon: String?
         let ability: Ability?
+        let stats: [String: Double?]?
+        let traits: [String]?
     }
     struct Ability: Decodable { let desc: String? }
-    struct Trait: Decodable { let apiName: String?; let name: String?; let desc: String?; let icon: String? }
+    struct Trait: Decodable {
+        struct Threshold: Decodable { let minUnits: Int? }
+        let apiName: String?
+        let name: String?
+        let desc: String?
+        let icon: String?
+        let effects: [Threshold]?
+    }
     struct Item: Decodable {
         let apiName: String?
         let name: String?
@@ -67,7 +76,8 @@ enum DragonFeed {
         }
         var entries: [String: ReferenceEntry] = [:]
         func add(_ kind: String, _ key: String?, _ name: String?, _ art: String?, _ description: String?,
-                 cost: Int = 0, components: [String]? = nil, tags: [String]? = nil) {
+                 cost: Int = 0, components: [String]? = nil, tags: [String]? = nil, balance: [String: Double]? = nil,
+                 traits: [String]? = nil, thresholds: [Int]? = nil) {
             guard let key, !key.isEmpty, let name, !name.isEmpty else { return }
             let id = kind + ":" + key
             let cleaned = (description ?? "").replacingOccurrences(of: #"<br\s*/?>"#, with: "\n", options: [.regularExpression, .caseInsensitive])
@@ -78,10 +88,10 @@ enum DragonFeed {
             let imageURL = path.hasPrefix("assets/") ? "https://raw.communitydragon.org/\(branch)/game/" + path : ""
             let suffix = kind == "champion" && (key.hasSuffix("_AP") || key.hasSuffix("_AD")) ? " (\(key.suffix(2)))" : ""
             entries[id] = ReferenceEntry(id: id, name: name + suffix, kind: kind, set: String(set.number),
-                                        cost: cost, description: cleaned, imageURL: imageURL, components: components, itemTags: tags)
+                                        cost: cost, description: cleaned, imageURL: imageURL, components: components, itemTags: tags, balance: balance, traitNames: traits, traitThresholds: thresholds)
         }
-        for c in set.champions { add("champion", c.apiName, c.name, c.squareIcon ?? c.icon, c.ability?.desc, cost: c.cost ?? 0) }
-        for t in set.traits { add("trait", t.apiName, t.name, t.icon, t.desc) }
+        for c in set.champions { add("champion", c.apiName, c.name, c.squareIcon ?? c.icon, c.ability?.desc, cost: c.cost ?? 0, balance: c.stats?.compactMapValues { $0 }, traits: c.traits) }
+        for t in set.traits { add("trait", t.apiName, t.name, t.icon, t.desc, thresholds: t.effects?.compactMap(\.minUnits)) }
         let items = Dictionary(payload.items.compactMap { item in item.apiName.map { ($0, item) } }, uniquingKeysWith: { first, _ in first })
         for key in Set(set.items) {
             if let i = items[key] { add("item", key, i.name, i.icon, i.desc, components: i.composition, tags: i.tags) }

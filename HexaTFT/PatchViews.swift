@@ -58,8 +58,8 @@ struct PatchHubView: View {
                 Section("Production") {
                     LabeledContent("Catalogue TFT", value: meta.live?.pack.patch ?? "Indisponible")
                     if let context = meta.context {
-                        LabeledContent("Version EUW des ressources Riot", value: context.euwAssetVersion)
-                        LabeledContent("Build du Codex embarqué", value: context.liveBuild)
+                        LabeledContent("Version EUW des ressources Riot", value: meta.euwVersion ?? context.euwAssetVersion)
+                        LabeledContent("Build du Codex", value: meta.live?.reference?.version ?? context.liveBuild)
                     }
                     Text("Le catalogue Blitz reflète un échantillon mondial Platine+. La version des ressources EUW ne donne pas l’heure exacte du déploiement.").font(.caption).foregroundStyle(.secondary)
                 }
@@ -70,10 +70,15 @@ struct PatchHubView: View {
                     if let date = meta.experimental?.retrievedAt { LabeledContent("Date du relevé", value: String(date.prefix(10))) }
                     if let checked = meta.pbeCheckedAt { LabeledContent("Dernière vérification", value: checked.formatted()) }
                     if let message = meta.pbeMessage { Text(message).font(.caption).foregroundStyle(.orange) }
-                    if let previous = meta.previousExperimental, let current = meta.experimental {
-                        NavigationLink("Changements depuis le relevé précédent") { PatchDiffView(left: previous, right: current, leftLabel: "PBE précédent") }
+                    if let current = meta.experimental, !meta.experimentalHistory.isEmpty {
+                        ForEach(meta.experimentalHistory, id: \.version) { previous in
+                            NavigationLink("Comparer au build " + previous.version) {
+                                PatchDiffView(left: previous, right: current, leftLabel: "PBE archivé")
+                            }
+                        }
                     }
                     Text("Relevé du client par CommunityDragon. Les écarts du comparateur décrivent deux instantanés. Les changements peuvent encore évoluer.").font(.caption)
+                    Link("Journal de Tactics.tools", destination: URL(string: "https://tactics.tools/info/pbe")!)
                     Link("Consulter le relevé PBE original", destination: URL(string: "https://raw.communitydragon.org/pbe/cdragon/tft/")!)
                     NavigationLink("Codex expérimental") { CodexView() }
                 }
@@ -178,12 +183,26 @@ struct PatchDiffView: View {
             ForEach(changes) { change in
                 NavigationLink {
                     List {
+                        if change.old != nil, change.new != nil, !change.changedStats.isEmpty {
+                            Section("Valeurs du client") {
+                                ForEach(change.changedStats, id: \.self) { key in
+                                    LabeledContent(statName(key), value: formatted(change.old?.balance?[key]) + " → " + formatted(change.new?.balance?[key]))
+                                }
+                            }
+                        }
                         Section(leftLabel) { if let entry = change.old { entryText(entry) } else { Text("Absent") } }
                         Section("PBE") { if let entry = change.new { entryText(entry) } else { Text("Absent") } }
                     }.navigationTitle(change.name)
                 } label: { LabeledContent(change.name, value: change.status) }
             }
         }.searchable(text: $query).navigationTitle("LIVE et PBE")
+    }
+    private func statName(_ key: String) -> String {
+        ["hp":"PV", "initialMana":"Mana initial", "mana":"Mana maximal", "damage":"Dégâts d’attaque",
+         "attackSpeed":"Vitesse d’attaque", "armor":"Armure", "magicResist":"Résistance magique", "range":"Portée"][key] ?? key
+    }
+    private func formatted(_ value: Double?) -> String {
+        value?.formatted(.number.precision(.fractionLength(0...3))) ?? "—"
     }
     private func entryText(_ entry: ReferenceEntry) -> some View {
         VStack(alignment: .leading) {

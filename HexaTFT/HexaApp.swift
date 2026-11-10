@@ -1,13 +1,28 @@
 import SwiftUI
+import BackgroundTasks
 
 @main struct HexaApp: App {
     @StateObject private var store = Store()
     @StateObject private var meta = MetaStore()
     @StateObject private var tracker = TrackerStore()
     @StateObject private var news = RiotNewsStore()
+    private static let refreshIdentifier = "com.example.HexaTFT.refresh"
+    static func scheduleRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: refreshIdentifier)
+        request.earliestBeginDate = Date().addingTimeInterval(15 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
     var body: some Scene {
         WindowGroup {
             RootView().environmentObject(store).environmentObject(meta).environmentObject(tracker).environmentObject(news).preferredColorScheme(.dark).tint(hexaGold)
+        }
+        .backgroundTask(.appRefresh(Self.refreshIdentifier)) {
+            Self.scheduleRefresh()
+            async let metaSync: Void = meta.autoRefresh()
+            async let pbeSync: Void = meta.autoRefreshPBE()
+            async let newsSync: Void = news.refresh()
+            async let riotSync: Void = tracker.autoRefresh()
+            _ = await (metaSync, pbeSync, newsSync, riotSync)
         }
     }
 }
@@ -20,13 +35,14 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         TabView {
-            NavigationStack { MetaView() }.tabItem { Label("Méta", systemImage: "square.stack.3d.up") }
+            NavigationStack { MetaView() }.id(meta.selection).tabItem { Label("Méta", systemImage: "square.stack.3d.up") }
             NavigationStack { CompanionView() }.tabItem { Label("Partie", systemImage: "play.rectangle") }
             NavigationStack { PatchHubView() }.tabItem { Label("Patches", systemImage: "calendar") }
             NavigationStack { TrackerView() }.tabItem { Label("Tracker", systemImage: "chart.xyaxis.line") }
             NavigationStack { UltimateLibraryView() }.tabItem { Label("Plus", systemImage: "ellipsis") }
         }
         .onChange(of: meta.reference?.version, initial: true) { _, _ in store.showReference(meta.reference) }
+        .onChange(of: scenePhase) { _, phase in if phase == .background { HexaApp.scheduleRefresh() } }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
             while !Task.isCancelled {

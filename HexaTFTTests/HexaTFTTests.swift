@@ -127,4 +127,55 @@ final class HexaTFTTests: XCTestCase {
         let legacy = Data("{\"id\":\"item:test\",\"name\":\"Test\",\"kind\":\"item\",\"set\":\"18\",\"cost\":0,\"description\":\"Effet\",\"imageURL\":\"\"}".utf8)
         XCTAssertNil(try JSONDecoder().decode(ReferenceEntry.self, from: legacy).components)
     }
+
+    @MainActor func testPatchSelectionIsPersistedAndDoesNotShareCatalogues() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let meta = MetaStore(directory: directory)
+        let live = try XCTUnwrap(meta.pack)
+        XCTAssertEqual(live.patch, "18.6")
+        XCTAssertTrue(live.data.allSatisfy { $0.display_patch == "16.22" })
+        let liveCodex = try XCTUnwrap(meta.reference?.version)
+        meta.select(.pbe)
+        XCTAssertTrue(meta.comps.isEmpty)
+        XCTAssertNotEqual(meta.reference?.version, liveCodex)
+        XCTAssertEqual(MetaStore(directory: directory).selection.channel, .pbe)
+        meta.select(.archives)
+        XCTAssertEqual(meta.pack?.patch, "18.5")
+        XCTAssertTrue(meta.comps.allSatisfy { $0.display_patch == "16.21" })
+        XCTAssertNotEqual(meta.reference?.version, liveCodex)
+    }
+
+    func testPatchDiffDoesNotConfuseCostAndStatsWithIdentity() {
+        let before = ReferenceEntry(id: "champion:fixture", name: "Test", kind: "champion", set: "18", cost: 3,
+            description: "", imageURL: "", balance: ["mana": 40, "hp": 600])
+        let after = ReferenceEntry(id: "champion:fixture", name: "Test", kind: "champion", set: "18", cost: 3,
+            description: "", imageURL: "", balance: ["mana": 50, "hp": 600])
+        let left = ReferenceData(version: "live", source: "", retrievedAt: "", entries: [before])
+        let right = ReferenceData(version: "pbe", source: "", retrievedAt: "", entries: [after])
+        let diff = ReferenceChange.compare(left, right)
+        XCTAssertEqual(diff.count, 1)
+        XCTAssertEqual(diff.first?.changedStats, ["mana"])
+        XCTAssertTrue(ReferenceChange.compare(left, left).isEmpty)
+    }
+
+    func testRiotNewsOnlyListsSupportedArticlePaths() {
+        let html = #"<a aria-label="Couronne &amp; finales" href="/en-us/news/esports/crown"><a aria-label="Double" href="/en-us/news/esports/crown/"><a aria-label="Hors site" href="https://example.com/en-us/news/esports/foo"><a aria-label="Patch" href="/en-us/news/game-updates/patch">"#
+        let esports = RiotNewsStore.parse(html, topic: "esports")
+        XCTAssertEqual(esports.map(\.title), ["Couronne & finales"])
+        XCTAssertEqual(RiotNewsStore.parse(html, topic: "game-updates").map(\.title), ["Patch"])
+    }
+
+    func testTrackerComputesMetricsFromCompletedPlacements() {
+        let matches = [1, 4, 8].enumerated().map { offset, placement in
+            TrackedMatch(id: String(offset), timestamp: 0, patch: nil, set: 18, queue: 1100,
+                mode: nil, placement: placement, level: nil, units: [], traits: [], augments: [], lobby: [])
+        }
+        let summary = MatchSummary(matches)
+        XCTAssertEqual(summary.count, 3)
+        XCTAssertEqual(summary.average, 13.0 / 3)
+        XCTAssertEqual(summary.top4, 2.0 / 3)
+        XCTAssertEqual(summary.wins, 1.0 / 3)
+        XCTAssertNil(MatchSummary([]).average)
+    }
 }

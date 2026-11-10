@@ -72,7 +72,7 @@ struct EsportEvent: Identifiable {
         .init(id: "crown", title: "Tactician’s Crown · Enchanted Wilds", region: "Mondial", dates: "13–15 novembre 2026",
               format: "Finale mondiale. Les créneaux précis et les résultats sont à vérifier auprès de Riot.",
               url: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/regional-finals-2026-everything-you-need-to-know/")!, past: false),
-        .init(id: "superbrawl", title: "Tactician’s Superbrawl", region: "Mondial", dates: "6–8 novembre 2026",
+        .init(id: "superbrawl", title: "Tactician’s Superbrawl", region: "EMEA · AMER · APAC", dates: "6–8 novembre 2026",
               format: "Tournoi par équipes de quatre.",
               url: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/tacticians-superbrawl-teams-dates-and-format/")!, past: true),
         .init(id: "regional", title: "Finales régionales Enchanted Wilds", region: "EMEA · AMER · APAC", dates: "23–25 octobre et 30 octobre–1 novembre 2026",
@@ -107,6 +107,9 @@ struct EsportView: View {
             case "Résultats":
                 Section("Résultats et VOD") {
                     Text("Scores et classements structurés indisponibles. Les résultats publiés par Riot et les rediffusions sont accessibles ci-dessous.").font(.subheadline)
+                    Link("Tableau officiel Superbrawl EMEA", destination: URL(string: "https://competetft.com/en-US/tournament/117008552290488714/overview")!)
+                    Link("Tableau officiel Superbrawl AMER", destination: URL(string: "https://competetft.com/en-US/tournament/117008531687591981/overview")!)
+                    Link("Tableau officiel Superbrawl APAC", destination: URL(string: "https://competetft.com/en-US/tournament/117008556467041885/overview")!)
                     Link("Rediffusions officielles", destination: URL(string: "https://www.youtube.com/@playtft/streams")!)
                     Link("Compétitions et résultats Riot", destination: URL(string: "https://teamfighttactics.leagueoflegends.com/en-us/news/esports/")!)
                 }

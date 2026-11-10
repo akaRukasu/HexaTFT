@@ -198,9 +198,10 @@ struct TrackerView: View {
     @State private var confirming = false
     @State private var window = 20
     @State private var mode = "Tous"
+    @State private var matchPatch = "Tous"
     @State private var rankPeriod = 30
     private var recent: [TrackedMatch] {
-        Array((tracker.profile?.matches ?? []).filter { mode == "Tous" || $0.modeName == mode }.prefix(window))
+        Array((tracker.profile?.matches ?? []).filter { (mode == "Tous" || $0.modeName == mode) && (matchPatch == "Tous" || $0.patch == matchPatch) }.prefix(window))
     }
     var body: some View {
         List {
@@ -216,6 +217,7 @@ struct TrackerView: View {
                 }
                 recentSection(profile)
                 if !tracker.points.isEmpty { historySection }
+                if !recent.isEmpty { NavigationLink("Ma méta personnelle") { PersonalMetaView(matches: recent) } }
                 Section("Parties terminées") {
                     ForEach(recent) { match in
                         NavigationLink { TrackedMatchView(match: match) } label: {
@@ -249,6 +251,9 @@ struct TrackerView: View {
         Section("Performances récentes") {
             Picker("Mode", selection: $mode) {
                 ForEach(["Tous"] + Set(profile.matches.map(\.modeName)).sorted(), id: \.self) { Text($0).tag($0) }
+            }
+            Picker("Version Riot", selection: $matchPatch) {
+                ForEach(["Tous"] + Set(profile.matches.compactMap(\.patch)).sorted(), id: \.self) { Text($0).tag($0) }
             }
             Picker("Fenêtre", selection: $window) { ForEach([10,20,50,100], id: \.self) { Text("\($0) parties").tag($0) } }
             let summary = MatchSummary(recent)
@@ -325,7 +330,7 @@ struct TrackedMatchView: View {
     @EnvironmentObject private var meta: MetaStore
     let match: TrackedMatch
     private var reference: ReferenceData? {
-        let build = match.patch?.split(separator: " ").dropFirst().first.map(String.init) ?? match.patch ?? ""
+        let build = match.patch?.split(separator: " ").first(where: { $0.first?.isNumber == true }).map(String.init) ?? ""
         let version = build.split(separator: ".").prefix(2).joined(separator: ".")
         guard !version.isEmpty else { return nil }
         return ([meta.live].compactMap { $0 } + meta.archives).first {
@@ -368,5 +373,40 @@ struct TrackedMatchView: View {
                 }
             }
         }.navigationTitle("Partie terminée")
+    }
+}
+
+
+struct PersonalMetaView: View {
+    let matches: [TrackedMatch]
+    private struct Row: Identifiable {
+        let id: String
+        let matches: [TrackedMatch]
+    }
+    private var groups: [Row] {
+        Dictionary(grouping: matches.filter { !$0.units.isEmpty }) { match in
+            let team = match.units.map(\.key).sorted().joined(separator: "|")
+            return "\(match.set ?? 0):\(match.queue ?? 0):" + team
+        }.map { Row(id: $0.key, matches: $0.value) }.sorted { ($0.matches.count, $0.id) > ($1.matches.count, $1.id) }
+    }
+    var body: some View {
+        List {
+            Section {
+                Text("Groupes par équipe finale exacte, set et file. Les moyennes utilisent uniquement tes matchs de la sélection.").font(.caption)
+            }
+            ForEach(groups) { group in
+                if let latest = group.matches.first {
+                    let summary = MatchSummary(group.matches)
+                    Section("\(summary.count) partie(s) · \(latest.modeName)") {
+                        if let average = summary.average { LabeledContent("Moyenne", value: average.formatted(.number.precision(.fractionLength(2)))) }
+                        if let rate = summary.top4 { LabeledContent("Top 4", value: rate.formatted(.percent)) }
+                        if let rate = summary.wins { LabeledContent("Top 1", value: rate.formatted(.percent)) }
+                        let names = latest.units.sorted { $0.items.count > $1.items.count }.prefix(3).map(\.key)
+                        Text(names.joined(separator: " · ")).font(.caption)
+                        NavigationLink("Voir le dernier plateau joué") { TrackedMatchView(match: latest) }
+                    }
+                }
+            }
+        }.navigationTitle("Ma méta personnelle")
     }
 }

@@ -57,7 +57,7 @@ def normalized_match(doc, puuid):
         "id":doc["metadata"]["match_id"], "timestamp":info["game_datetime"]/1000,
         "patch":info.get("game_version"), "set":info.get("tft_set_number"), "queue":info.get("queue_id"),
         "mode":info.get("tft_game_type"), "placement":player["placement"], "level":player.get("level"),
-        "units":[{"key":u.get("character_id",""),"stars":u.get("tier"),"items":u.get("itemNames",[])}
+        "units":[{"key":u.get("character_id",""),"stars":u.get("tier"),"items":u.get("itemNames") or []}
                  for u in player.get("units",[])],
         "traits":[{"key":t.get("name",""),"count":t.get("num_units",0),"tier":t.get("tier_current",0)}
                   for t in player.get("traits",[]) if t.get("tier_current",0)>0],
@@ -80,10 +80,15 @@ def tracker(body):
     account = riot(account_host, "/riot/account/v1/accounts/by-riot-id/"+quote(name,safe="")+"/"+quote(tag,safe=""))
     puuid = quote(account["puuid"],safe="")
     ranks = riot(region, "/tft/league/v1/by-puuid/"+puuid)
-    ids = riot(host, "/tft/match/v1/matches/by-puuid/"+puuid+"/ids?"+urlencode({"start":0,"count":20}))
+    ids = riot(host, "/tft/match/v1/matches/by-puuid/"+puuid+"/ids?"+urlencode({"start":0,"count":100}))
     known = {m["id"]:m for m in cached["matches"]} if cached else {}
     matches = []
+    remaining = 20
     for id_ in ids:
+        if id_ not in known:
+            if remaining == 0:
+                continue
+            remaining -= 1
         try:
             match = known[id_] if id_ in known else normalized_match(
                 riot(host,"/tft/match/v1/matches/"+quote(id_,safe="")),account["puuid"])
@@ -93,7 +98,7 @@ def tracker(body):
             raise
         if match:
             matches.append(match)
-    result = {"id":account["puuid"],"riotID":account.get("gameName",name)+"#"+account.get("tagLine",tag),
+    result = {"id":account["puuid"],"riotID":(account.get("gameName") or name)+"#"+(account.get("tagLine") or tag),
               "region":region, "observedAt":now, "matches":matches,
               "ranks":[{"queue":r["queueType"],"tier":r["tier"],"division":r["rank"],"lp":r["leaguePoints"],
                         "wins":r["wins"],"losses":r["losses"]} for r in ranks if "leaguePoints" in r]}

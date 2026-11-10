@@ -5,9 +5,7 @@ final class HexaTFTUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         XCTAssertTrue(app.staticTexts["La méta, à portée de main."].waitForExistence(timeout: 15))
-        app.buttons["Actualiser les compositions"].tap()
-        let refreshed = app.staticTexts["Compositions actualisées."]
-        XCTAssertTrue(refreshed.waitForExistence(timeout: 45))
+        // Native navigation uses the bundled catalog even when CI cannot reach a provider.
         snapshot("01-meta")
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "meta-card-")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10))
@@ -65,6 +63,23 @@ final class HexaTFTUITests: XCTestCase {
         stage.tap()
         XCTAssertTrue(app.staticTexts["Milieu de partie"].exists)
         snapshot("08-guide-milieu")
+    }
+    @MainActor func testUltimatePBEAndTrackerNavigation() {
+        let app = XCUIApplication()
+        app.launch()
+        app.buttons["PBE"].tap()
+        for _ in 0..<3 where !app.staticTexts["Les pistes du dernier guide PBE retrouvé"].isHittable { app.swipeUp() }
+        XCTAssertTrue(app.staticTexts["Les pistes du dernier guide PBE retrouvé"].exists)
+        snapshot("09-pbe")
+        app.tabBars.buttons["Patches"].tap()
+        XCTAssertTrue(app.navigationBars["Patches"].exists)
+        XCTAssertTrue(app.staticTexts["Laboratoire PBE"].exists)
+        snapshot("10-patches")
+        app.tabBars.buttons["Tracker"].tap()
+        XCTAssertTrue(app.buttons["Configurer le tracker"].exists)
+        app.buttons["Configurer le tracker"].tap()
+        XCTAssertTrue(app.textFields["Pseudo#TAG"].exists)
+        snapshot("11-tracker")
     }
     @MainActor private func snapshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

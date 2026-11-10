@@ -444,6 +444,7 @@
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.example.HexaTFT";
 				"GENERATE_INFOPLIST_FILE" = "YES";
+				"INFOPLIST_FILE" = "HexaTFT/BackgroundInfo.plist";
 				"INFOPLIST_KEY_CFBundleDisplayName" = "Hexa";
 				"INFOPLIST_KEY_LSApplicationCategoryType" = "public.app-category.reference";
 				"INFOPLIST_KEY_UILaunchScreen_Generation" = "YES";
@@ -466,6 +467,7 @@
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.example.HexaTFT";
 				"GENERATE_INFOPLIST_FILE" = "YES";
+				"INFOPLIST_FILE" = "HexaTFT/BackgroundInfo.plist";
 				"INFOPLIST_KEY_CFBundleDisplayName" = "Hexa";
 				"INFOPLIST_KEY_LSApplicationCategoryType" = "public.app-category.reference";
 				"INFOPLIST_KEY_UILaunchScreen_Generation" = "YES";

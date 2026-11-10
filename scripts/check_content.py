@@ -89,6 +89,19 @@ def main():
     for entry in recipes:
         assert all('item:'+key in item_ids for key in entry['components'])
     print(f"PASS: {len(meta['data'])} compositions, matching set reference, boards, objects and offline assets")
+    live = json.loads((ROOT/'HexaTFT/Resources/live-meta.json').read_text(encoding='utf-8'))
+    live_ref = json.loads((ROOT/'HexaTFT/Resources/live-reference.json').read_text(encoding='utf-8'))
+    pbe_ref = json.loads((ROOT/'HexaTFT/Resources/pbe-reference.json').read_text(encoding='utf-8'))
+    assert live['patch'] != meta['patch']
+    assert live_ref['version'] != pbe_ref['version']
+    assert len(live['data']) > 10
+    live_ids = {e['id'] for e in live_ref['entries']}
+    assert len(live_ids) == len(live_ref['entries'])
+    assert {e['set'] for e in live_ref['entries']} == {live['set']}
+    for comp in live['data']:
+        assert all('champion:'+u['name'] in live_ids for u in comp['units'])
+        assert all('item:'+i in live_ids for u in comp['units'] for i in (u.get('items') or []))
+    print(f"PASS: isolated LIVE {live['patch']}, archived {meta['patch']} and PBE {pbe_ref['version']}")
     project = parse_project(ROOT/'HexaTFT.xcodeproj/project.pbxproj')
     objects = project['objects']
     assert objects[project['rootObject']]['isa'] == 'PBXProject'

@@ -48,6 +48,14 @@ struct MetaUnitStats: Codable {
     let item_trios: [Trio]?
 }
 struct MetaTrait: Codable { let trait_api_name: String }
+struct MetaCondition: Codable {
+    let name: String
+    let type: String
+    let avg_placement: Double?
+    let avg_placement_without: Double?
+    let unit_star_level: Int?
+    let trait_min_count: Int?
+}
 struct MetaComp: Codable, Identifiable {
     let comp_id: String
     let slug: String
@@ -61,6 +69,8 @@ struct MetaComp: Codable, Identifiable {
     let augments: [String]?
     let carry_item_holders: [MetaHolder]?
     let units_stats: [MetaUnitStats]?
+    let carousel_priority: [String]?
+    let play_conditions: [MetaCondition]?
     let display_patch: String?
     let rank: String?
     let region: String?
@@ -138,11 +148,12 @@ struct MetaPack: Codable {
     @Published private(set) var message: String?
     @Published private(set) var archiveMessage: String?
     @Published private(set) var experimental: ReferenceData?
-    @Published private(set) var previousExperimental: ReferenceData?
+    @Published private(set) var experimentalHistory: [ReferenceData] = []
     @Published private(set) var pbeCheckedAt: Date?
     @Published private(set) var pbeMessage: String?
     private var pbeBusy = false
     private var lastPBEAttempt: Date?
+    @Published private(set) var euwVersion: String?
     let context: UltimateContext?
     private let directory: URL
     private var lastAttempt: Date?
@@ -166,7 +177,11 @@ struct MetaPack: Codable {
            live == nil || (saved.pack.retrievedAt ?? "") >= (live?.pack.retrievedAt ?? "") { live = saved }
         if let saved: ReferenceData = read("patch-pbe.json"),
            (experimental?.retrievedAt ?? "") <= saved.retrievedAt { experimental = saved }
-        previousExperimental = read("patch-pbe-previous.json")
+        experimentalHistory = read("patch-pbe-history.json") ?? []
+        if let previous: ReferenceData = read("patch-pbe-previous.json"),
+           !experimentalHistory.contains(where: { $0.version == previous.version }) {
+            experimentalHistory.append(previous)
+        }
         if let saved: PatchSelection = read("patch-selection.json") { selection = saved }
     }
 
@@ -249,6 +264,7 @@ struct MetaPack: Codable {
                 reference = same
             } else {
                 let euw = try await DragonFeed.liveEUW()
+                euwVersion = euw
                 guard euw.hasPrefix(version + ".") else {
                     throw DataIssue.invalid("Le catalogue et la version EUW des ressources ne concordent pas encore.")
                 }
@@ -282,9 +298,10 @@ struct MetaPack: Codable {
                 let next = try await DragonFeed.reference(branch: "pbe", revision: revision, set: nil)
                 let checkedRevision = try await DragonFeed.build(at: "pbe")
                 guard checkedRevision == revision else { throw DataIssue.invalid("Une nouvelle révision PBE est en cours de publication.") }
-                if let experimental {
-                    try save(experimental, to: "patch-pbe-previous.json")
-                    previousExperimental = experimental
+                if let experimental, !experimentalHistory.contains(where: { $0.version == experimental.version }) {
+                    let next = [experimental] + experimentalHistory
+                    try save(next, to: "patch-pbe-history.json")
+                    experimentalHistory = next
                 }
                 try save(next, to: "patch-pbe.json")
                 experimental = next

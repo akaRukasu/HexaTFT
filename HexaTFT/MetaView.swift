@@ -144,8 +144,17 @@ struct StatsStrip: View {
 }
 struct MetaDetail: View {
     @EnvironmentObject private var store: Store
+    @EnvironmentObject private var meta: MetaStore
     let comp: MetaComp
     @State private var stage = Stage.opening
+    private var similar: [MetaComp] {
+        let units = Set(comp.units.map(\.name))
+        return meta.comps.filter { $0.id != comp.id }.map { candidate in
+            let other = Set(candidate.units.map(\.name))
+            let overlap = Double(units.intersection(other).count) / Double(max(1, units.union(other).count))
+            return (candidate, overlap)
+        }.filter { $0.1 >= 0.5 }.sorted { $0.1 > $1.1 }.prefix(3).map { $0.0 }
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -156,7 +165,21 @@ struct MetaDetail: View {
                     Button { store.pinMeta(comp) } label: { Label(store.state.pinnedID == comp.id ? "Épinglée" : "Suivre dans Partie", systemImage: "pin.fill").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent)
                     Button { store.favorite(comp.id) } label: { Image(systemName: store.state.favorites.contains(comp.id) ? "star.fill" : "star") }.buttonStyle(.bordered).accessibilityLabel("Ajouter ou retirer des favoris")
                 }
+                Text("Set \(meta.pack?.set ?? "—") · Patch \(meta.pack?.patch ?? "—") · Blitz")
+                    .font(.caption).foregroundStyle(.secondary)
                 VisualCompositionGuide(comp: comp, stage: $stage)
+                CompositionEvidence(comp: comp)
+                if !similar.isEmpty {
+                    Panel {
+                        Label("Plans proches sur ce patch", systemImage: "arrow.triangle.branch").font(.headline)
+                        Text("Au moins la moitié des champions sont communs sur l’ensemble des deux plateaux. Vérifie les porteurs avant de transférer tes objets.").font(.caption)
+                        ForEach(similar) { option in
+                            NavigationLink { MetaDetail(comp: option) } label: {
+                                Text(option.title(store.reference) + " · " + option.style)
+                            }
+                        }
+                    }
+                }
                 EquipmentRoster(comp: comp)
                 Panel {
                     Label("Mon atelier", systemImage: "hexagon").font(.headline)
@@ -180,5 +203,52 @@ struct MetaDetail: View {
                 }
             }.padding()
         }.background(hexaNavy).navigationTitle("Composition").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+
+struct CompositionEvidence: View {
+    @EnvironmentObject private var store: Store
+    let comp: MetaComp
+    var body: some View {
+        Panel {
+            Label("Préparer ce plan", systemImage: "map").font(.headline)
+            if let priorities = comp.carousel_priority, !priorities.isEmpty {
+                Text("Composants prioritaires selon Blitz").font(.subheadline.bold())
+                ItemIcons(keys: Array(priorities.prefix(3)))
+            }
+            if let conditions = comp.play_conditions, !conditions.isEmpty {
+                Text("Conditions associées aux meilleurs résultats").font(.subheadline.bold())
+                ForEach(Array(conditions.prefix(5).enumerated()), id: \.offset) { _, condition in
+                    if let label = conditionLabel(condition) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(label).font(.subheadline)
+                            if let with = condition.avg_placement, let without = condition.avg_placement_without {
+                                Text("Moyenne avec \(with, format: .number.precision(.fractionLength(2))) · sans \(without, format: .number.precision(.fractionLength(2)))").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                Text("Association statistique sur l’échantillon Blitz. Une unité améliorée peut aussi refléter une partie déjà favorable.").font(.caption2).foregroundStyle(.secondary)
+            }
+            if let traits = comp.traits, !traits.isEmpty {
+                let names = traits.prefix(8).compactMap { trait in
+                    store.reference?.entries.first { $0.id == "trait:" + trait.trait_api_name }?.name
+                }
+                if !names.isEmpty {
+                    Text("Traits fréquemment observés").font(.subheadline.bold())
+                    Text(names.joined(separator: " · ")).font(.caption)
+                }
+            }
+            Text("Positionnement").font(.subheadline.bold())
+            Text("Place les unités défensives face aux premières menaces. Sépare les porteurs lorsque les dégâts de zone punissent un regroupement. Utilise le plateau final du guide pour repérer les unités à protéger.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+    private func conditionLabel(_ condition: MetaCondition) -> String? {
+        let kind = condition.type == "unit" ? "champion" : condition.type
+        guard let entry = store.reference?.entries.first(where: { $0.id == kind + ":" + condition.name }) else { return nil }
+        if let stars = condition.unit_star_level { return entry.name + " · " + String(stars) + " ★" }
+        if let count = condition.trait_min_count { return entry.name + " · palier " + String(count) }
+        return entry.name
     }
 }

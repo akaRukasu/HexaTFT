@@ -22,20 +22,20 @@ def make_reference(raw, number, revision, retrieved, source, art_root):
     content = next(s for s in raw["setData"] if s["mutator"] == f"TFTSet{number}")
     all_items = {i["apiName"]: i for i in raw["items"] if i.get("apiName")}
     entries = {}
-    def add(kind, key, name, image, desc, cost=0, components=None, tags=None):
+    def add(kind, key, name, image, desc, cost=0, components=None, tags=None, balance=None, traits=None, thresholds=None):
         if not key or not name:
             return
         art = image.lower().removesuffix(".tex") + ".png" if (image or "").endswith(".tex") else (image or "").lower()
         entries[f"{kind}:{key}"] = dict(id=f"{kind}:{key}",name=name,kind=kind,set=str(number),cost=cost or 0,
-            description=clean(desc),imageURL=art_root+art if art.startswith("assets/") else "",components=components,itemTags=tags)
+            description=clean(desc),imageURL=art_root+art if art.startswith("assets/") else "",components=components,itemTags=tags,balance=balance,traitNames=traits,traitThresholds=thresholds)
     for c in content["champions"]:
         key=c.get("apiName")
         name=c.get("name") or ""
         if key and key.endswith(("_AD","_AP")) and name:
             name += f" ({key[-2:]})"
-        add("champion",key,name,c.get("squareIcon") or c.get("icon"),(c.get("ability") or {}).get("desc"),c.get("cost"))
+        add("champion",key,name,c.get("squareIcon") or c.get("icon"),(c.get("ability") or {}).get("desc"),c.get("cost"), balance={k:v for k,v in (c.get("stats") or {}).items() if isinstance(v,(int,float))}, traits=c.get("traits"))
     for t in content["traits"]:
-        add("trait",t.get("apiName"),t.get("name"),t.get("icon"),t.get("desc"))
+        add("trait",t.get("apiName"),t.get("name"),t.get("icon"),t.get("desc"),thresholds=[x["minUnits"] for x in t.get("effects",[]) if x.get("minUnits")])
     for kind, keys in [("item",content["items"]),("augment",content["augments"])]:
         for key in keys:
             v=all_items.get(key,{})
@@ -68,7 +68,7 @@ def seed(captures):
         if prior and not e["components"] and prior.get("components"):
             e["components"]=prior["components"]
     champion_keys={e["id"].split(":",1)[1] for e in live_ref["entries"] if e["kind"]=="champion"}
-    fields=set(archive["data"][0])
+    fields=set(archive["data"][0]) | {"carousel_priority","play_conditions"}
     data=[{k:v for k,v in c.items() if k in fields} for c in matches[0]["data"] if all(u["name"] in champion_keys for u in c["units"])]
     assert data
     write("live-meta.json",dict(data=data,patch=patch,set=str(number),retrievedAt=timestamp))

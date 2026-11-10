@@ -42,6 +42,9 @@ struct PBEGuideList: View {
                 Text("Aucun guide de composition vérifié pour ce build. Les exemples ci-dessous appartiennent à une révision antérieure.").font(.subheadline)
                 if let date = meta.pbeCheckedAt { Text("Build vérifié le \(date.formatted())").font(.caption).foregroundStyle(.secondary) }
                 NavigationLink("Voir le Codex PBE") { CodexView() }
+                if let reference = meta.experimental {
+                    NavigationLink("Explorer les synergies du build") { PBELabView(reference: reference) }
+                }
             }
             Text("Les pistes du dernier guide PBE retrouvé").font(.headline)
             Text("Set 18 · 22 août 2026 · sélection éditoriale de Mobalytics. Hexa propose des repères de progression pour ces archétypes.").font(.caption).foregroundStyle(.secondary)
@@ -68,6 +71,61 @@ struct PBEGuideList: View {
                     }
                 }.buttonStyle(.plain)
             }
+        }
+    }
+}
+
+
+struct PBELabView: View {
+    let reference: ReferenceData
+    @State private var query = ""
+    private var groups: [ReferenceEntry] {
+        reference.entries.filter {
+            $0.kind == "trait" && ($0.traitThresholds ?? []).contains { $0 >= 2 } &&
+            (query.isEmpty || $0.name.localizedStandardContains(query)) && !units(for: $0).isEmpty
+        }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+    private func units(for trait: ReferenceEntry) -> [ReferenceEntry] {
+        reference.entries.filter {
+            $0.kind == "champion" && (1...7).contains($0.cost) && ($0.traitNames ?? []).contains(trait.name)
+        }.sorted { ($0.cost, $0.name) < ($1.cost, $1.name) }
+    }
+    var body: some View {
+        List {
+            Section {
+                Badge(text: "BUILD " + reference.version, color: hexaGold)
+                Text("Atelier de théorie. Les paliers et les unités viennent de cette révision du client. Le regroupement sert à préparer un essai et ne mesure pas sa force en partie.").font(.caption)
+            }
+            ForEach(groups) { trait in
+                NavigationLink {
+                    let members = units(for: trait)
+                    List {
+                        Section("Paliers de la révision") {
+                            Text((trait.traitThresholds ?? []).map(String.init).joined(separator: " · "))
+                            Text(trait.description)
+                        }
+                        Section("Première ligne possible · portée courte") {
+                            ForEach(members.filter { ($0.balance?["range"] ?? .infinity) <= 2 }) { row($0) }
+                        }
+                        Section("Arrière possible · portée longue") {
+                            ForEach(members.filter { ($0.balance?["range"] ?? 0) > 2 }) { row($0) }
+                        }
+                        let missingRange = members.filter { $0.balance?["range"] == nil }
+                        if !missingRange.isEmpty { Section("Portée non renseignée") { ForEach(missingRange) { row($0) } } }
+                    }.navigationTitle(trait.name)
+                } label: { LabeledContent(trait.name, value: "\(units(for: trait).count) unités") }
+            }
+        }.searchable(text: $query).navigationTitle("Atelier PBE")
+    }
+    private func row(_ entry: ReferenceEntry) -> some View {
+        HStack {
+            EntryIcon(entry: entry)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(entry.name).font(.headline)
+                Text((entry.traitNames ?? []).joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Text("\(entry.cost) PO").font(.caption).foregroundStyle(hexaGold)
         }
     }
 }
