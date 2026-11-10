@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct MetaObservation: Identifiable {
-    enum Provider: String, CaseIterable, Identifiable {
+struct MetaObservation: Codable, Identifiable {
+    enum Provider: String, Codable, CaseIterable, Identifiable {
         case codex = "TFT Codex"
         case tactics = "Tactics.Tools"
         case metastats = "MetaStats.gg"
@@ -12,6 +12,13 @@ struct MetaObservation: Identifiable {
             case .codex: "Classé Diamant+ · 5–10 nov. 2026"
             case .tactics: "Classé Maître+ · consulté le 10 nov. 2026"
             case .metastats: "Diamant+ · filtre 3 jours · toutes régions · consulté le 10 nov. 2026"
+            }
+        }
+        var hosts: Set<String> {
+            switch self {
+            case .codex: ["tftcodex.com", "www.tftcodex.com"]
+            case .tactics: ["tactics.tools", "www.tactics.tools"]
+            case .metastats: ["metastats.gg", "www.metastats.gg"]
             }
         }
         var color: Color {
@@ -32,8 +39,8 @@ struct MetaObservation: Identifiable {
     var top1: Double? = nil
     var games: Int? = nil
     let source: URL
+    var scope: String? = nil
 
-    static let patch = "18.6"
     static let readings: [Self] = [
         .init(id: "codex-roncier", provider: .codex, title: "Roncier Jungle", champions: ["DA_Brambleback18", "DA_Krug18", "DA_18_ElderDragon"],
               average: 4.19, top4: 0.557, games: 91_162, source: URL(string: "https://tftcodex.com/comps/riftbeast-brambleback.html")!),
@@ -63,18 +70,57 @@ struct MetaObservation: Identifiable {
     }
 }
 
+struct MetaRadarSnapshot: Codable {
+    let patch: String
+    let build: String
+    let set: String
+    let retrievedAt: Date
+    let readings: [MetaObservation]
+
+    static let bundled = Self(patch: "18.6", build: "16.22", set: "18",
+                             retrievedAt: Date(timeIntervalSince1970: 1794302220),
+                             readings: MetaObservation.readings)
+
+    var label: String {
+        "Relevé " + patch + " · " + retrievedAt.formatted(.dateTime.day().month(.abbreviated).year())
+    }
+
+    func matches(_ reference: ReferenceData?) -> Bool {
+        guard let reference else { return false }
+        return reference.entries.first?.set == set &&
+            (reference.version == build || reference.version.hasPrefix(build + "."))
+    }
+
+    func isValid(for reference: ReferenceData?, patch expectedPatch: String?) -> Bool {
+        guard matches(reference), expectedPatch == nil || expectedPatch == patch,
+              patch.range(of: #"^\d{1,2}\.\d{1,2}$"#, options: .regularExpression) != nil,
+              (1...60).contains(readings.count), Set(readings.map(\.id)).count == readings.count else { return false }
+        let champions = Set(reference?.entries.filter { $0.kind == "champion" }.map(\.id) ?? [])
+        return readings.allSatisfy { reading in
+            !reading.title.isEmpty && reading.title.count <= 100 && !reading.id.isEmpty &&
+            reading.scope.map { !$0.isEmpty && $0.count <= 150 } == true &&
+            (1...8).contains(reading.average) && (0...1).contains(reading.top4) &&
+            reading.top1.map { (0...reading.top4).contains($0) } != false &&
+            reading.games.map { $0 > 0 } != false && reading.champions.count <= 5 &&
+            reading.champions.allSatisfy { champions.contains("champion:" + $0) } &&
+            reading.source.scheme == "https" && reading.source.user == nil && reading.source.password == nil &&
+            reading.source.host.map { reading.provider.hosts.contains($0) } == true
+        }
+    }
+}
+
 struct MetaRadarPreview: View {
+    let snapshot: MetaRadarSnapshot
     let reference: ReferenceData?
-    let patch: String?
     let query: String
-    private var entries: [MetaObservation] { MetaObservation.readings.filter { $0.matches(query) } }
+    private var entries: [MetaObservation] { snapshot.readings.filter { $0.matches(query) } }
 
     var body: some View {
         if !entries.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 NavigationLink {
                     ScrollView {
-                        MetaObservationShelf(reference: reference, patch: patch, query: query).padding()
+                        MetaObservationShelf(snapshot: snapshot, reference: reference, query: query).padding()
                     }.background(hexaNavy).navigationTitle("Radar des compos").navigationBarTitleDisplayMode(.inline)
                 } label: {
                     HStack {
@@ -84,7 +130,7 @@ struct MetaRadarPreview: View {
                         Image(systemName: "chevron.right").font(.caption)
                     }
                 }.buttonStyle(.plain).accessibilityIdentifier("meta-radar")
-                Text("Relevé 18.6 · 10 nov. 2026").font(.caption).foregroundStyle(.secondary)
+                Text(snapshot.label).font(.caption).foregroundStyle(.secondary)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
                         ForEach(entries) { entry in
@@ -107,13 +153,13 @@ struct MetaRadarPreview: View {
 }
 
 struct MetaObservationShelf: View {
+    let snapshot: MetaRadarSnapshot
     let reference: ReferenceData?
-    let patch: String?
     let query: String
     @State private var provider: MetaObservation.Provider?
 
     private var entries: [MetaObservation] {
-        MetaObservation.readings.filter {
+        snapshot.readings.filter {
             (provider == nil || $0.provider == provider) && $0.matches(query)
         }
     }
@@ -127,9 +173,9 @@ struct MetaObservationShelf: View {
                     ForEach(MetaObservation.Provider.allCases) { Text($0.rawValue).tag(Optional($0)) }
                 }.labelsHidden().accessibilityIdentifier("meta-observation-source")
             }
-            Text("Relevé du patch 18.6 · 10 novembre 2026")
+            Text(snapshot.label)
                 .font(.caption).foregroundStyle(.secondary)
-            if patch != MetaObservation.patch {
+            if !snapshot.matches(reference) {
                 Text("Instantané antérieur au patch sélectionné.").font(.caption).foregroundStyle(.orange)
             }
             ForEach(entries) { entry in
@@ -147,12 +193,12 @@ struct MetaObservationShelf: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(entry.provider.rawValue).font(.caption.bold()).foregroundStyle(entry.provider.color)
                     Text(entry.title).font(.headline)
-                    Text(entry.provider.context).font(.caption2).foregroundStyle(.secondary)
+                    Text(entry.scope ?? entry.provider.context).font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(entry.provider.color)
             }
-            if patch == MetaObservation.patch, let reference {
+            if snapshot.matches(reference), let reference {
                 HStack(spacing: 6) {
                     ForEach(entry.champions, id: \.self) { key in
                         if let champion = reference.entries.first(where: { $0.id == "champion:" + key }) {

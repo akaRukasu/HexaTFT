@@ -5,6 +5,13 @@ struct RiotArticle: Codable, Identifiable {
     let title: String
     let path: String
     var id: String { path }
+    var patchNumber: String? {
+        let prefix = "/en-us/news/game-updates/teamfight-tactics-patch-"
+        guard path.hasPrefix(prefix) else { return nil }
+        let version = path.dropFirst(prefix.count).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard version.range(of: #"^\d{1,2}-\d{1,2}$"#, options: .regularExpression) != nil else { return nil }
+        return version.replacingOccurrences(of: "-", with: ".")
+    }
     var url: URL { URL(string: "https://teamfighttactics.leagueoflegends.com" + path)! }
 }
 struct RiotNewsSnapshot: Codable {

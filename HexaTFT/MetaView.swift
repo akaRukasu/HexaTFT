@@ -57,7 +57,7 @@ struct MetaView: View {
                     PBEGuideList()
                 } else {
                     if meta.selection.channel == .live, !favorites, !gems {
-                        MetaRadarPreview(reference: store.reference, patch: meta.pack?.patch, query: query)
+                        MetaRadarPreview(snapshot: meta.radar, reference: store.reference, query: query)
                     }
                     guideShelf
                 }

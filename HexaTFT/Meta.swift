@@ -170,6 +170,7 @@ struct MetaPack: Codable {
     @Published private(set) var euwVersion: String?
     private let feedURL: URL?
     @Published private(set) var partnerGuides: ExperimentalGuides?
+    @Published private var partnerRadar: MetaRadarSnapshot?
     let context: UltimateContext?
     private let directory: URL
     private var lastAttempt: Date?
@@ -183,7 +184,10 @@ struct MetaPack: Codable {
             live = PatchSnapshot(pack: livePack, reference: Self.bundle("live-reference"), provider: "Riot · CommunityDragon")
         }
         feedURL = DragonFeed.bundledEndpoint("HexaMetaService")
-        if feedURL != nil { partnerGuides = read("partner-pbe.json") }
+        if feedURL != nil {
+            partnerGuides = read("partner-pbe.json")
+            partnerRadar = read("partner-radar.json")
+        }
         if let legacy = Self.loadBundledSnapshot(packName: "meta", referenceName: "reference") {
             archives = [legacy]
         }
@@ -230,6 +234,10 @@ struct MetaPack: Codable {
     }
     var sourceName: String {
         selection.channel == .archives ? archive?.sourceName ?? "Archive" : live?.sourceName ?? "Riot"
+    }
+    var radar: MetaRadarSnapshot {
+        guard let partnerRadar, partnerRadar.isValid(for: live?.reference, patch: live?.pack.patch) else { return .bundled }
+        return partnerRadar
     }
     var activePartnerGuides: ExperimentalGuides? {
         guard partnerGuides?.revision == experimental?.version,
@@ -305,7 +313,9 @@ struct MetaPack: Codable {
             }
             guard let feedURL else { return }
             let data = try await DragonFeed.get(feedURL, max: 20_000_000)
-            let feed = try JSONDecoder().decode(PartnerFeed.self, from: data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let feed = try decoder.decode(PartnerFeed.self, from: data)
             if let pbe = feed.pbe {
                 guard pbe.guides.count <= 100, pbe.guides.allSatisfy({ $0.source.scheme == "https" && !$0.provider.isEmpty && !$0.title.isEmpty }),
                       Set(pbe.guides.map(\.id)).count == pbe.guides.count else {
@@ -327,6 +337,11 @@ struct MetaPack: Codable {
                 }
                 try install(PatchSnapshot(pack: validated, reference: reference, provider: source))
                 message = "Catalogue du flux actualisé."
+            }
+            if let offered = feed.radar, offered.isValid(for: live?.reference, patch: live?.pack.patch),
+               !radar.matches(live?.reference) || offered.retrievedAt >= radar.retrievedAt {
+                try save(offered, to: "partner-radar.json")
+                partnerRadar = offered
             }
         } catch {
             if !Task.isCancelled { message = "\(error.localizedDescription) Les dernières fiches restent disponibles." }

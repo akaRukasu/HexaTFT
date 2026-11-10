@@ -25,7 +25,7 @@ Le dépôt livre un Codex EUW vérifié par la version des ressources Riot, le C
 
 Le Radar présente une sélection éditoriale de huit mesures publiques relevées le 10 novembre 2026 chez TFT Codex, Tactics.Tools et MetaStats.gg. La période, le rang et le lien d’origine accompagnent chaque relevé. La mention du patch 18.6 est conservée après un changement de patch. Le filtre de MetaStats.gg peut regrouper plusieurs versions, comme indiqué par le fournisseur. Hexa ne recalcule pas de classement commun à ces sources. Les guides natifs et les catalogues statistiques autorisés restent des collections séparées.
 
-Les fiches des patches 18.5 et 18.6 résument les changements de Riot avec catégories et valeurs avant/après. Le fil officiel détecte de nouvelles publications. L’esport affiche le parcours du mondial, les dates et la dotation annoncées, les tableaux officiels des tournois régionaux concernés, les diffusions et le palmarès vérifié d’AUR Huanmie.
+Les fiches des patches 18.5 et 18.6 résument les changements de Riot avec catégories et valeurs avant/après. Le fil officiel détecte de nouvelles publications. À l’ouverture d’une nouvelle note, Hexa lit les valeurs avant/après quand elles sont structurées dans la page Riot. L’esport affiche le parcours du mondial, les dates et la dotation annoncées, les tableaux officiels des tournois régionaux concernés, les diffusions et le palmarès vérifié d’AUR Huanmie.
 
 ## Actualisation
 
@@ -33,10 +33,11 @@ Hexa vérifie les sources en premier plan sans action manuelle. Les vérificatio
 
 ## Flux de compositions
 
-Pour distribuer un flux, déclarer l’URL HTTPS de l’export autorisé dans la variable GitHub Actions `HEXA_META_SERVICE`. Les vérifications automatiques démarrent à l’ouverture. Le corps JSON accepte deux champs facultatifs indépendants, `live` et `pbe`. Aucun secret ne doit être placé dans cette URL.
+Pour distribuer un flux, déclarer l’URL HTTPS de l’export autorisé dans la variable GitHub Actions `HEXA_META_SERVICE`. Les vérifications automatiques démarrent à l’ouverture. Le corps JSON accepte trois champs facultatifs, `live`, `pbe` et `radar`. Aucun secret ne doit être placé dans cette URL.
 
 - `live.provider` identifie la source. `live.pack` suit le format `MetaPack` du projet avec `data`, `patch`, `set` et `retrievedAt`. Chaque composition fournit le build client sous `display_patch` (ex. `16.22`), le contexte d’échantillon et les statistiques réellement observées. Le Codex vient du build vérifié par Hexa.
 - `pbe.revision` correspond à l’identifiant de build CommunityDragon sans suffixe, `pbe.set` est le numéro du set en texte et `pbe.retrievedAt` indique la date de collecte. Chaque entrée de `pbe.guides` fournit `id`, `title`, `style`, `core` (liste de noms), `plan`, `source` (URL HTTPS) et `provider`. Une révision différente reste hors de la rubrique active.
+- `radar` met à jour les cartes du Radar. Il fournit `patch`, `build` (branche ou build), `set`, `retrievedAt` (ISO 8601) et `readings`. Chaque relevé exige une source HTTPS du fournisseur, le rang et la période dans `scope` et les chiffres sur une seule population. Un relevé compatible plus récent remplace le cache local.
 - L’import d’archive accepte le format `PatchSnapshot` avec `pack`, `reference` et éventuellement `provider`. Il valide les identifiants et la compatibilité de set avant d’enregistrer.
 
 ## Tracker Riot

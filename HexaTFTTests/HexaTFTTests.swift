@@ -213,4 +213,32 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertNil(RiotIdentity("Tactikk", region: "euw1"))
         XCTAssertNil(RiotIdentity("Tactikk#EUW", region: "invalid"))
     }
+
+    func testNativePatchParserKeepsNumericChangesAndTheirNestedSubject() throws {
+        let html = #"<h2>Équilibrage</h2><h4>Champions</h4><ul><li><strong>Nidalee</strong><ul><li><strong>Forme puissance</strong><ul><li>Attaques&nbsp;: 185/275 <span>⇒</span> 195/295</li></ul></li></ul></li><li>Un correctif de texte</li></ul>"#
+        let note = try XCTUnwrap(RiotPatchParser.parse(html, patch: "18.7"))
+        let change = try XCTUnwrap(note.groups.first?.changes.first)
+        XCTAssertEqual(note.groups.first?.name, "Équilibrage · Champions")
+        XCTAssertEqual(change.title, "Nidalee · Forme puissance")
+        XCTAssertEqual(change.detail, "Attaques")
+        XCTAssertEqual(change.before, "185/275")
+        XCTAssertEqual(change.after, "195/295")
+        XCTAssertEqual(note.groups.first?.changes.count, 1)
+        XCTAssertEqual(RiotArticle(title: "", path: "/en-us/news/game-updates/teamfight-tactics-patch-18-7/").patchNumber, "18.7")
+    }
+
+    @MainActor func testPartnerRadarRejectsUnmatchedBuildAndMissingSourceContext() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let meta = MetaStore(directory: directory)
+        let reference = try XCTUnwrap(meta.live?.reference)
+        var reading = try XCTUnwrap(MetaRadarSnapshot.bundled.readings.first)
+        let withoutContext = MetaRadarSnapshot(patch: "18.6", build: "16.22", set: "18", retrievedAt: Date(), readings: [reading])
+        XCTAssertFalse(withoutContext.isValid(for: reference, patch: "18.6"))
+        reading.scope = "Diamant+ · 5–10 novembre"
+        let valid = MetaRadarSnapshot(patch: "18.6", build: "16.22", set: "18", retrievedAt: Date(), readings: [reading])
+        XCTAssertTrue(valid.isValid(for: reference, patch: "18.6"))
+        XCTAssertFalse(valid.isValid(for: reference, patch: "18.7"))
+        let wrongBuild = MetaRadarSnapshot(patch: "18.6", build: "16.23", set: "18", retrievedAt: Date(), readings: [reading])
+        XCTAssertFalse(wrongBuild.isValid(for: reference, patch: "18.6"))
+    }
 }

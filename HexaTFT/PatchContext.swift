@@ -66,4 +66,5 @@ struct ExperimentalGuides: Codable {
 struct PartnerFeed: Codable {
     let live: PatchSnapshot?
     let pbe: ExperimentalGuides?
+    let radar: MetaRadarSnapshot?
 }

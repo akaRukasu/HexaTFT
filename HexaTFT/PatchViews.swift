@@ -29,7 +29,7 @@ struct PatchNote: Identifiable {
     let summary: String
     let groups: [ChangeGroup]
     var id: String { patch }
-    var url: URL { URL(string: "https://teamfighttactics.leagueoflegends.com/fr-fr/news/game-updates/teamfight-tactics-patch-" + patch.replacingOccurrences(of: ".", with: "-") + "/")! }
+    var url: URL { RiotPatchParser.url(patch) }
 
     struct ChangeGroup: Identifiable {
         let name: String
@@ -80,6 +80,7 @@ struct PatchNote: Identifiable {
             .init(name: "Champions", icon: "person.2", changes: [
                 .init("Kobuko", "Soins", "285 / 335 / 480", "300 / 350 / 550", .buff),
                 .init("Rek’Sai", "Soins", "10 / 14 / 20", "10 / 16 / 24", .buff),
+                .init("Lycan", "Dégâts des attaques renforcées", "65 / 100 / 160", "65 / 100 / 180", .buff),
                 .init("Malphite", "Bouclier", "735 / 885 / 2 000", "750 / 925 / 2 000", .buff),
                 .init("Malphite", "Dégâts de compétence", "40 / 60 / 2 000", "100 / 150 / 2 000", .buff),
                 .init("Nidalee AD", "Soins", "300 / 450 / 2 000", "325 / 550 / 2 000", .buff),
@@ -195,7 +196,17 @@ struct PatchHubView: View {
             if let recent = news.patches {
                 Section("Dernières publications Riot") {
                     Text("Vérifié le \(recent.checked.formatted())").font(.caption).foregroundStyle(.secondary)
-                    ForEach(recent.articles.prefix(8)) { article in Link(article.title, destination: article.url) }
+                    ForEach(recent.articles.prefix(8)) { article in
+                        if let patch = article.patchNumber {
+                            NavigationLink(article.title) {
+                                if let note = PatchNote.notes.first(where: { $0.patch == patch }) {
+                                    PatchNoteView(note: note)
+                                } else {
+                                    RiotPatchArticleView(patch: patch)
+                                }
+                            }
+                        } else { Link(article.title, destination: article.url) }
+                    }
                 }
             }
             Section("Comparer et préparer") {
@@ -265,7 +276,7 @@ struct PatchNoteView: View {
                 Label(change.direction.label, systemImage: change.direction.icon)
                     .font(.caption.bold()).foregroundStyle(change.direction.color)
             }
-            Text(change.detail).font(.subheadline).foregroundStyle(.secondary)
+            if change.detail != change.title { Text(change.detail).font(.subheadline).foregroundStyle(.secondary) }
             if let before = change.before, let after = change.after {
                 HStack(alignment: .top) {
                     DashboardMetric(title: "Avant", value: before, accent: .secondary)
@@ -274,6 +285,109 @@ struct PatchNoteView: View {
                 }
             }
         }
+    }
+}
+
+
+struct RiotPatchArticleView: View {
+    let patch: String
+    @State private var note: PatchNote?
+    @State private var unavailable = false
+
+    var body: some View {
+        Group {
+            if let note {
+                PatchNoteView(note: note)
+            } else if unavailable {
+                ContentUnavailableView {
+                    Label("Détail natif indisponible", systemImage: "doc.text")
+                } actions: {
+                    Link("Ouvrir les notes Riot", destination: RiotPatchParser.url(patch))
+                }
+            } else {
+                ProgressView("Lecture des notes Riot")
+            }
+        }.navigationTitle("Patch " + patch)
+        .task(id: patch) {
+            guard note == nil else { return }
+            let url = RiotPatchParser.url(patch)
+            guard let data = try? await DragonFeed.get(url, max: 2_000_000),
+                  let html = String(data: data, encoding: .utf8), !Task.isCancelled else {
+                if !Task.isCancelled { unavailable = true }
+                return
+            }
+            note = await Task.detached(priority: .utility) { RiotPatchParser.parse(html, patch: patch) }.value
+            unavailable = note == nil
+        }
+    }
+}
+
+enum RiotPatchParser {
+    static func url(_ patch: String) -> URL {
+        URL(string: "https://teamfighttactics.leagueoflegends.com/fr-fr/news/game-updates/teamfight-tactics-patch-" + patch.replacingOccurrences(of: ".", with: "-") + "/")!
+    }
+
+    static func parse(_ html: String, patch: String) -> PatchNote? {
+        let pattern = #"<(h[24])\b[^>]*>([^<]{1,200})</\1>|<li\b[^>]*>((?:(?!<(?:ul|ol|li)\b|</li>)[\s\S])*?)(?=<(?:ul|ol|li)\b|</li>)|</li>"#
+        guard let tokens = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { return nil }
+        let input = html as NSString
+        var heading = ""
+        var subsection = ""
+        var parents: [String] = []
+        var order: [String] = []
+        var sections: [String: [PatchNote.Change]] = [:]
+
+        for token in tokens.matches(in: html, range: NSRange(location: 0, length: input.length)) {
+            if token.range(at: 1).location != NSNotFound {
+                let name = plain(input.substring(with: token.range(at: 2)))
+                if input.substring(with: token.range(at: 1)).lowercased() == "h2" {
+                    heading = name
+                    subsection = ""
+                } else { subsection = name }
+                parents.removeAll()
+            } else if token.range(at: 3).location != NSNotFound {
+                let line = plain(input.substring(with: token.range(at: 3)))
+                if !heading.isEmpty, let arrow = line.range(of: "⇒") ?? line.range(of: "→"),
+                   let colon = line[..<arrow.lowerBound].lastIndex(of: ":") {
+                    let before = line[line.index(after: colon)..<arrow.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+                    let after = line[arrow.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                    let detail = line[..<colon].trimmingCharacters(in: .whitespacesAndNewlines)
+                    if before.count <= 80, after.count <= 80, detail.count <= 100,
+                       before.contains(where: \.isNumber), after.contains(where: \.isNumber) {
+                        let group = [heading, subsection].filter { !$0.isEmpty }.joined(separator: " · ")
+                        let subject = parents.filter { !$0.isEmpty && $0.count <= 80 }.joined(separator: " · ")
+                        let change = PatchNote.Change(subject.isEmpty ? detail : subject, detail, before, after, .update)
+                        if sections[group] == nil { order.append(group) }
+                        if sections[group]?.contains(where: { $0.id == change.id }) != true {
+                            sections[group, default: []].append(change)
+                        }
+                    }
+                    parents.append("")
+                } else {
+                    parents.append(line)
+                }
+            } else {
+                _ = parents.popLast()
+            }
+        }
+
+        let groups = order.compactMap { name in
+            sections[name].map { PatchNote.ChangeGroup(name: name, icon: "slider.horizontal.3", changes: $0) }
+        }
+        guard !groups.isEmpty else { return nil }
+        return PatchNote(patch: patch, published: "Publication officielle",
+                         summary: "Valeurs d’équilibrage publiées par Riot. Consulte la note complète pour le contexte et les correctifs.",
+                         groups: groups)
+    }
+
+    private static func plain(_ raw: String) -> String {
+        raw.replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&#x27;", with: "’")
+            .replacingOccurrences(of: "&#8658;", with: "⇒")
+            .replacingOccurrences(of: "&rArr;", with: "⇒")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 
