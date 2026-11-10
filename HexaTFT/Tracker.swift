@@ -228,9 +228,54 @@ struct TrackerView: View {
     @EnvironmentObject private var tracker: TrackerStore
     @State private var settings = false
     @State private var confirming = false
-    @State private var showingPublicProfile = false
+    @State private var selectedPage: ProfilePage?
+
+    private enum ProfilePage: String, CaseIterable {
+        case publicProfile = "Tactics.Tools"
+        case hexa = "Mon suivi Hexa"
+    }
+
+    private var profilePage: Binding<ProfilePage> {
+        Binding(get: { selectedPage ?? (tracker.profile == nil ? .publicProfile : .hexa) },
+                set: { selectedPage = $0 })
+    }
 
     var body: some View {
+        VStack(spacing: 0) {
+            if let identity = tracker.identity, let url = identity.publicProfile {
+                Picker("Profil TFT", selection: profilePage) {
+                    ForEach(ProfilePage.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented).padding(.horizontal).padding(.vertical, 8)
+                .accessibilityIdentifier("tracker-profile-tabs")
+                if profilePage.wrappedValue == .publicProfile {
+                    VStack(spacing: 0) {
+                        HStack {
+                            Label(identity.riotID, systemImage: "person.crop.circle")
+                                .font(.headline).lineLimit(1)
+                                .accessibilityIdentifier("tracker-identity")
+                            Spacer()
+                            Button("Modifier") { settings = true }.font(.subheadline)
+                        }.padding(.horizontal).padding(.vertical, 8)
+                        EmbeddedPage(url: url, allowedHosts: ["tactics.tools", "www.tactics.tools"])
+                            .id(url)
+                            .accessibilityIdentifier("tracker-public-profile")
+                    }
+                } else {
+                    nativeDashboard
+                }
+            } else {
+                nativeDashboard
+            }
+        }.background(hexaNavy).navigationTitle("Tracker").navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $settings) { TrackerSettingsView() }
+        .task(id: tracker.identity?.publicProfile) { await tracker.autoRefresh() }
+        .confirmationDialog("Effacer l’historique Riot local ?", isPresented: $confirming) {
+            Button("Effacer", role: .destructive) { tracker.erase(); selectedPage = nil }
+        }
+    }
+
+    private var nativeDashboard: some View {
         List {
             Section {
                 if let identity = tracker.identity {
@@ -242,22 +287,13 @@ struct TrackerView: View {
                                   detail: "Ton rang, tes parties et ta progression au même endroit.", icon: "chart.xyaxis.line", accent: .mint)
                 }
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
-            if let identity = tracker.identity {
-                Section {
-                    if identity.publicProfile != nil {
-                        Button {
-                            showingPublicProfile = true
-                        } label: {
-                            Label("Ouvrir la fiche publique Tactics.Tools", systemImage: "person.text.rectangle")
-                        }.accessibilityIdentifier("tracker-public-profile")
-                    }
-                    Button("Modifier le profil") { settings = true }
-                }
-            } else {
-                Section {
+            Section {
+                if tracker.identity == nil {
                     Button("Ajouter mon compte") { settings = true }
                     Text("Saisis ton Riot ID et ta région. Le profil reste enregistré sur cet iPhone.")
                         .font(.footnote).foregroundStyle(.secondary)
+                } else {
+                    Button("Modifier le profil") { settings = true }
                 }
             }
             if let profile = tracker.profile {
@@ -280,18 +316,7 @@ struct TrackerView: View {
                     Button("Effacer le profil et l’historique local", role: .destructive) { confirming = true }
                 }
             }
-        }.scrollContentBackground(.hidden).background(hexaNavy).navigationTitle("Tracker")
-        .sheet(isPresented: $settings) { TrackerSettingsView() }
-        .sheet(isPresented: $showingPublicProfile) {
-            if let url = tracker.identity?.publicProfile {
-                SafariPage(url: url).ignoresSafeArea().accessibilityIdentifier("tracker-public-safari")
-            }
-        }
-        .task(id: tracker.identity.map { $0.region + "/" + $0.riotID }) { await tracker.autoRefresh() }
-        .refreshable { await tracker.refresh() }
-        .confirmationDialog("Effacer l’historique Riot local ?", isPresented: $confirming) {
-            Button("Effacer", role: .destructive) { tracker.erase() }
-        }
+        }.scrollContentBackground(.hidden).refreshable { await tracker.refresh() }
     }
 
     private var profileStatus: String {

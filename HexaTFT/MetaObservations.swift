@@ -1,5 +1,42 @@
 import SwiftUI
 
+enum MetaSort: String, CaseIterable {
+    case top4 = "Top 4", top1 = "Top 1", average = "Moyenne", discovery = "Découverte"
+
+    func score(average: Double, top4: Double, top1: Double?) -> Double {
+        switch self {
+        case .top4, .discovery: return top4
+        case .top1: return top1 ?? -.infinity
+        case .average: return -average
+        }
+    }
+
+    func guides(_ comps: [MetaComp], score: (MetaComp) -> Double) -> [MetaComp] {
+        comps.sorted { first, second in
+            let left = score(first), right = score(second)
+            return left == right ? first.id < second.id : left > right
+        }
+    }
+
+    func readings(_ entries: [MetaObservation]) -> [MetaObservation] {
+        let sorted = entries.sorted { first, second in
+            let left = score(average: first.average, top4: first.top4, top1: first.top1)
+            let right = score(average: second.average, top4: second.top4, top1: second.top1)
+            if left != right { return left > right }
+            if first.average != second.average { return first.average < second.average }
+            return first.id < second.id
+        }
+        guard self == .discovery else { return sorted }
+        var counts: [MetaObservation.Provider: Int] = [:]
+        let positions = sorted.enumerated().map { index, entry in
+            let round = counts[entry.provider, default: 0]
+            counts[entry.provider] = round + 1
+            return (round, index, entry)
+        }
+        return positions.sorted { ($0.0, $0.1) < ($1.0, $1.1) }.map { $0.2 }
+    }
+}
+
 struct MetaObservation: Codable, Identifiable {
     enum Provider: String, Codable, CaseIterable, Identifiable {
         case codex = "TFT Codex"
@@ -104,7 +141,8 @@ struct MetaRadarSnapshot: Codable {
     let build: String
     let set: String
     let retrievedAt: Date
-    let readings: [MetaObservation]
+    var readings: [MetaObservation]
+    var nextCursor: String? = nil
 
     static let bundled = Self(patch: "18.6", build: "16.22", set: "18",
                              retrievedAt: Date(timeIntervalSince1970: 1794302220),
@@ -120,10 +158,21 @@ struct MetaRadarSnapshot: Codable {
             (reference.version == build || reference.version.hasPrefix(build + "."))
     }
 
+    func merging(_ page: Self, after cursor: String) -> Self? {
+        guard cursor == nextCursor, patch == page.patch, build == page.build,
+              set == page.set, retrievedAt == page.retrievedAt else { return nil }
+        var result = self
+        var seen = Set(readings.map(\.id))
+        result.readings.append(contentsOf: page.readings.filter { seen.insert($0.id).inserted })
+        result.nextCursor = page.nextCursor == cursor ? nil : page.nextCursor
+        return result
+    }
+
     func isValid(for reference: ReferenceData?, patch expectedPatch: String?) -> Bool {
         guard matches(reference), expectedPatch == nil || expectedPatch == patch,
               patch.range(of: #"^\d{1,2}\.\d{1,2}$"#, options: .regularExpression) != nil,
-              !readings.isEmpty, Set(readings.map(\.id)).count == readings.count else { return false }
+              !readings.isEmpty, Set(readings.map(\.id)).count == readings.count,
+              nextCursor.map({ !$0.isEmpty && $0.utf8.count <= 512 }) != false else { return false }
         let champions = Set(reference?.entries.filter { $0.kind == "champion" }.map(\.id) ?? [])
         return readings.allSatisfy { reading in
             !reading.title.isEmpty && reading.title.count <= 100 && !reading.id.isEmpty &&

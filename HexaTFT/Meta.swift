@@ -174,6 +174,9 @@ struct MetaPack: Codable {
         didSet { checkedPBEVersion = nil }
     }
     @Published private var partnerRadar: MetaRadarSnapshot?
+    @Published private(set) var loadingRadarPage = false
+    @Published private(set) var radarPageError: String?
+    private var loadedRadarCursors: Set<String> = []
     let context: UltimateContext?
     private let directory: URL
     private var lastAttempt: Date?
@@ -366,12 +369,42 @@ struct MetaPack: Codable {
                 message = "Catalogue du flux actualisé."
             }
             if let offered = feed.radar, offered.isValid(for: live?.reference, patch: live?.pack.patch),
-               !radar.matches(live?.reference) || offered.retrievedAt >= radar.retrievedAt {
+               !radar.matches(live?.reference) || offered.retrievedAt > radar.retrievedAt || (partnerRadar == nil && offered.retrievedAt == radar.retrievedAt) {
                 try save(offered, to: "partner-radar.json")
                 partnerRadar = offered
+                loadedRadarCursors.removeAll()
+                radarPageError = nil
             }
         } catch {
             if !Task.isCancelled { message = "\(error.localizedDescription) Les dernières fiches restent disponibles." }
+        }
+    }
+
+    func loadNextRadarPage() async {
+        guard !loadingRadarPage, let cursor = radar.nextCursor,
+              let feedURL, var components = URLComponents(url: feedURL, resolvingAgainstBaseURL: false) else { return }
+        components.queryItems = [URLQueryItem(name: "cursor", value: cursor)]
+        guard let url = components.url else { return }
+        let current = radar
+        loadingRadarPage = true
+        radarPageError = nil
+        defer { loadingRadarPage = false }
+        do {
+            let data = try await DragonFeed.get(url, max: 20_000_000)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            guard !Task.isCancelled, radar.retrievedAt == current.retrievedAt, radar.nextCursor == cursor else { return }
+            guard let page = try decoder.decode(PartnerFeed.self, from: data).radar,
+                  page.isValid(for: live?.reference, patch: live?.pack.patch),
+                  var merged = current.merging(page, after: cursor) else {
+                throw DataIssue.invalid("La page suivante ne correspond pas au relevé affiché.")
+            }
+            if let next = merged.nextCursor, loadedRadarCursors.contains(next) { merged.nextCursor = nil }
+            try save(merged, to: "partner-radar.json")
+            loadedRadarCursors.insert(cursor)
+            partnerRadar = merged
+        } catch {
+            if !Task.isCancelled { radarPageError = error.localizedDescription }
         }
     }
 

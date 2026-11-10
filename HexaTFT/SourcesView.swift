@@ -19,7 +19,9 @@ enum ContentSource: String, CaseIterable, Identifiable {
     @Published var canGoBack = false
     @Published var canGoForward = false
     @Published var host = ""
-    init(url: URL) {
+    private let allowedHosts: Set<String>?
+    init(url: URL, allowedHosts: Set<String>? = nil) {
+        self.allowedHosts = allowedHosts
         let config = WKWebViewConfiguration()
         config.websiteDataStore = .default()
         view = WKWebView(frame: .zero, configuration: config)
@@ -42,6 +44,11 @@ enum ContentSource: String, CaseIterable, Identifiable {
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url, ["https", "http", "about"].contains(url.scheme?.lowercased() ?? "") else { decisionHandler(.cancel); return }
+        if let allowedHosts, navigationAction.targetFrame?.isMainFrame != false,
+           (url.scheme != "https" || url.host.map(allowedHosts.contains) != true) {
+            decisionHandler(.cancel)
+            return
+        }
         decisionHandler(.allow)
     }
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -57,7 +64,10 @@ struct WebCanvas: UIViewRepresentable {
 struct EmbeddedPage: View {
     @StateObject private var page: WebPage
     let home: URL
-    init(url: URL) { home = url; _page = StateObject(wrappedValue: WebPage(url: url)) }
+    init(url: URL, allowedHosts: Set<String>? = nil) {
+        home = url
+        _page = StateObject(wrappedValue: WebPage(url: url, allowedHosts: allowedHosts))
+    }
     var body: some View {
         VStack(spacing: 0) {
             HStack {

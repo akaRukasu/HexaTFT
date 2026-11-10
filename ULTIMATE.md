@@ -1,4 +1,4 @@
-# HexaTFT Ultimate 0.6.0
+# HexaTFT Ultimate 0.6.1
 
 ## Audit et périmètre
 
@@ -37,12 +37,12 @@ Pour distribuer un flux, déclarer l’URL HTTPS de l’export autorisé dans la
 
 - `live.provider` identifie la source. `live.pack` suit le format `MetaPack` du projet avec `data`, `patch`, `set` et `retrievedAt`. Chaque composition fournit le build client sous `display_patch` (ex. `16.22`), le contexte d’échantillon et les statistiques réellement observées. Le Codex vient du build vérifié par Hexa.
 - `pbe.revision` correspond à l’identifiant de build CommunityDragon sans suffixe, `pbe.set` est le numéro du set en texte et `pbe.retrievedAt` indique la date de collecte. Chaque entrée de `pbe.guides` fournit `id`, `title`, `style`, `core` (liste de noms), `plan`, `source` (URL HTTPS) et `provider`. Le champ facultatif `pbe.catalogue` permet d’ajouter des cartes chiffrées. Il suit le format `PatchSnapshot` et exige un fournisseur, une source HTTPS et la révision PBE complète dans `display_patch` pour chaque composition. Une révision différente reste hors de la rubrique active.
-- `radar` met à jour les cartes du Radar. Il fournit `patch`, `build` (branche ou build), `set`, `retrievedAt` (ISO 8601) et `readings`. Chaque relevé exige une source HTTPS du fournisseur, le rang et la période dans `scope` et les chiffres sur une seule population. Un relevé compatible plus récent remplace le cache local.
+- `radar` met à jour les cartes du Radar. Il fournit `patch`, `build` (branche ou build), `set`, `retrievedAt` (ISO 8601) et `readings`. Chaque relevé exige une source HTTPS du fournisseur, le rang et la période dans `scope` et les chiffres sur une seule population. Un relevé compatible plus récent remplace le cache local. Avec `nextCursor`, Hexa charge la suite automatiquement via le même point d’accès et le paramètre `cursor`. Les pages du même instantané s’ajoutent sans doublon. Le classement par Top 4 est le défaut et le mode Découverte alterne les sources. Les archives suivent dans des sections séparées par patch.
 - L’import d’archive accepte le format `PatchSnapshot` avec `pack`, `reference` et éventuellement `provider`. Il valide les identifiants et la compatibilité de set avant d’enregistrer.
 
 ## Tracker Riot
 
-Dans l’app, ouvrir **Tracker → Ajouter mon compte**, puis saisir le Riot ID et la région. Le profil est enregistré sur l’iPhone et la fiche publique Tactics.Tools s’ouvre dans une feuille Safari du Tracker. La synchronisation native démarre automatiquement lorsque l’édition distribuée comporte un service Riot Hexa actif.
+Dans l’app, ouvrir **Tracker → Ajouter mon compte**, puis saisir le Riot ID et la région. Le profil est enregistré sur l’iPhone et la fiche originale Tactics.Tools se charge directement dans le Tracker. La synchronisation native démarre automatiquement lorsque l’édition distribuée comporte un service Riot Hexa actif.
 
 Pour l’exploitation du service Hexa, le serveur Python écoute uniquement sur l’interface locale. Avec le mode proxy public, définir `HEXA_PUBLIC_PROXY=1` et `RIOT_API_KEY` côté serveur, mettre en place un proxy TLS avec limites par client et une surveillance du quota Riot, puis déclarer l’URL HTTPS dans la variable GitHub Actions `HEXA_TRACKER_SERVICE`. L’IPA ne contient que l’URL du service. Le tableau natif regroupe les classements, les filtres par mode et set, les graphiques de placements, le détail des matchs et les LP relevés. Le serveur garde au maximum 32 profils en cache mémoire et complète les données de match par lots de 20. L’app conserve les parties déjà reçues et enregistre les LP à partir des relevés réellement reçus.
 

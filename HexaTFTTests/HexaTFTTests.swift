@@ -265,4 +265,30 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertThrowsError(try tracker.ingest(wrong, for: identity))
         XCTAssertEqual(tracker.profile?.riotID, identity.riotID)
     }
+
+    func testMetaSortRanksTop4AndDiscoveryRotatesSources() {
+        let entries = MetaRadarSnapshot.bundled.readings
+        let ranked = MetaSort.top4.readings(entries)
+        XCTAssertEqual(ranked.map(\.top4), entries.map(\.top4).sorted(by: >))
+        let discovery = MetaSort.discovery.readings(entries)
+        XCTAssertEqual(Set(discovery.prefix(3).map(\.provider)).count, 3)
+        XCTAssertEqual(Set(discovery.map(\.id)), Set(entries.map(\.id)))
+        let wins = MetaSort.top1.readings(entries)
+        XCTAssertNil(wins.last?.top1)
+    }
+
+    func testRadarPagingDeduplicatesAndRejectsAnotherSnapshot() throws {
+        let original = MetaRadarSnapshot.bundled
+        let first = MetaRadarSnapshot(patch: original.patch, build: original.build, set: original.set,
+                                      retrievedAt: original.retrievedAt, readings: Array(original.readings.prefix(2)), nextCursor: "page-2")
+        let second = MetaRadarSnapshot(patch: original.patch, build: original.build, set: original.set,
+                                       retrievedAt: original.retrievedAt, readings: Array(original.readings.dropFirst().prefix(2)))
+        let merged = try XCTUnwrap(first.merging(second, after: "page-2"))
+        XCTAssertEqual(merged.readings.map(\.id), original.readings.prefix(3).map(\.id))
+        XCTAssertNil(merged.nextCursor)
+        XCTAssertNil(first.merging(second, after: "wrong-cursor"))
+        let wrong = MetaRadarSnapshot(patch: "18.7", build: original.build, set: original.set,
+                                      retrievedAt: original.retrievedAt, readings: second.readings)
+        XCTAssertNil(first.merging(wrong, after: "page-2"))
+    }
 }

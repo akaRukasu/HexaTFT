@@ -1,4 +1,3 @@
-import SafariServices
 import SwiftUI
 
 struct FeatureBanner: View {
@@ -45,26 +44,4 @@ struct DashboardMetric: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
-}
-
-struct SafariPage: UIViewControllerRepresentable {
-    @Environment(\.dismiss) private var dismiss
-    let url: URL
-
-    final class Coordinator: NSObject, SFSafariViewControllerDelegate {
-        let dismiss: DismissAction
-        init(dismiss: DismissAction) { self.dismiss = dismiss }
-        func safariViewControllerDidFinish(_ controller: SFSafariViewController) { dismiss() }
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
-
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        let controller = SFSafariViewController(url: url)
-        controller.dismissButtonStyle = .close
-        controller.delegate = context.coordinator
-        return controller
-    }
-
-    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }

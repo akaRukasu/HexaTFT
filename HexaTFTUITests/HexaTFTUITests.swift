@@ -92,11 +92,17 @@ final class HexaTFTUITests: XCTestCase {
         let save = app.buttons["tracker-save"]
         XCTAssertTrue(save.isEnabled)
         save.tap()
-        let publicProfile = app.descendants(matching: .any).matching(identifier: "tracker-public-profile").firstMatch
+        let publicProfile = app.webViews.firstMatch
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 8), app.debugDescription)
         let identity = app.descendants(matching: .any).matching(identifier: "tracker-identity").firstMatch
         XCTAssertTrue(identity.label.contains("Tactikk#EUW"))
+        let profileTabs = app.segmentedControls["tracker-profile-tabs"]
+        XCTAssertTrue(profileTabs.buttons["Tactics.Tools"].isSelected)
         snapshot("15-tracker-profil")
+        profileTabs.buttons["Mon suivi Hexa"].tap()
+        XCTAssertTrue(app.buttons["Modifier le profil"].waitForExistence(timeout: 8))
+        profileTabs.buttons["Tactics.Tools"].tap()
+        XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
         app.terminate()
         app.launch()
         app.tabBars.buttons["Tracker"].tap()
@@ -129,8 +135,10 @@ final class HexaTFTUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         app.buttons["LIVE EUW"].tap()
-        let card = app.buttons["observation-codex-roncier"]
+        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "observation-")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 8))
+        XCTAssertEqual(card.identifier, "observation-metastats-raptor")
+        for _ in 0..<3 where !card.isHittable { app.swipeUp() }
         snapshot("16-home-radar")
         card.tap()
         XCTAssertTrue(app.navigationBars["Composition"].waitForExistence(timeout: 8))
