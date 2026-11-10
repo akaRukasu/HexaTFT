@@ -127,6 +127,7 @@ final class HexaTFTUITests: XCTestCase {
         app.buttons["LIVE EUW"].tap()
         let radar = app.buttons["meta-radar"]
         XCTAssertTrue(radar.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Tactics.Tools"].exists)
         snapshot("16-home-radar")
         radar.tap()
         let card = app.descendants(matching: .any).matching(identifier: "observation-codex-roncier").firstMatch

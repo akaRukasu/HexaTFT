@@ -279,9 +279,9 @@ struct PatchNoteView: View {
             if change.detail != change.title { Text(change.detail).font(.subheadline).foregroundStyle(.secondary) }
             if let before = change.before, let after = change.after {
                 HStack(alignment: .top) {
-                    DashboardMetric(title: "Avant", value: before, accent: .secondary)
+                    DashboardMetric(title: "Avant", value: before.replacingOccurrences(of: " %", with: "\u{00A0}%"), accent: .secondary)
                     Image(systemName: "arrow.right").foregroundStyle(.secondary).accessibilityHidden(true)
-                    DashboardMetric(title: "Après", value: after, accent: change.direction.color)
+                    DashboardMetric(title: "Après", value: after.replacingOccurrences(of: " %", with: "\u{00A0}%"), accent: change.direction.color)
                 }
             }
         }

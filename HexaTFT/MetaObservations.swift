@@ -113,7 +113,13 @@ struct MetaRadarPreview: View {
     let snapshot: MetaRadarSnapshot
     let reference: ReferenceData?
     let query: String
-    private var entries: [MetaObservation] { snapshot.readings.filter { $0.matches(query) } }
+    private var entries: [MetaObservation] {
+        let filtered = snapshot.readings.filter { $0.matches(query) }
+        var seen: Set<MetaObservation.Provider> = []
+        let firstByProvider = filtered.filter { seen.insert($0.provider).inserted }
+        let highlights = Set(firstByProvider.map(\.id))
+        return firstByProvider + filtered.filter { !highlights.contains($0.id) }
+    }
 
     var body: some View {
         if !entries.isEmpty {
@@ -132,12 +138,12 @@ struct MetaRadarPreview: View {
                 }.buttonStyle(.plain).accessibilityIdentifier("meta-radar")
                 Text(snapshot.label).font(.caption).foregroundStyle(.secondary)
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
+                    HStack(alignment: .top) {
                         ForEach(entries) { entry in
                             Link(destination: entry.source) {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(entry.provider.rawValue).font(.caption2.bold()).foregroundStyle(entry.provider.color)
-                                    Text(entry.title).font(.subheadline.bold()).lineLimit(2)
+                                    Text(entry.title).font(.subheadline.bold()).lineLimit(2, reservesSpace: true)
                                     Text(entry.top4.formatted(.percent.precision(.fractionLength(1))) + " Top 4")
                                         .font(.caption.bold()).foregroundStyle(.mint)
                                 }
@@ -183,7 +189,7 @@ struct MetaObservationShelf: View {
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("observation-" + entry.id)
             }
-            Text("Chaque chiffre appartient à son fournisseur. Les rangs, périodes et regroupements de plateaux varient selon la source.")
+            Text("Les rangs, périodes et regroupements de plateaux varient selon le fournisseur. MetaStats.gg signale des valeurs agrégées entre patches dans son atlas.")
                 .font(.caption).foregroundStyle(.secondary)
         }
     }
