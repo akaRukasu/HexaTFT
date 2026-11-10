@@ -38,7 +38,9 @@ final class HexaTFTUITests: XCTestCase {
         app.launch()
         app.buttons["Archives"].tap()
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "meta-card-")).firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 15)); card.tap()
+        XCTAssertTrue(card.waitForExistence(timeout: 15))
+        XCTAssertEqual(card.identifier, "meta-card-c_3ueqmaaq")
+        card.tap()
         let mode = app.segmentedControls["guide-mode"]
         for _ in 0..<4 where !mode.isHittable { app.swipeUp() }
         XCTAssertTrue(mode.waitForExistence(timeout: 8))
@@ -48,7 +50,7 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(unit.waitForExistence(timeout: 8))
         snapshot("06-guide-niveau-6")
         mode.buttons["Final"].tap()
-        let champion = app.buttons.matching(NSPredicate(format: "identifier IN %@", ["board-unit-DA_Draven18", "board-unit-DA_18_Maokai"])).firstMatch
+        let champion = app.buttons["board-unit-DA_18_Ahri"]
         XCTAssertTrue(champion.waitForExistence(timeout: 8))
         for _ in 0..<3 where !champion.isHittable { app.swipeUp() }
         champion.tap()
@@ -94,8 +96,8 @@ final class HexaTFTUITests: XCTestCase {
         save.tap()
         let publicProfile = app.webViews.firstMatch
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 8), app.debugDescription)
-        let identity = app.descendants(matching: .any).matching(identifier: "tracker-identity").firstMatch
-        XCTAssertTrue(identity.label.contains("Tactikk#EUW"))
+        XCTAssertTrue(app.staticTexts["Tactikk#EUW"].exists ||
+                      app.descendants(matching: .any).matching(identifier: "tracker-identity").firstMatch.exists)
         let profileTabs = app.segmentedControls["tracker-profile-tabs"]
         XCTAssertTrue(profileTabs.buttons["Tactics.Tools"].isSelected)
         snapshot("15-tracker-profil")

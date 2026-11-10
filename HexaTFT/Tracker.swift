@@ -253,6 +253,7 @@ struct TrackerView: View {
                         HStack {
                             Label(identity.riotID, systemImage: "person.crop.circle")
                                 .font(.headline).lineLimit(1)
+                                .accessibilityLabel(identity.riotID)
                                 .accessibilityIdentifier("tracker-identity")
                             Spacer()
                             Button("Modifier") { settings = true }.font(.subheadline)
