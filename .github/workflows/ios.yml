@@ -4,7 +4,7 @@ on:
   push:
     paths: ['HexaTFT/**', 'HexaTFTTests/**', 'HexaTFTUITests/**', 'HexaTFT.xcodeproj/**', 'scripts/**', 'server/**', '.github/workflows/ios.yml']
 permissions:
-  contents: read
+  contents: write
 jobs:
   ios:
     runs-on: macos-latest
@@ -30,6 +30,8 @@ jobs:
           cp -R build/Build/Products/Release-iphoneos/HexaTFT.app Payload/
           zip -qry HexaTFT-unsigned.ipa Payload
       - name: Save unsigned application
+        id: save-ipa
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: HexaTFT-unsigned
@@ -37,15 +39,32 @@ jobs:
       - name: Export interface screenshots
         if: always()
         run: xcrun xcresulttool export attachments --path TestResults.xcresult --output-path screenshots || true
+      - name: Save build to a private draft release if artifact storage fails
+        if: steps.save-ipa.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="ios-build-$GITHUB_RUN_ID"
+          if ! gh release view "$tag" --json isDraft --jq '.isDraft' | grep -qx true; then
+            gh release create "$tag" --draft --target "$GITHUB_SHA" \
+              --title "HexaTFT iOS · ${GITHUB_SHA:0:7}" --notes "Compilation iOS non signée · $GITHUB_SHA."
+          fi
+          gh release upload "$tag" HexaTFT-unsigned.ipa --clobber
+          if [ -d screenshots ]; then
+            zip -qry HexaTFT-screenshots.zip screenshots
+            gh release upload "$tag" HexaTFT-screenshots.zip --clobber
+          fi
       - name: Save screenshots
-        if: always()
+        if: always() && steps.save-ipa.outcome != 'failure'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: interface-screenshots
           path: screenshots
           if-no-files-found: ignore
       - name: Save test results
-        if: always()
+        if: always() && steps.save-ipa.outcome != 'failure'
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: native-test-results
