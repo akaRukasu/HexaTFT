@@ -311,7 +311,7 @@ struct TrackerView: View {
                     TrackerProfileCard(identity: identity, profile: tracker.profile)
                         .accessibilityIdentifier("tracker-identity")
                 } else {
-                    FeatureBanner(eyebrow: "TRACKER RIOT", title: "Mon compte TFT",
+                    FeatureBanner(eyebrow: "SUIVI TFT", title: "Mon compte TFT",
                                   detail: "Ton rang, tes parties et ta progression au même endroit.", icon: "chart.xyaxis.line", accent: .mint)
                 }
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
