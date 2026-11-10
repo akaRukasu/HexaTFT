@@ -116,7 +116,7 @@ final class TrackerTransport: NSObject, URLSessionTaskDelegate {
     private var revision = 0
     private lazy var session = URLSession(configuration: .ephemeral, delegate: transport, delegateQueue: nil)
     private let service: URL?
-    init(service: URL? = TrackerStore.bundledService) {
+    init(service: URL? = DragonFeed.bundledEndpoint("HexaTrackerService")) {
         self.service = service
         file = URL.applicationSupportDirectory.appendingPathComponent("HexaTFT/riot-tracker.json")
         if let data = try? Data(contentsOf: file), let cached = try? JSONDecoder().decode(TrackerState.self, from: data) {
@@ -126,13 +126,6 @@ final class TrackerTransport: NSObject, URLSessionTaskDelegate {
     var profile: RiotProfile? { state.profiles.first { $0.id + ":" + $0.region == state.selected } }
     var points: [RankPoint] { state.selected.flatMap { state.points[$0] } ?? [] }
 
-    nonisolated static var bundledService: URL? {
-        guard let address = Bundle.main.object(forInfoDictionaryKey: "HexaTrackerService") as? String,
-              let components = URLComponents(string: address), components.scheme == "https",
-              components.host != nil, components.user == nil, components.password == nil,
-              components.query == nil, components.fragment == nil else { return nil }
-        return components.url
-    }
     var identity: RiotIdentity? { RiotIdentity(state.riotID, region: state.region) }
     var serviceAvailable: Bool { service != nil }
 

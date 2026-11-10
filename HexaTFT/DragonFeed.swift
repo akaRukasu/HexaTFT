@@ -45,6 +45,13 @@ enum DragonFeed {
         let composition: [String]?
     }
     struct EUW: Decodable { let v: String }
+    static func bundledEndpoint(_ key: String) -> URL? {
+        guard let address = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+              let components = URLComponents(string: address), components.scheme == "https",
+              components.host?.isEmpty == false, components.user == nil, components.password == nil,
+              components.query == nil, components.fragment == nil else { return nil }
+        return components.url
+    }
     static func get(_ url: URL, max: Int, session: URLSession = .shared) async throws -> Data {
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 35)
         let (data, response) = try await session.data(for: request)

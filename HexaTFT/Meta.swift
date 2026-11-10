@@ -168,7 +168,7 @@ struct MetaPack: Codable {
     private var pbeBusy = false
     private var lastPBEAttempt: Date?
     @Published private(set) var euwVersion: String?
-    @Published private(set) var feedURL: URL?
+    private let feedURL: URL?
     @Published private(set) var partnerGuides: ExperimentalGuides?
     let context: UltimateContext?
     private let directory: URL
@@ -182,8 +182,8 @@ struct MetaPack: Codable {
         if let livePack {
             live = PatchSnapshot(pack: livePack, reference: Self.bundle("live-reference"), provider: "Riot · CommunityDragon")
         }
-        feedURL = read("partner-url.json")
-        partnerGuides = read("partner-pbe.json")
+        feedURL = DragonFeed.bundledEndpoint("HexaMetaService")
+        if feedURL != nil { partnerGuides = read("partner-pbe.json") }
         if let legacy = Self.loadBundledSnapshot(packName: "meta", referenceName: "reference") {
             archives = [legacy]
         }
@@ -284,22 +284,6 @@ struct MetaPack: Codable {
         await refresh(reference: live?.reference)
     }
 
-    func configureFeed(_ address: String) throws {
-        let clean = address.trimmingCharacters(in: .whitespacesAndNewlines)
-        var next: URL?
-        if !clean.isEmpty {
-            guard let components = URLComponents(string: clean), components.scheme == "https", components.host != nil,
-                  components.user == nil, components.password == nil, components.query == nil,
-                  components.fragment == nil, let url = components.url else {
-                throw DataIssue.invalid("Renseigne une adresse HTTPS sans identifiant ni jeton.")
-            }
-            next = url
-        }
-        try save(next, to: "partner-url.json")
-        feedURL = next
-        lastAttempt = nil
-    }
-
     func refresh(reference _: ReferenceData?) async {
         guard !refreshing else { return }
         refreshing = true; message = nil; lastAttempt = Date()
@@ -322,7 +306,6 @@ struct MetaPack: Codable {
             guard let feedURL else { return }
             let data = try await DragonFeed.get(feedURL, max: 20_000_000)
             let feed = try JSONDecoder().decode(PartnerFeed.self, from: data)
-            guard self.feedURL == feedURL else { return }
             if let pbe = feed.pbe {
                 guard pbe.guides.count <= 100, pbe.guides.allSatisfy({ $0.source.scheme == "https" && !$0.provider.isEmpty && !$0.title.isEmpty }),
                       Set(pbe.guides.map(\.id)).count == pbe.guides.count else {

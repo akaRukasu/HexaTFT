@@ -117,6 +117,14 @@ struct CompanionView: View {
                     EquipmentRoster(comp: composition)
                     NavigationLink(composition.stats == nil ? "Guide complet" : "Guide complet et statistiques") { MetaDetail(comp: composition) }.buttonStyle(.bordered)
                     Toggle("Garder l’écran allumé ici", isOn: $stayAwake)
+                } else if let pinned = store.state.pinnedID,
+                          let archived = meta.archives.first(where: { $0.pack.data.contains(where: { $0.id == pinned }) ||
+                              ($0.pack.patch == "18.6" && LiveGuideCatalogue.guides.contains(where: { $0.id == pinned })) }) {
+                    Panel {
+                        Label(store.state.pinnedName ?? "Composition épinglée", systemImage: "pin.fill").font(.headline)
+                        Text("Ce guide est disponible dans le patch \(archived.pack.patch ?? "archivé").").font(.subheadline)
+                        Button("Ouvrir le patch du guide") { meta.select(.archives, archiveID: archived.id) }
+                    }
                 } else if let guide = store.pinned {
                     Text(guide.name).font(.largeTitle.bold())
                     Text("Choisis l’étape à consulter. Le contenu est celui du guide, sans analyse de ta partie.")

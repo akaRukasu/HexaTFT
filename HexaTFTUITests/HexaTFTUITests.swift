@@ -94,6 +94,27 @@ final class HexaTFTUITests: XCTestCase {
         app.tabBars.buttons["Tracker"].tap()
         XCTAssertTrue(publicProfile.waitForExistence(timeout: 8))
     }
+    @MainActor func testLiveGuideShowsPlayableBoardAndItemPlan() {
+        let app = XCUIApplication()
+        app.launch()
+        app.buttons["LIVE EUW"].tap()
+        let card = app.buttons["meta-card-hexa-ahri-zyra"]
+        XCTAssertTrue(card.waitForExistence(timeout: 8))
+        snapshot("12-live-guides")
+        card.tap()
+        let mode = app.segmentedControls["guide-mode"]
+        for _ in 0..<4 where !mode.isHittable { app.swipeUp() }
+        XCTAssertTrue(mode.waitForExistence(timeout: 8))
+        mode.buttons["Final"].tap()
+        let ahri = app.buttons["board-unit-DA_18_Ahri"]
+        for _ in 0..<4 where !ahri.isHittable { app.swipeUp() }
+        XCTAssertTrue(ahri.isHittable)
+        snapshot("13-live-plateau")
+        ahri.tap()
+        XCTAssertTrue(app.staticTexts["Le trio de référence"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "Fabrique d’abord Shojin")).firstMatch.exists)
+        snapshot("14-live-objets")
+    }
     @MainActor private func snapshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)

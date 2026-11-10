@@ -35,7 +35,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         TabView {
-            NavigationStack { MetaView() }.id(meta.selection).tabItem { Label("Méta", systemImage: "square.stack.3d.up") }
+            NavigationStack { MetaView() }.id(meta.selection).id(meta.reference?.version).tabItem { Label("Méta", systemImage: "square.stack.3d.up") }
             NavigationStack { CompanionView() }.tabItem { Label("Partie", systemImage: "play.rectangle") }
             NavigationStack { PatchHubView() }.tabItem { Label("Patches", systemImage: "calendar") }
             NavigationStack { TrackerView() }.tabItem { Label("Tracker", systemImage: "chart.xyaxis.line") }

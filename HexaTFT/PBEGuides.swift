@@ -273,7 +273,7 @@ enum LiveGuideCatalogue {
             (4, [(1,"DA_18_Rakan"), (3,"DA_18_Yorick"), (7,"DA_18_Akali_AD"), (24,"DA_Gromp18_AP")]),
             (5, [(1,"DA_18_Rakan"), (3,"DA_18_Yorick"), (5,"DA_Vi18"), (7,"DA_18_Akali_AD"), (24,"DA_Gromp18_AP")]),
             (6, [(1,"DA_18_Rakan"), (3,"DA_18_Yorick"), (5,"DA_Vi18"), (7,"DA_18_Akali_AD"), (10,"DA_Scuttlecrab18"), (24,"DA_Gromp18_AP")]),
-            (8, [(0,"DA_18_Rakan"), (2,"DA_Vi18"), (4,"DA_Amumu18"), (6,"DA_18_Yorick"), (10,"DA_Nidalee18_AP"), (12,"DA_Sentinel18"), (22,"DA_18_Sivir"), (27,"DA_18_Ashe")])
+            (8, [(0,"DA_18_Rakan"), (2,"DA_Vi18"), (4,"DA_Amumu18"), (6,"DA_18_MasterYi_AD"), (10,"DA_Nidalee18_AP"), (12,"DA_Sentinel18"), (22,"DA_18_Sivir"), (27,"DA_18_Ashe")])
         ], stageLevels: [4,5,6,8,8,8],
         builds: [
             "DA_Nidalee18_AP":["DA_Bloodthirster","DA_JeweledGauntlet","DA_TitansResolve"],
@@ -288,7 +288,7 @@ enum LiveGuideCatalogue {
             "2-1":"Ouvre avec une paire améliorée. Gromp AP tient les premiers objets de puissance si tu l’as trouvé.",
             "2-5":"Ajoute Vi pour préparer le noyau Primitif. Garde tes composants défensifs disponibles si aucun tank ne mérite encore les objets.",
             "3-2":"Monte 6. Carapateur peut garder le premier objet de tank. Si tu saignes des PV, améliore le plateau avant de continuer à économiser.",
-            "4-1":"Monte 8 et vérifie que tu as la forme AP de Nidalee avant de déplacer son équipement. Cherche aussi Vi, Amumu et Sivir.",
+            "4-1":"Monte 8 et vérifie que tu as la forme AP de Nidalee avant de déplacer son équipement. Cherche Vi et Sivir pour Primitif, ainsi que Maître Yi pour Adaptateur.",
             "5-1":"Si Ashe tarde à venir, joue un Chasseur amélioré en attendant. Utilise les composants AD sur Sivir après avoir équipé Nidalee et le tank.",
             "6-1":"Décale Nidalee derrière le tank du côté où elle survivra aux premiers sorts. Garde Sivir à l’arrière pour assurer les dégâts continus."
         ], conditions: "Privilégie ce plan avec des composants de soin et de puissance et assez d’économie pour trouver des unités à quatre PO.",

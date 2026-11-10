@@ -27,7 +27,7 @@ Hexa vérifie les sources en premier plan sans action manuelle. Les vérificatio
 
 ## Flux de compositions
 
-Dans **Plus → Flux de compositions**, renseigner l’URL HTTPS d’un export que le fournisseur a autorisé à utiliser. Le corps JSON accepte deux champs facultatifs indépendants, `live` et `pbe`. Aucun secret ne doit être placé dans cette URL.
+Pour distribuer un flux, déclarer l’URL HTTPS de l’export autorisé dans la variable GitHub Actions `HEXA_META_SERVICE`. Les vérifications automatiques démarrent à l’ouverture. Le corps JSON accepte deux champs facultatifs indépendants, `live` et `pbe`. Aucun secret ne doit être placé dans cette URL.
 
 - `live.provider` identifie la source. `live.pack` suit le format `MetaPack` du projet avec `data`, `patch`, `set` et `retrievedAt`. Chaque composition fournit le build client sous `display_patch` (ex. `16.22`), le contexte d’échantillon et les statistiques réellement observées. Le Codex vient du build vérifié par Hexa.
 - `pbe.revision` correspond à l’identifiant de build CommunityDragon sans suffixe, `pbe.set` est le numéro du set en texte et `pbe.retrievedAt` indique la date de collecte. Chaque entrée de `pbe.guides` fournit `id`, `title`, `style`, `core` (liste de noms), `plan`, `source` (URL HTTPS) et `provider`. Une révision différente reste hors de la rubrique active.
@@ -40,8 +40,6 @@ Dans l’app, ouvrir **Tracker → Ajouter mon compte**, puis saisir le Riot ID 
 Pour l’exploitation du service Hexa, le serveur Python écoute uniquement sur l’interface locale. Avec le mode proxy public, définir `HEXA_PUBLIC_PROXY=1` et `RIOT_API_KEY` côté serveur, mettre en place un proxy TLS avec limites par client et une surveillance du quota Riot, puis déclarer l’URL HTTPS dans la variable GitHub Actions `HEXA_TRACKER_SERVICE`. L’IPA ne contient que l’URL du service. Le serveur garde au maximum 32 profils en cache mémoire et complète les données de match par lots de 20. L’app conserve les parties déjà reçues et enregistre les LP à partir des relevés réellement reçus.
 
 ## Limites de cette livraison
-
-## Limites restantes
 
 - Le serveur Riot est livré mais n’est pas hébergé ou relié à un compte réel. Les tests du serveur utilisent des données identifiées comme fixtures.
 - Les chiffres LIVE du fournisseur et les guides de la révision PBE active exigent un flux autorisé. Les conditions de Blitz et Mobalytics ne constituent pas une permission de redistribuer leurs guides ou bases. Les sources supplémentaires sont des liens documentés.
