@@ -20,19 +20,28 @@ struct MetaView: View {
     @State private var favorites = false
     @State private var style = "Tous"
     @State private var sort = "Moyenne"
+    @State private var gems = false
     private var styles: [String] { ["Tous"] + Set(meta.comps.map(\.style)).sorted() }
     private var filtered: [MetaComp] {
         let comps = meta.comps.filter { comp in
-            (!favorites || store.state.favorites.contains(comp.id)) && (style == "Tous" || comp.style == style) &&
-            (query.isEmpty || (comp.title(store.reference) + " " + comp.units.map { name($0.name) }.joined(separator: " ")).localizedCaseInsensitiveContains(query))
+            (!favorites || store.state.favorites.contains(comp.id)) &&
+            (style == "Tous" || comp.style == style) &&
+            (!gems || (comp.stats.nb_games >= 500 && comp.stats.pick_rate <= 0.03 && comp.stats.avg_placement < 4.5)) &&
+            (query.isEmpty || searchable(comp).localizedStandardContains(query))
         }
         return sort == "Top 4" ? comps.sorted { $0.stats.top_4_percent > $1.stats.top_4_percent } : comps
     }
-    private func name(_ key: String) -> String { store.champion("champion:" + key)?.name ?? key }
+    private func searchable(_ comp: MetaComp) -> String {
+        let ids = Set(comp.units.flatMap { ["champion:" + $0.name] + ($0.items ?? []).map { "item:" + $0 } } +
+            (comp.traits ?? []).map { "trait:" + $0.trait_api_name } + (comp.augments ?? []).map { "augment:" + $0 })
+        let names = store.reference?.entries.filter { ids.contains($0.id) }.map(\.name) ?? []
+        return ([comp.title(store.reference), comp.style, comp.rank ?? "", comp.region ?? "", "Blitz"] + names).joined(separator: " ")
+    }
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
                 HexaBrand()
+                PatchPicker()
                 HStack {
                     Badge(text: "SET \(meta.pack?.set ?? "—")", color: hexaGold)
                     Badge(text: "PATCH \(meta.pack?.patch ?? "—")", color: hexaGold)
@@ -44,9 +53,14 @@ struct MetaView: View {
                     HStack { Image(systemName: "globe"); Text("Mobalytics · MetaTFT · Blitz").font(.subheadline.bold()); Spacer(); Image(systemName: "arrow.up.right") }
                         .padding().background(hexaGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 16))
                 }.buttonStyle(.plain).foregroundStyle(hexaGold)
+                if meta.selection.channel == .pbe {
+                    PBEGuideList()
+                } else {
                 Text("Fiches natives : Blitz · \(String((meta.pack?.retrievedAt ?? "").prefix(10))) · Monde · Platine+")
                     .font(.caption).foregroundStyle(.secondary)
                 if let message = meta.message { Text(message).font(.caption).foregroundStyle(.secondary) }
+                Toggle("Pépites de la méta", isOn: $gems)
+                if gems { Text("Fréquence Blitz ≤ 3 %, moyenne < 4,50 et au moins 500 parties. Les données sont mondiales, classées Platine+ et reflètent une observation.").font(.caption).foregroundStyle(.secondary) }
                 HStack {
                     Picker("Style", selection: $style) { ForEach(styles, id: \.self) { Text($0).tag($0) } }
                     Picker("Trier", selection: $sort) { Text("Moyenne").tag("Moyenne"); Text("Top 4").tag("Top 4") }
@@ -59,17 +73,18 @@ struct MetaView: View {
                 }
                 if filtered.isEmpty { ContentUnavailableView("Aucune composition", systemImage: "magnifyingglass", description: Text("Change la recherche ou les filtres.")) }
                 Text("Statistiques observées, sans garantie de résultat. Les variantes sont des plateaux relevés dans les données de la source.").font(.caption).foregroundStyle(.secondary)
+                }
             }.padding()
         }
         .background(hexaNavy).navigationTitle("Méta").navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, prompt: "Champion, composition…")
-        .refreshable { await meta.refresh(reference: store.reference) }
+        .refreshable { if meta.selection.channel == .live { await meta.refresh(reference: store.reference) } }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { NavigationLink { JournalView() } label: { Image(systemName: "person.crop.circle") }.accessibilityLabel("Profil et journal") }
+            ToolbarItem(placement: .topBarLeading) { NavigationLink { TrackerView() } label: { Image(systemName: "person.crop.circle") }.accessibilityLabel("Profil et journal") }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { Task { await meta.refresh(reference: store.reference) } } label: {
                     if meta.refreshing { ProgressView() } else { Image(systemName: "arrow.clockwise") }
-                }.disabled(meta.refreshing).accessibilityLabel("Actualiser les compositions")
+                }.disabled(meta.refreshing || meta.selection.channel != .live).accessibilityLabel("Actualiser les compositions")
             }
         }
     }

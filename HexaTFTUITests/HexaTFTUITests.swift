@@ -18,10 +18,12 @@ final class HexaTFTUITests: XCTestCase {
         app.tabBars.buttons["Partie"].tap()
         XCTAssertTrue(app.staticTexts["Guide visuel"].waitForExistence(timeout: 8))
         snapshot("03-partie")
-        app.tabBars.buttons["Codex"].tap()
+        app.tabBars.buttons["Plus"].tap()
+        app.buttons["Codex"].tap()
         XCTAssertTrue(app.navigationBars["Codex"].waitForExistence(timeout: 8))
         snapshot("04-codex")
-        app.tabBars.buttons["Sources"].tap()
+        app.navigationBars["Codex"].buttons.firstMatch.tap()
+        app.buttons["Sources"].tap()
         XCTAssertTrue(app.buttons["MetaTFT"].waitForExistence(timeout: 8))
         for source in ["Mobalytics", "MetaTFT", "Blitz"] {
             app.buttons[source].tap()
@@ -35,6 +37,7 @@ final class HexaTFTUITests: XCTestCase {
     @MainActor func testVisualStagesAndChampionRecipes() {
         let app = XCUIApplication()
         app.launch()
+        app.buttons["Archives"].tap()
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "meta-card-")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 15)); card.tap()
         let mode = app.segmentedControls["guide-mode"]
@@ -46,7 +49,7 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(unit.waitForExistence(timeout: 8))
         snapshot("06-guide-niveau-6")
         mode.buttons["Final"].tap()
-        let champion = app.buttons["board-unit-DA_Draven18"]
+        let champion = app.buttons.matching(NSPredicate(format: "identifier IN %@", ["board-unit-DA_Draven18", "board-unit-DA_18_Maokai"])).firstMatch
         XCTAssertTrue(champion.waitForExistence(timeout: 8))
         for _ in 0..<3 where !champion.isHittable { app.swipeUp() }
         champion.tap()

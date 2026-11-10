@@ -20,7 +20,7 @@ struct BoardView: View {
                                 HStack(spacing: 3) {
                                     ForEach(0..<7, id: \.self) { col in
                                         let index = row * 7 + col
-                                        let entry = store.champion(store.state.board[index] ?? "")
+                                        let entry = store.boardChampion(store.state.board[index] ?? "")
                                         Button { selected = BoardCell(id: index) } label: {
                                             ZStack {
                                                 Hexagon().fill(entry == nil ? Color.white.opacity(0.045) : Color.mint.opacity(0.18))
@@ -39,7 +39,7 @@ struct BoardView: View {
                     Text("\(store.state.board.count) unités placées · 4 × 7 cases").font(.caption).foregroundStyle(.secondary)
                 }
                 ForEach(store.state.board.keys.sorted(), id: \.self) { index in
-                    if let entry = store.champion(store.state.board[index] ?? "") {
+                    if let entry = store.boardChampion(store.state.board[index] ?? "") {
                         HStack {
                             EntryIcon(entry: entry)
                             VStack(alignment: .leading) {
@@ -93,11 +93,11 @@ struct ChampionPicker: View {
     @State private var query = ""
     @State private var selectedSet = "Tous"
     let choose: (ReferenceEntry) -> Void
-    private var sets: [String] { ["Tous"] + Set(store.champions.map(\.set)).sorted() }
+    private var sets: [String] { ["Tous"] + Set(store.workshopChampions.map(\.set)).sorted() }
     var body: some View {
         List {
             Picker("Set", selection: $selectedSet) { ForEach(sets, id: \.self) { Text($0).tag($0) } }
-            ForEach(store.champions.filter {
+            ForEach(store.workshopChampions.filter {
                 (selectedSet == "Tous" || $0.set == selectedSet) && (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query))
             }.sorted { ($0.cost, $0.name, $0.id) < ($1.cost, $1.name, $1.id) }) { entry in
                 Button { choose(entry) } label: {
@@ -114,6 +114,7 @@ struct ChampionPicker: View {
 }
 
 struct CodexView: View {
+    @EnvironmentObject private var meta: MetaStore
     @EnvironmentObject private var store: Store
     @State private var query = ""
     @State private var kind = "champion"
@@ -123,10 +124,12 @@ struct CodexView: View {
     var body: some View {
         List {
             Section {
-                Text("Données françaises Blitz \(store.reference?.version ?? "—") · Français")
-                    .font(.subheadline)
-                Text("Snapshot du \(store.reference.map { String($0.retrievedAt.prefix(10)) } ?? "—"). Ce Codex est limité au set des fiches natives.")
-                    .font(.caption).foregroundStyle(.secondary)
+                PatchPicker()
+                Text(store.reference?.version ?? "Codex indisponible").font(.subheadline)
+                if let reference = store.reference {
+                    Text("Données du \(String(reference.retrievedAt.prefix(10)))").font(.caption)
+                    if let source = URL(string: reference.source) { Link("Provenance du Codex", destination: source).font(.caption) }
+                }
                 Picker("Catégorie", selection: $kind) {
                     Text("Champions").tag("champion"); Text("Objets").tag("item")
                     Text("Traits").tag("trait"); Text("Optimisations").tag("augment")

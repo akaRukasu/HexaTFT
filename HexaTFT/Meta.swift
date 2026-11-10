@@ -131,52 +131,208 @@ struct MetaPack: Codable {
     }
 }
 @MainActor final class MetaStore: ObservableObject {
-    @Published private(set) var pack: MetaPack?
+    @Published private(set) var live: PatchSnapshot?
+    @Published private(set) var archives: [PatchSnapshot] = []
+    @Published private(set) var selection = PatchSelection()
     @Published private(set) var refreshing = false
     @Published private(set) var message: String?
-    private let cache: URL
+    @Published private(set) var archiveMessage: String?
+    @Published private(set) var experimental: ReferenceData?
+    @Published private(set) var previousExperimental: ReferenceData?
+    @Published private(set) var pbeCheckedAt: Date?
+    @Published private(set) var pbeMessage: String?
+    private var pbeBusy = false
+    private var lastPBEAttempt: Date?
+    let context: UltimateContext?
+    private let directory: URL
+    private var lastAttempt: Date?
+
     init(directory: URL? = nil) {
-        let directory = directory ?? URL.applicationSupportDirectory.appendingPathComponent("HexaTFT")
-        cache = directory.appendingPathComponent("meta-cache.json")
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        if let url = Bundle.main.url(forResource: "meta", withExtension: "json"), let data = try? Data(contentsOf: url) {
-            pack = try? MetaPack.decode(data)
+        self.directory = directory ?? URL.applicationSupportDirectory.appendingPathComponent("HexaTFT")
+        experimental = Self.bundle("pbe-reference")
+        context = Self.bundle("ultimate-context")
+        live = Self.loadBundledSnapshot(packName: "live-meta", referenceName: "live-reference")
+        if let legacy = Self.loadBundledSnapshot(packName: "meta", referenceName: "reference") {
+            archives = [legacy]
         }
-        if let data = try? Data(contentsOf: cache), let saved = try? MetaPack.decode(data), saved.set == pack?.set { pack = saved }
+        if let previous: MetaPack = read("meta-cache.json"), let legacy = archives.first,
+           previous.patch == legacy.pack.patch && previous.set == legacy.pack.set {
+            archives = [PatchSnapshot(pack: previous, reference: legacy.reference)]
+        }
+        if let saved: [PatchSnapshot] = read("patch-archives.json") {
+            for snapshot in saved where !archives.contains(where: { $0.id == snapshot.id }) { archives.append(snapshot) }
+        }
+        if let saved: PatchSnapshot = read("patch-live.json"),
+           live == nil || (saved.pack.retrievedAt ?? "") >= (live?.pack.retrievedAt ?? "") { live = saved }
+        if let saved: ReferenceData = read("patch-pbe.json"),
+           (experimental?.retrievedAt ?? "") <= saved.retrievedAt { experimental = saved }
+        previousExperimental = read("patch-pbe-previous.json")
+        if let saved: PatchSelection = read("patch-selection.json") { selection = saved }
+    }
+
+    var archive: PatchSnapshot? { archives.first { $0.id == selection.archiveID } ?? archives.first }
+    var pack: MetaPack? {
+        switch selection.channel {
+        case .live: return live?.pack
+        case .pbe: return nil
+        case .archives: return archive?.pack
+        }
+    }
+    var reference: ReferenceData? {
+        switch selection.channel {
+        case .live: return live?.reference
+        case .pbe: return experimental
+        case .archives: return archive?.reference
+        }
     }
     var comps: [MetaComp] { (pack?.data ?? []).sorted { $0.stats.avg_placement < $1.stats.avg_placement } }
-    func refresh(reference: ReferenceData?) async {
+
+    func select(_ channel: PatchSelection.Channel, archiveID: String? = nil) {
+        selection = PatchSelection(channel: channel, archiveID: archiveID ?? selection.archiveID)
+        try? save(selection, to: "patch-selection.json")
+    }
+
+    func report(_ message: String?) { archiveMessage = message }
+
+    func importArchive(_ url: URL) {
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        do {
+            guard let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 20_000_000 else {
+                throw DataIssue.invalid("Taille maximale de 20 Mo.")
+            }
+            let snapshot = try JSONDecoder().decode(PatchSnapshot.self, from: Data(contentsOf: url))
+            _ = try MetaPack.decode(JSONEncoder().encode(snapshot.pack))
+            guard let patch = snapshot.pack.patch, let set = snapshot.pack.set, !patch.isEmpty, !set.isEmpty,
+                  let reference = snapshot.reference, !reference.entries.isEmpty, Set(reference.entries.map(\.set)) == Set([set]),
+                  snapshot.id != live?.id, !archives.contains(where: { $0.id == snapshot.id }) else {
+                throw DataIssue.invalid("Version déjà présente ou Codex incompatible avec le set de l’instantané.")
+            }
+            let ids = Set(reference.entries.map(\.id))
+            guard snapshot.pack.data.allSatisfy({ comp in
+                comp.units.allSatisfy { ids.contains("champion:" + $0.name) } &&
+                comp.slug.range(of: #"^[a-z0-9-]+$"#, options: .regularExpression) != nil
+            }) else { throw DataIssue.invalid("Unités ou identifiants de composition invalides.") }
+            let next = archives + [snapshot]
+            try save(next, to: "patch-archives.json")
+            archives = next
+            select(.archives, archiveID: snapshot.id)
+            archiveMessage = "Patch \(patch) archivé."
+        } catch { archiveMessage = error.localizedDescription }
+    }
+
+    func autoRefresh() async {
+        guard lastAttempt.map({ Date().timeIntervalSince($0) > 600 }) ?? true else { return }
+        await refresh(reference: live?.reference)
+    }
+
+    func refresh(reference _: ReferenceData?) async {
         guard !refreshing else { return }
-        refreshing = true; message = nil
+        refreshing = true; message = nil; lastAttempt = Date()
         defer { refreshing = false }
         do {
-            let (data, response) = try await URLSession.shared.data(from: URL(string: "https://blitz.gg/tft/comps")!)
-            guard (response as? HTTPURLResponse)?.statusCode == 200, data.count <= 20_000_000,
-                  let html = String(data: data, encoding: .utf8) else { throw DataIssue.invalid("Blitz ne répond pas pour le moment.") }
-            let regex = try NSRegularExpression(pattern: #"<script([^>]*)>(.*?)</script>"#, options: [.dotMatchesLineSeparators])
-            let ns = html as NSString
-            var next: MetaPack?
-            for match in regex.matches(in: html, range: NSRange(location: 0, length: ns.length)) {
-                let attrs = ns.substring(with: match.range(at: 1))
-                guard attrs.contains("data-sveltekit-fetched"), attrs.contains("/analyzed_comps?") else { continue }
-                let body = Data(ns.substring(with: match.range(at: 2)).utf8)
-                let wrapper = try JSONSerialization.jsonObject(with: body) as? [String: Any]
-                if let text = wrapper?["body"] as? String { next = try MetaPack.decode(Data(text.utf8)) }
+            let request = URLRequest(url: URL(string: "https://blitz.gg/tft/comps")!, timeoutInterval: 25)
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw DataIssue.invalid("Blitz est temporairement indisponible.")
             }
-            guard var value = next else { throw DataIssue.invalid("Le format de Blitz a changé. Les dernières fiches restent disponibles.") }
-            let known = Set((reference?.entries ?? []).filter { $0.kind == "champion" }.map { String($0.id.dropFirst(9)) })
-            guard value.data.allSatisfy({ $0.units.allSatisfy { known.contains($0.name) } }) else {
-                throw DataIssue.invalid("Un nouveau set est disponible. Mets Hexa à jour pour récupérer ses champions.")
+            var pack = try Self.parseBlitz(data)
+            guard let set = pack.set, let patch = pack.patch,
+                  let version = pack.data.first?.display_patch, version.range(of: #"^[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil,
+                  pack.data.allSatisfy({ $0.display_patch == version }) else {
+                throw DataIssue.invalid("La version des compositions reçues est incohérente.")
             }
-            value.set = pack?.set
-            // Read the visible patch, distinct from the provider's internal API patch.
-            let patchRegex = try NSRegularExpression(pattern: #"Patch ([0-9]+\.[0-9]+)"#)
-            if let m = patchRegex.firstMatch(in: html, range: NSRange(location: 0, length: ns.length)) { value.patch = ns.substring(with: m.range(at: 1)) }
-            value.retrievedAt = ISO8601DateFormatter().string(from: Date())
-            let encoded = try JSONEncoder().encode(value)
-            try encoded.write(to: cache, options: .atomic)
-            pack = value; message = "Compositions actualisées."
-        } catch { message = "Actualisation impossible : \(error.localizedDescription) Les fiches enregistrées restent consultables." }
+            let current = live
+            let reference: ReferenceData
+            if let current, current.pack.set == set, current.pack.patch == patch,
+               current.pack.data.first?.display_patch == version, let same = current.reference {
+                reference = same
+            } else {
+                let euw = try await DragonFeed.liveEUW()
+                guard euw.hasPrefix(version + ".") else {
+                    throw DataIssue.invalid("Le catalogue et la version EUW des ressources ne concordent pas encore.")
+                }
+                let build = try await DragonFeed.build(at: version)
+                reference = try await DragonFeed.reference(branch: version, revision: build, set: set)
+            }
+            let known = Set(reference.entries.filter { $0.kind == "champion" }.map { String($0.id.dropFirst(9)) })
+            guard pack.data.allSatisfy({ $0.units.allSatisfy { known.contains($0.name) } }) else {
+                throw DataIssue.invalid("Les champions reçus ne correspondent pas au Codex de ce patch.")
+            }
+            pack.retrievedAt = ISO8601DateFormatter().string(from: Date())
+            let updated = PatchSnapshot(pack: pack, reference: reference)
+            if let current, current.id != updated.id, !archives.contains(where: { $0.id == current.id }) {
+                let next = [current] + archives
+                try save(next, to: "patch-archives.json")
+                archives = next
+            }
+            try save(updated, to: "patch-live.json")
+            live = updated
+            message = "Compositions actualisées."
+        } catch { if !Task.isCancelled { message = "\(error.localizedDescription) Les dernières fiches restent disponibles." } }
+    }
+
+    func autoRefreshPBE() async {
+        guard !pbeBusy, lastPBEAttempt.map({ Date().timeIntervalSince($0) >= 600 }) ?? true else { return }
+        pbeBusy = true; lastPBEAttempt = Date()
+        defer { pbeBusy = false }
+        do {
+            let revision = try await DragonFeed.build(at: "pbe")
+            if experimental?.version != revision {
+                let next = try await DragonFeed.reference(branch: "pbe", revision: revision, set: nil)
+                let checkedRevision = try await DragonFeed.build(at: "pbe")
+                guard checkedRevision == revision else { throw DataIssue.invalid("Une nouvelle révision PBE est en cours de publication.") }
+                if let experimental {
+                    try save(experimental, to: "patch-pbe-previous.json")
+                    previousExperimental = experimental
+                }
+                try save(next, to: "patch-pbe.json")
+                experimental = next
+            }
+            pbeCheckedAt = Date()
+            pbeMessage = nil
+        } catch { if !Task.isCancelled { pbeMessage = error.localizedDescription } }
+    }
+
+    nonisolated static func parseBlitz(_ data: Data) throws -> MetaPack {
+        guard data.count <= 20_000_000, let html = String(data: data, encoding: .utf8) else {
+            throw DataIssue.invalid("Réponse Blitz illisible.")
+        }
+        let ns = html as NSString
+        let range = NSRange(location: 0, length: ns.length)
+        func match(_ pattern: String) throws -> String? {
+            let regex = try NSRegularExpression(pattern: pattern)
+            return regex.firstMatch(in: html, range: range).map { ns.substring(with: $0.range(at: 1)) }
+        }
+        let regex = try NSRegularExpression(pattern: #"<script([^>]*)>(.*?)</script>"#, options: [.dotMatchesLineSeparators])
+        guard let hit = regex.matches(in: html, range: range).first(where: {
+            let attrs = ns.substring(with: $0.range(at: 1))
+            return attrs.contains("data-sveltekit-fetched") && attrs.contains("/analyzed_comps?")
+        }), let payload = try JSONSerialization.jsonObject(with: Data(ns.substring(with: hit.range(at: 2)).utf8)) as? [String: Any],
+            let body = payload["body"] as? String else { throw DataIssue.invalid("Le format Blitz a changé.") }
+        var result = try MetaPack.decode(Data(body.utf8))
+        result.patch = try match(#"Patch ([0-9]+\.[0-9]+[a-z]?)"#)
+        result.set = try match(#"TFT Set ([0-9]+)"#)
+        return result
+    }
+
+    private static func bundle<T: Decodable>(_ name: String) -> T? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: "json"),
+              let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+    private static func loadBundledSnapshot(packName: String, referenceName: String) -> PatchSnapshot? {
+        guard let url = Bundle.main.url(forResource: packName, withExtension: "json"),
+              let data = try? Data(contentsOf: url), let pack = try? MetaPack.decode(data) else { return nil }
+        return PatchSnapshot(pack: pack, reference: bundle(referenceName))
+    }
+    private func read<T: Decodable>(_ name: String) -> T? {
+        guard let data = try? Data(contentsOf: directory.appendingPathComponent(name)) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+    private func save<T: Encodable>(_ value: T, to name: String) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try JSONEncoder().encode(value).write(to: directory.appendingPathComponent(name), options: .atomic)
     }
 }
 

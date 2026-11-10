@@ -4,6 +4,7 @@ import Combine
 @MainActor final class Store: ObservableObject {
     @Published private(set) var catalogue: Catalogue?
     @Published private(set) var reference: ReferenceData?
+    private var workshopReference: ReferenceData?
     @Published private(set) var state = SavedState()
     @Published var error: String?
     private let directory: URL
@@ -34,10 +35,14 @@ import Combine
         do {
             if let url = Bundle.main.url(forResource: "reference", withExtension: "json") {
                 reference = try JSONDecoder().decode(ReferenceData.self, from: Data(contentsOf: url))
+                workshopReference = reference
             }
         } catch { self.error = "Encyclopédie : \(error.localizedDescription)" }
     }
 
+    func showReference(_ value: ReferenceData?) { reference = value }
+    var workshopChampions: [ReferenceEntry] { workshopReference?.entries.filter { $0.kind == "champion" } ?? [] }
+    func boardChampion(_ id: String) -> ReferenceEntry? { workshopChampions.first { $0.id == id } }
     var guides: [Guide] { catalogue?.guides ?? [] }
     var pinned: Guide? { guides.first { $0.id == state.pinnedID } }
     var champions: [ReferenceEntry] { reference?.entries.filter { $0.kind == "champion" } ?? [] }
@@ -60,7 +65,7 @@ import Combine
         var next = state; next.board = [:]
         for position in positions where (0..<28).contains(position.board_position) {
             let id = "champion:" + position.unit_api_name
-            if champion(id) != nil { next.board[position.board_position] = id }
+            if boardChampion(id) != nil { next.board[position.board_position] = id }
         }
         commit(next)
     }
@@ -102,7 +107,7 @@ import Combine
 
     var boardText: String {
         (["Hexa — plateau personnel (pas une recommandation méta)"] + state.board.keys.sorted().map {
-            "Ligne \($0 / 7 + 1), case \($0 % 7 + 1) : \(champion(state.board[$0] ?? "")?.name ?? "?")"
+            "Ligne \($0 / 7 + 1), case \($0 % 7 + 1) : \(boardChampion(state.board[$0] ?? "")?.name ?? "?")"
         }).joined(separator: "\n")
     }
 }

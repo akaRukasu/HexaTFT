@@ -110,6 +110,7 @@ struct CompanionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                PatchPicker()
                 if let composition = meta.comps.first(where: { $0.id == store.state.pinnedID }) {
                     Text(composition.title(store.reference)).font(.title2.bold())
                     VisualCompositionGuide(comp: composition, stage: Binding(get: { store.state.stage }, set: { store.setStage($0) }))

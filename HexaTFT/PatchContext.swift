@@ -1,0 +1,42 @@
+import Foundation
+
+struct PatchSnapshot: Codable, Identifiable {
+    let pack: MetaPack
+    let reference: ReferenceData?
+    var id: String { "\(pack.set ?? "?")-\(pack.patch ?? "?")" }
+}
+
+struct PatchSelection: Codable, Equatable {
+    enum Channel: String, Codable, CaseIterable, Identifiable {
+        case live = "LIVE EUW", pbe = "PBE", archives = "Archives"
+        var id: String { rawValue }
+    }
+    var channel: Channel = .live
+    var archiveID: String?
+}
+
+struct UltimateContext: Codable {
+    let liveBuild: String
+    let pbeBuild: String
+    let pbeObservedAt: String
+    let euwAssetVersion: String
+}
+
+struct ReferenceChange: Identifiable {
+    let id: String
+    let old: ReferenceEntry?
+    let new: ReferenceEntry?
+    var name: String { new?.name ?? old?.name ?? id }
+    var kind: String { new?.kind ?? old?.kind ?? "" }
+    var status: String { old == nil ? "Ajout" : new == nil ? "Retrait" : "Modification" }
+    static func compare(_ before: ReferenceData, _ after: ReferenceData) -> [Self] {
+        let left = Dictionary(before.entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let right = Dictionary(after.entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return Set(left.keys).union(right.keys).compactMap { id in
+            let old = left[id], new = right[id]
+            if let old, let new, old.name == new.name, old.cost == new.cost,
+               old.description == new.description, old.components == new.components { return nil }
+            return Self(id: id, old: old, new: new)
+        }.sorted { ($0.kind, $0.name, $0.id) < ($1.kind, $1.name, $1.id) }
+    }
+}

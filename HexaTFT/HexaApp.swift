@@ -3,22 +3,40 @@ import SwiftUI
 @main struct HexaApp: App {
     @StateObject private var store = Store()
     @StateObject private var meta = MetaStore()
+    @StateObject private var tracker = TrackerStore()
+    @StateObject private var news = RiotNewsStore()
     var body: some Scene {
         WindowGroup {
-            RootView().environmentObject(store).environmentObject(meta).preferredColorScheme(.dark).tint(hexaGold)
+            RootView().environmentObject(store).environmentObject(meta).environmentObject(tracker).environmentObject(news).preferredColorScheme(.dark).tint(hexaGold)
         }
     }
 }
 
 struct RootView: View {
     @EnvironmentObject private var store: Store
+    @EnvironmentObject private var meta: MetaStore
+    @EnvironmentObject private var tracker: TrackerStore
+    @EnvironmentObject private var news: RiotNewsStore
+    @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         TabView {
             NavigationStack { MetaView() }.tabItem { Label("Méta", systemImage: "square.stack.3d.up") }
             NavigationStack { CompanionView() }.tabItem { Label("Partie", systemImage: "play.rectangle") }
-            NavigationStack { BoardView() }.tabItem { Label("Plateau", systemImage: "hexagon") }
-            NavigationStack { CodexView() }.tabItem { Label("Codex", systemImage: "books.vertical") }
-            NavigationStack { SourcesView() }.tabItem { Label("Sources", systemImage: "globe") }
+            NavigationStack { PatchHubView() }.tabItem { Label("Patches", systemImage: "calendar") }
+            NavigationStack { TrackerView() }.tabItem { Label("Tracker", systemImage: "chart.xyaxis.line") }
+            NavigationStack { UltimateLibraryView() }.tabItem { Label("Plus", systemImage: "ellipsis") }
+        }
+        .onChange(of: meta.reference?.version, initial: true) { _, _ in store.showReference(meta.reference) }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                async let metaSync: Void = meta.autoRefresh()
+                async let riotSync: Void = tracker.autoRefresh()
+                async let pbeSync: Void = meta.autoRefreshPBE()
+                async let newsSync: Void = news.refresh()
+                _ = await (metaSync, riotSync, pbeSync, newsSync)
+                try? await Task.sleep(for: .seconds(60))
+            }
         }
         .alert("Une opération n’a pas abouti", isPresented: Binding(
             get: { store.error != nil }, set: { if !$0 { store.error = nil } }
@@ -52,7 +70,7 @@ struct EntryIcon: View {
     var size: CGFloat = 42
     var body: some View {
         Group {
-            if let local = UIImage(named: String(entry.id.split(separator: ":").last ?? "")) {
+            if entry.imageURL.contains("blitz-cdn.blitz.gg"), let local = UIImage(named: String(entry.id.split(separator: ":").last ?? "")) {
                 Image(uiImage: local).resizable().scaledToFill()
             } else {
                 AsyncImage(url: URL(string: entry.imageURL)) { image in image.resizable().scaledToFill() }
