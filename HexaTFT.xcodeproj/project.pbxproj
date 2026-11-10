@@ -461,6 +461,7 @@
 				"CLANG_ENABLE_OBJC_ARC" = "YES";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
 				"ENABLE_TESTABILITY" = "YES";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "DEBUG";
 			};
 			"name" = "Debug";
 		};
@@ -506,6 +507,7 @@
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
 				"ENABLE_TESTABILITY" = "YES";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "DEBUG";
 			};
 			"name" = "Debug";
 		};
@@ -553,6 +555,7 @@
 				"CODE_SIGN_STYLE" = "Automatic";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
 				"ENABLE_TESTABILITY" = "YES";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "DEBUG";
 			};
 			"name" = "Debug";
 		};
@@ -663,6 +666,7 @@
 				"CODE_SIGN_STYLE" = "Automatic";
 				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
 				"ENABLE_TESTABILITY" = "YES";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "DEBUG";
 			};
 			"name" = "Debug";
 		};
