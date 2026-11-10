@@ -1,14 +1,45 @@
 import SwiftUI
 
+extension ReferenceData {
+    func champion(key: String) -> ReferenceEntry? {
+        entries.first { $0.id == "champion:" + key }
+    }
+}
+
+private struct GuideReferenceKey: EnvironmentKey {
+    static let defaultValue: ReferenceData? = nil
+}
+
+extension EnvironmentValues {
+    var guideReference: ReferenceData? {
+        get { self[GuideReferenceKey.self] }
+        set { self[GuideReferenceKey.self] = newValue }
+    }
+}
+
+@propertyWrapper struct GuideReference: DynamicProperty {
+    @Environment(\.guideReference) private var selected
+    @EnvironmentObject private var store: Store
+
+    @MainActor var wrappedValue: ReferenceData? { selected ?? store.reference }
+}
+
 struct SelectedGuideUnit: Identifiable { let id: String }
 struct VisualCompositionGuide: View {
-    @EnvironmentObject private var store: Store
+    @GuideReference private var reference: ReferenceData?
     let comp: MetaComp
     @Binding var stage: Stage
-    @State private var mode = "Stades"
+    @State private var mode: String
     @State private var level = "6"
     @State private var option = 0
     @State private var selected: SelectedGuideUnit?
+
+    init(comp: MetaComp, stage: Binding<Stage>, showFinal: Bool = false) {
+        self.comp = comp
+        _stage = stage
+        _mode = State(initialValue: showFinal ? "Final" : "Stades")
+    }
+
     private var levels: [String] {
         (comp.variations?.levels?.keys.map { $0 } ?? []).sorted { (Int($0) ?? 0) < (Int($1) ?? 0) }
     }
@@ -47,7 +78,7 @@ struct VisualCompositionGuide: View {
                             Text(mode == "Final" || board.isFinal ? "Plateau cible" :
                                  mode == "Niveaux" ? (isTraitDraft ? "Noyau de " + activeLevel + " unités" : "Niveau " + activeLevel) : stage.title)
                                 .font(.title3.bold())
-                            let champions = board.units.filter { store.champion("champion:" + $0.name) != nil }.count
+                            let champions = board.units.filter { reference?.champion(key: $0.name) != nil }.count
                             let summons = board.units.count - champions
                             Text("\(champions) champions" + (summons > 0 ? " · \(summons) invocations" : "") + " · touche un portrait").font(.caption).foregroundStyle(.secondary)
                         }
@@ -142,8 +173,7 @@ struct VisualTimeline: View {
     }
 }
 struct TacticalBoard: View {
-    @EnvironmentObject private var store: Store
-    let comp: MetaComp
+    let comp: MetaComp?
     let board: GuideBoard
     var newUnits: Set<String> = []
     let select: (String) -> Void
@@ -170,14 +200,14 @@ struct TacticalBoard: View {
     private var cellHeight: CGFloat { 345 }
 }
 struct TacticalCell: View {
-    @EnvironmentObject private var store: Store
-    let comp: MetaComp
+    @GuideReference private var reference: ReferenceData?
+    let comp: MetaComp?
     let board: GuideBoard
     let unitKey: String?
     let width: CGFloat
     let isNew: Bool
     let select: (String) -> Void
-    private var entry: ReferenceEntry? { unitKey.map { store.champion("champion:" + $0) ?? ReferenceEntry.boardEntity($0) } }
+    private var entry: ReferenceEntry? { unitKey.map { reference?.champion(key: $0) ?? ReferenceEntry.boardEntity($0) } }
     var body: some View {
         VStack(spacing: 3) {
             if let key = unitKey, let entry {
@@ -185,14 +215,14 @@ struct TacticalCell: View {
                     VStack(spacing: 3) {
                         ZStack(alignment: .topTrailing) {
                             EntryIcon(entry: entry, size: width).frame(height: width * 1.1).clipShape(Hexagon())
-                            Hexagon().stroke((comp.carry_units ?? []).contains(key) ? hexaGold : .white.opacity(0.3), lineWidth: 1.5)
+                            Hexagon().stroke((comp?.carry_units ?? []).contains(key) ? hexaGold : .white.opacity(0.3), lineWidth: 1.5)
                             if isNew { Image(systemName: "plus.circle.fill").font(.system(size: 11)).foregroundStyle(.mint).background(hexaNavy, in: Circle()).offset(x: 2, y: -2) }
                         }.frame(height: width * 1.1)
                         Text(entry.name).font(.system(size: 8, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.75)
-                        MicroItems(loadout: comp.loadout(for: key, on: board), width: width)
+                        if let comp { MicroItems(loadout: comp.loadout(for: key, on: board), width: width) }
                     }.frame(width: width)
                 }.buttonStyle(.plain).accessibilityIdentifier("board-unit-" + key)
-                    .accessibilityLabel("\(entry.name), voir les objets")
+                    .accessibilityLabel("\(entry.name), \(comp == nil ? "voir le champion" : "voir les objets")")
             } else {
                 Hexagon().fill(.white.opacity(0.035)).overlay(Hexagon().stroke(.white.opacity(0.1))).frame(width: width, height: width * 1.1)
                 Color.clear.frame(width: width, height: 25)
@@ -201,13 +231,13 @@ struct TacticalCell: View {
     }
 }
 struct MicroItems: View {
-    @EnvironmentObject private var store: Store
+    @GuideReference private var reference: ReferenceData?
     let loadout: ChampionLoadout
     let width: CGFloat
     var body: some View {
         HStack(spacing: 1) {
             ForEach(0..<3, id: \.self) { index in
-                if loadout.items.indices.contains(index), let item = store.reference?.entries.first(where: { $0.id == "item:" + loadout.items[index] }) {
+                if loadout.items.indices.contains(index), let item = reference?.entries.first(where: { $0.id == "item:" + loadout.items[index] }) {
                     EntryIcon(entry: item, size: (width - 2) / 3)
                         .overlay(RoundedRectangle(cornerRadius: 2).stroke(hexaGold.opacity(loadout.isProjected ? 0.8 : 0), style: StrokeStyle(lineWidth: 1, dash: [2, 1])))
                 } else { RoundedRectangle(cornerRadius: 2).fill(.white.opacity(0.055)).frame(width: (width - 2)/3, height: (width - 2)/3) }
@@ -230,7 +260,7 @@ struct BoardComparison: View {
     }
 }
 struct EquipmentRoster: View {
-    @EnvironmentObject private var store: Store
+    @GuideReference private var reference: ReferenceData?
     let comp: MetaComp
     @State private var selected: SelectedGuideUnit?
     private var units: [MetaUnit] { comp.units.filter { !($0.items ?? []).isEmpty }.sorted { (comp.carry_units ?? []).contains($0.name) && !(comp.carry_units ?? []).contains($1.name) } }
@@ -242,9 +272,9 @@ struct EquipmentRoster: View {
                 Button { selected = SelectedGuideUnit(id: unit.name) } label: {
                     Panel {
                         HStack(spacing: 12) {
-                            if let entry = store.champion("champion:" + unit.name) { EntryIcon(entry: entry, size: 58) }
+                            if let entry = reference?.champion(key: unit.name) { EntryIcon(entry: entry, size: 58) }
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(store.champion("champion:" + unit.name)?.name ?? unit.name).font(.headline)
+                                Text(reference?.champion(key: unit.name)?.name ?? unit.name).font(.headline)
                                 Text((comp.carry_units ?? []).contains(unit.name) ? "Carry · équipement cible" : "Porteur · équipement cible").font(.caption).foregroundStyle(hexaGold)
                             }
                             Spacer(); Image(systemName: "chevron.right").foregroundStyle(hexaGold)
@@ -257,13 +287,13 @@ struct EquipmentRoster: View {
     }
 }
 struct ItemIcons: View {
-    @EnvironmentObject private var store: Store
+    @GuideReference private var reference: ReferenceData?
     let keys: [String]
     var size: CGFloat = 36
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             ForEach(Array(keys.enumerated()), id: \.offset) { _, key in
-                if let item = store.reference?.entries.first(where: { $0.id == "item:" + key }) {
+                if let item = reference?.entries.first(where: { $0.id == "item:" + key }) {
                     VStack(spacing: 5) { EntryIcon(entry: item, size: size); Text(item.name).font(.system(size: 10)).multilineTextAlignment(.center).lineLimit(3) }.frame(maxWidth: .infinity)
                 }
             }
@@ -271,13 +301,13 @@ struct ItemIcons: View {
     }
 }
 struct ChampionEquipmentView: View {
-    @EnvironmentObject private var store: Store
+    @GuideReference private var reference: ReferenceData?
     @Environment(\.dismiss) private var dismiss
     let comp: MetaComp
     let unitKey: String
     let board: GuideBoard
     @State private var alternate: Int?
-    private var champion: ReferenceEntry { store.champion("champion:" + unitKey) ?? ReferenceEntry.boardEntity(unitKey) }
+    private var champion: ReferenceEntry { reference?.champion(key: unitKey) ?? ReferenceEntry.boardEntity(unitKey) }
     private var plan: ChampionLoadout { comp.loadout(for: unitKey, on: board) }
     private var alternatives: [MetaUnitStats.Trio] { comp.alternativeTrios(for: plan.target, excluding: plan.items) }
     private var items: [String] { if let alternate, alternatives.indices.contains(alternate) { return alternatives[alternate].item_api_names }; return plan.items }
@@ -304,7 +334,7 @@ struct ChampionEquipmentView: View {
                         Text("La source présente ces objets comme un ensemble, sans ordre de fabrication.").font(.caption).foregroundStyle(.secondary)
                     }
                     ForEach(Array(items.enumerated()), id: \.offset) { index, key in
-                        if let item = store.reference?.entries.first(where: { $0.id == "item:" + key }) { EquipmentRecipeCard(item: item, slot: index + 1) }
+                        if let item = reference?.entries.first(where: { $0.id == "item:" + key }) { EquipmentRecipeCard(item: item, slot: index + 1) }
                     }
                 }
                 if !alternatives.isEmpty { alternativesSection }
@@ -367,7 +397,7 @@ struct EquipmentRecipeCard: View {
     }
 }
 struct RecipeRow: View {
-    @EnvironmentObject private var store: Store
+    @GuideReference private var reference: ReferenceData?
     let item: ReferenceEntry
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -376,7 +406,7 @@ struct RecipeRow: View {
                 HStack(alignment: .center, spacing: 8) {
                     ForEach(Array(components.enumerated()), id: \.offset) { index, key in
                         if index > 0 { Text("+").foregroundStyle(hexaGold) }
-                        if let component = store.reference?.entries.first(where: { $0.id == "item:" + key }) {
+                        if let component = reference?.entries.first(where: { $0.id == "item:" + key }) {
                             NavigationLink { ItemDetailView(item: component) } label: {
                                 VStack(spacing: 4) { EntryIcon(entry: component, size: 32); Text(component.name).font(.system(size: 10)).multilineTextAlignment(.center) }.frame(maxWidth: .infinity)
                             }.buttonStyle(.plain)
@@ -397,7 +427,7 @@ struct ItemDetailView: View {
     }
 }
 struct TransferPortraits: View {
-    @EnvironmentObject private var store: Store
+    @GuideReference private var reference: ReferenceData?
     let from: String
     let to: String
     var body: some View {
@@ -406,7 +436,7 @@ struct TransferPortraits: View {
         }.frame(maxWidth: .infinity)
     }
     private func portrait(_ key: String) -> some View {
-        let entry = store.champion("champion:" + key) ?? ReferenceEntry.boardEntity(key)
+        let entry = reference?.champion(key: key) ?? ReferenceEntry.boardEntity(key)
         return VStack(spacing: 5) { EntryIcon(entry: entry, size: 44); Text(entry.name).font(.caption).multilineTextAlignment(.center) }.frame(maxWidth: .infinity)
     }
 }

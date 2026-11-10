@@ -157,7 +157,10 @@ struct PBELabView: View {
 
 enum LiveGuideCatalogue {
     private typealias Cell = (Int, String)
-    static let guides: [MetaComp] = [ahri, solar, nidalee, teemo, masterYi, ezreal, veigar, cassiopeia, azir]
+    static let guides: [MetaComp] = [
+        ahri, solar, nidalee, teemo, masterYi, ezreal, veigar, cassiopeia, azir,
+        raptor, roncier, draven, morgana, aphelios, soraka, sivir, tristana, sylvestreDuo
+    ]
 
     static func experimentalGuides(reference: ReferenceData) -> [MetaComp] {
         let champions = reference.entries.filter { $0.kind == "champion" && (1...7).contains($0.cost) }
@@ -491,4 +494,159 @@ enum LiveGuideCatalogue {
            pivot: "Si Azir est contesté, fais porter les objets de puissance à Soraka et monte de niveau.",
            positioning: "Place Rammus au premier contact. Azir doit rester à portée d’attaque sans être exposé aux contrôles.",
            itemPlans: ["DA_18_Azir":"Guinsoo accélère ses attaques. Les deux autres objets renforcent les dégâts de ses soldats."]))
+
+    private static let tank = ["DA_GargoyleStoneplate", "DA_WarmogsArmor", "DA_SpiritVisage"]
+    private static let caster = ["DA_SpearOfShojin", "DA_JeweledGauntlet", "DA_RabadonsDeathcap"]
+    private static let utility = ["DA_SpearOfShojin", "DA_VoidStaff", "DA_Morellonomicon"]
+    private static let physical = ["DA_InfinityEdge", "DA_LastWhisper", "DA_GiantSlayer"]
+    private static let sustained = ["DA_GuinsoosRageblade", "DA_InfinityEdge", "DA_KrakensFury"]
+
+    private static func formation(_ front: [String], _ back: [String], extraSlots: Int = 0) -> (Int, [Cell]) {
+        let forward = zip([3, 1, 5, 7, 11, 13, 2, 4, 9], front).map { ($0.0, $0.1) }
+        let rear = zip([24, 21, 27, 23, 26, 22, 25, 17, 19], back).map { ($0.0, $0.1) }
+        return (front.count + back.count + extraSlots, forward + rear)
+    }
+
+    private static func study(_ id: String, _ title: String, style: String, carries: [String],
+                              source: String, opening: (Int, [Cell]), middle: (Int, [Cell]), final: (Int, [Cell]),
+                              builds: [String: [String]], transfers: [String: String] = [:],
+                              conditions: String, transition: String, positioning: String, pivot: String,
+                              items: [String: String]) -> MetaComp {
+        let stages = [
+            "2-1": conditions,
+            "2-5": "Stabilise le premier plateau avec tes paires naturelles et réserve les composants prioritaires.",
+            "3-2": "Le plateau intermédiaire montre le noyau à préparer. Garde tes unités deux étoiles tant que les remplaçants sont fragiles.",
+            "4-1": transition,
+            "5-1": pivot,
+            "6-1": positioning
+        ]
+        return make(id, style: style, carries: carries, source: source, levels: [opening, middle, final],
+                    stageLevels: [opening.0, opening.0, middle.0, middle.0, final.0, final.0],
+                    builds: builds, substitutes: [:], transfers: transfers,
+                    plan: AuthoredGuide(title: title, stages: stages, conditions: conditions, pivot: pivot,
+                                        positioning: positioning, itemPlans: items))
+    }
+
+    private static let raptor = study("hexa-raptor-zyra", "Maman Raptor · Zyra", style: "slow_roll_7",
+        carries: ["DA_CrimsonRaptor18", "DA_18_Zyra"],
+        source: "https://www.metastats.gg/en/tft/comps/summoner-mama-beak?bucket=diamond_plus&days=3&region=all",
+        opening: formation(["DA_18_Yorick", "DA_18_Ornn", "DA_18_Alistar"], ["DA_18_Xayah"]),
+        middle: formation(["DA_18_Yorick", "DA_Krug18", "DA_18_Hecarim", "DA_18_Alistar"], ["DA_CrimsonRaptor18", "DA_18_Xayah"]),
+        final: formation(["DA_Krug18", "DA_18_Hecarim", "DA_Sentinel18", "DA_18_Alistar"], ["DA_CrimsonRaptor18", "DA_18_Zyra", "DA_18_Azir", "DA_18_Xayah"]),
+        builds: ["DA_CrimsonRaptor18": ["DA_GuinsoosRageblade", "DA_HextechGunblade", "DA_TitansResolve"],
+                 "DA_18_Zyra": utility, "DA_Krug18": tank],
+        conditions: "Cherche des Arcs et des copies naturelles de Maman Raptor ou de Krug. Xayah et Alistar stabilisent l’ouverture.",
+        transition: "Relance au niveau 7 si Maman Raptor et Krug peuvent atteindre trois étoiles. Ajoute Zyra quand tes porteurs principaux sont stables.",
+        positioning: "Mets Krug au premier contact. Sépare Maman Raptor et Zyra pour limiter les dégâts de zone sur les deux porteurs.",
+        pivot: "Si Maman Raptor est trop contestée, garde-la deux étoiles et monte vers Zyra et Azir pour renforcer les Invocateurs.",
+        items: ["DA_CrimsonRaptor18": "Commence par Guinsoo. Le Pistolame apporte du soin et le Titan renforce les combats longs.",
+                "DA_18_Zyra": "Shojin accélère ses sorts. Ajoute réduction magique et anti-soin selon les besoins de l’équipe.",
+                "DA_Krug18": "Le Lithoplastron est efficace au premier contact. Complète avec des PV et du soin."])
+
+    private static let roncier = study("hexa-roncier-jungle", "Roncier Jungle", style: "fast_8",
+        carries: ["DA_Brambleback18", "DA_18_ElderDragon"], source: "https://tftcodex.com/comps/riftbeast-brambleback.html",
+        opening: formation(["DA_18_Yorick", "DA_18_Alistar", "DA_Murkwolf18"], ["DA_18_Sentry"]),
+        middle: formation(["DA_Krug18", "DA_18_Alistar", "DA_Murkwolf18", "DA_Scuttlecrab18"], ["DA_18_Sentry", "DA_Gromp18_AP"]),
+        final: formation(["DA_Krug18", "DA_Sentinel18", "DA_Murkwolf18", "DA_Brambleback18", "DA_18_ElderDragon"], ["DA_18_Sentry", "DA_Gromp18_AP"], extraSlots: 1),
+        builds: ["DA_Brambleback18": ["DA_GuinsoosRageblade", "DA_EdgeOfNight", "DA_Quicksilver"],
+                 "DA_18_ElderDragon": physical, "DA_Krug18": tank],
+        conditions: "Joue une ouverture Jungle avec une première ligne solide et des composants de vitesse d’attaque.",
+        transition: "Cherche Roncier et Krug améliorés. Quand tu joues le Dragon ancestral, réserve-lui deux places sur le plateau.",
+        positioning: "Place Krug devant Roncier. Décale Roncier vers le côté où il peut attaquer sans prendre le premier focus.",
+        pivot: "Tant que le Dragon n’est pas disponible, remplis les places libres avec tes unités Jungle améliorées.",
+        items: ["DA_Brambleback18": "Guinsoo lance la montée en vitesse. Manteau de la nuit protège en début de combat et Mercure répond au contrôle.",
+                "DA_18_ElderDragon": "Lame d’infini et Dernier souffle renforcent les dégâts physiques. Tueur de géants aide contre les tanks."])
+
+    private static let draven = study("hexa-draven-maokai", "Draven · Maokai Sylvestre", style: "fast_9",
+        carries: ["DA_Draven18", "DA_18_Maokai"], source: "https://tftcodex.com/comps/elderwood-draven.html",
+        opening: formation(["DA_18_Ornn", "DA_18_Alistar"], ["DA_18_Xayah", "DA_18_Varus"]),
+        middle: formation(["DA_18_Ornn", "DA_18_Alistar", "DA_18_Hecarim"], ["DA_18_Xayah", "DA_18_LeBlanc", "DA_18_Ezreal"]),
+        final: formation(["DA_18_Maokai", "DA_18_Alistar", "DA_Amumu18", "DA_Taric18", "DA_18_GnarSmall"], ["DA_Draven18", "DA_18_Ezreal", "DA_18_Ivern", "DA_18_Kennen"]),
+        builds: ["DA_Draven18": sustained, "DA_18_Maokai": tank, "DA_18_Ezreal": physical],
+        transfers: ["DA_18_Xayah": "DA_Draven18", "DA_18_Ornn": "DA_18_Maokai"],
+        conditions: "Privilégie une ouverture Sylvestre stable avec des Arcs et assez d’économie pour monter.",
+        transition: "Stabilise avec Ezreal et une première ligne deux étoiles au niveau 8. Passe 9 si tes PV le permettent.",
+        positioning: "Place Maokai au centre et protège Draven des menaces qui ciblent les coins. Sépare les porteurs AD.",
+        pivot: "Si tu ne peux pas atteindre le niveau 9, reste sur Ezreal et renforce le tank déjà équipé.",
+        items: ["DA_Draven18": "Fabrique Guinsoo en premier pour accumuler de la vitesse d’attaque. Kraken soutient les dégâts au fil du combat."])
+
+    private static let morgana = study("hexa-morgana-sentinelle", "Morgana · Sentinelle", style: "fast_8",
+        carries: ["DA_18_Morgana", "DA_Sentinel18"], source: "https://tactics.tools/team-compositions/top",
+        opening: formation(["DA_18_Yorick", "DA_18_Rakan"], ["DA_18_Sentry", "DA_Karma18"]),
+        middle: formation(["DA_18_Yorick", "DA_18_Rakan", "DA_Krug18", "DA_18_Elise"], ["DA_18_Sentry", "DA_Karma18"]),
+        final: formation(["DA_Sentinel18", "DA_18_Sett", "DA_Taric18", "DA_Krug18", "DA_18_Rakan"], ["DA_18_Morgana", "DA_18_Ahri", "DA_18_Sentry"]),
+        builds: ["DA_18_Morgana": utility, "DA_Sentinel18": tank, "DA_18_Ahri": caster],
+        transfers: ["DA_18_Yorick": "DA_Sentinel18", "DA_Karma18": "DA_18_Ahri"],
+        conditions: "Cherche des composants de mana et de tank. Caillou et Karma peuvent conserver les objets pendant la montée.",
+        transition: "Au niveau 8, sécurise d’abord Morgana et Sentinelle. Ajoute Ahri si la première ligne tient.",
+        positioning: "Sentinelle prend le premier contact. Place Morgana derrière un tank et écarte-la d’Ahri contre les zones.",
+        pivot: "Si Morgana tarde, garde les objets utilitaires sur un lanceur de sorts amélioré.",
+        items: ["DA_18_Morgana": "Le Bâton du vide et Morellonomicon couvrent l’équipe. Ajoute Shojin si tu disposes des composants."])
+
+    private static let aphelios = study("hexa-aphelios-nidalee", "Aphelios · Nidalee Primitif", style: "fast_8",
+        carries: ["DA_18_Aphelios", "DA_Nidalee18_AP"], source: "https://tftcodex.com/comps/",
+        opening: formation(["DA_18_Rakan", "DA_18_Yorick"], ["DA_18_Varus", "DA_18_Xayah"]),
+        middle: formation(["DA_18_Rakan", "DA_Vi18", "DA_18_Diana"], ["DA_18_Varus", "DA_18_Xayah", "DA_KogMaw18_AD"]),
+        final: formation(["DA_Amumu18", "DA_Vi18", "DA_18_Diana", "DA_Sentinel18", "DA_Nidalee18_AP"], ["DA_18_Aphelios", "DA_18_Varus", "DA_KogMaw18_AD"]),
+        builds: ["DA_18_Aphelios": sustained, "DA_Nidalee18_AP": ["DA_Bloodthirster", "DA_JeweledGauntlet", "DA_TitansResolve"],
+                 "DA_Amumu18": tank], transfers: ["DA_18_Xayah": "DA_18_Aphelios"],
+        conditions: "Joue une ouverture Ultrarapide si tu as des Arcs. Prépare séparément la première ligne et le carry AD.",
+        transition: "Cherche Aphelios au niveau 8 et stabilise Vi et Amumu. Vérifie la forme de Nidalee avant de lui donner des objets.",
+        positioning: "Aphelios reste à l’arrière. Nidalee se place derrière la première ligne pour éviter d’être ciblée en premier.",
+        pivot: "Garde Xayah équipée jusqu’à l’arrivée d’Aphelios. Si Nidalee change de forme, adapte les objets secondaires.",
+        items: ["DA_18_Aphelios": "Guinsoo et Kraken récompensent les attaques répétées. Lame d’infini complète les dégâts.",
+                "DA_Nidalee18_AP": "Soif-de-sang et Titan l’aident à rester au contact. Le Gantelet permet les critiques de sort."])
+
+    private static let soraka = study("hexa-soraka-malphite", "Soraka · Malphite Exécuteur", style: "fast_8",
+        carries: ["DA_18_Soraka", "DA_18_Malphite"], source: "https://tftcodex.com/comps/",
+        opening: formation(["DA_18_Yorick", "DA_18_RekSai", "DA_18_Ornn"], ["DA_18_Veigar"]),
+        middle: formation(["DA_18_Yorick", "DA_18_RekSai", "DA_Fiddlesticks18", "DA_18_Ornn"], ["DA_18_Azir", "DA_18_Veigar"]),
+        final: formation(["DA_18_Malphite", "DA_Amumu18", "DA_Fiddlesticks18", "DA_18_Yorick", "DA_18_Kennen"], ["DA_18_Soraka", "DA_18_Azir", "DA_18_Zyra"]),
+        builds: ["DA_18_Soraka": caster, "DA_18_Malphite": tank, "DA_18_Zyra": utility],
+        transfers: ["DA_18_Veigar": "DA_18_Soraka", "DA_18_Ornn": "DA_18_Malphite"],
+        conditions: "Départ mana et puissance avec des unités défensives déjà améliorées.",
+        transition: "Au niveau 8, cherche Soraka et Malphite ensemble. Conserve ton tank deux étoiles jusqu’à ce que Malphite soit prêt.",
+        positioning: "Malphite au premier contact, Fiddlesticks vers le groupe adverse et Soraka du côté protégé.",
+        pivot: "Si Soraka est contestée, garde les objets AP sur Veigar ou confie-les à Zyra améliorée.",
+        items: ["DA_18_Soraka": "Priorité à Shojin. Gantelet et Rabadon renforcent le sort quand la première ligne lui laisse le temps de lancer."])
+
+    private static let sivir = study("hexa-sivir-ashe", "Sivir · Ashe Primitif", style: "fast_9",
+        carries: ["DA_18_Sivir", "DA_18_Ashe"], source: "https://tftcodex.com/comps/",
+        opening: formation(["DA_18_Rakan", "DA_18_Yorick"], ["DA_18_Xayah", "DA_18_Varus"]),
+        middle: formation(["DA_18_Rakan", "DA_Vi18", "DA_18_Alistar"], ["DA_18_Xayah", "DA_18_Varus", "DA_18_Sivir"]),
+        final: formation(["DA_18_Rakan", "DA_Vi18", "DA_Amumu18", "DA_18_Maokai", "DA_Taric18"], ["DA_18_Sivir", "DA_18_Ashe", "DA_18_Ivern", "DA_18_Lux_Primal"]),
+        builds: ["DA_18_Sivir": physical, "DA_18_Ashe": ["DA_SpearOfShojin", "DA_LastWhisper", "DA_RedBuff"], "DA_18_Maokai": tank],
+        transfers: ["DA_18_Xayah": "DA_18_Sivir", "DA_18_Alistar": "DA_18_Maokai"],
+        conditions: "Privilégie un bon départ AD et des composants défensifs qui permettent de conserver tes PV.",
+        transition: "Stabilise Sivir et Vi au niveau 8. Monte 9 pour Ashe et les unités légendaires si ton économie le permet.",
+        positioning: "Mets Maokai devant la menace principale. Écarte Ashe de Sivir et aligne Ashe avec le plus d’ennemis possible.",
+        pivot: "Sans Ashe, reste au niveau 8 avec Sivir équipée et la meilleure première ligne disponible.",
+        items: ["DA_18_Sivir": "Dernier souffle couvre la réduction d’armure. Complète avec des dégâts et Tueur de géants si le lobby est tanky.",
+                "DA_18_Ashe": "Shojin accélère ses tirs. Si Sivir applique déjà Dernier souffle, privilégie les composants disponibles pour Ashe."])
+
+    private static let tristana = study("hexa-tristana-fae", "Tristana Fæ", style: "slow_roll_7",
+        carries: ["DA_18_Tristana", "DA_18_Rammus"], source: "https://tftcodex.com/comps/",
+        opening: formation(["DA_18_Rakan", "DA_18_Kobuko", "DA_18_Ornn"], ["DA_18_Xayah"]),
+        middle: formation(["DA_18_Rakan", "DA_18_Rammus", "DA_18_Kobuko", "DA_Vi18"], ["DA_18_Tristana", "DA_18_Xayah"]),
+        final: formation(["DA_18_Rakan", "DA_18_Rammus", "DA_18_Lillia", "DA_Vi18", "DA_18_Kobuko", "DA_18_Rengar"], ["DA_18_Tristana", "DA_18_Sivir"]),
+        builds: ["DA_18_Tristana": sustained, "DA_18_Rammus": tank, "DA_18_Sivir": physical],
+        conditions: "Cherche plusieurs copies de Tristana et Rammus, ainsi que des Arcs pour ton carry.",
+        transition: "Relance au niveau 7 si les copies sont accessibles. Ajoute Lillia ou Sivir quand elles améliorent le plateau.",
+        positioning: "Rammus au premier contact. Tristana et Sivir sur deux colonnes séparées à l’arrière.",
+        pivot: "Si Tristana est trop contestée, garde-la deux étoiles et monte vers Sivir avec les objets AD disponibles.",
+        items: ["DA_18_Tristana": "Guinsoo accélère les attaques. Kraken récompense les combats longs et Lame d’infini renforce les dégâts."])
+
+    private static let sylvestreDuo = study("hexa-ezreal-aphelios", "Ezreal · Aphelios Sylvestre", style: "fast_8",
+        carries: ["DA_18_Ezreal", "DA_18_Aphelios"], source: "https://tactics.tools/team-compositions/top",
+        opening: formation(["DA_18_Ornn", "DA_18_Alistar"], ["DA_18_Xayah", "DA_18_Varus"]),
+        middle: formation(["DA_18_Ornn", "DA_18_Alistar", "DA_18_Hecarim"], ["DA_18_Xayah", "DA_18_LeBlanc", "DA_18_Varus"]),
+        final: formation(["DA_18_Ornn", "DA_18_Alistar", "DA_18_Hecarim", "DA_18_Lillia"], ["DA_18_Ezreal", "DA_18_Aphelios", "DA_18_LeBlanc", "DA_18_Xayah"]),
+        builds: ["DA_18_Ezreal": ["DA_SpearOfShojin", "DA_InfinityEdge", "DA_LastWhisper"],
+                 "DA_18_Aphelios": sustained, "DA_18_Lillia": tank],
+        conditions: "Cherche une ouverture Sylvestre et des composants AD. Un emblème Sylvestre peut permettre d’atteindre un palier supérieur avec Aphelios.",
+        transition: "Au niveau 8, équipe en priorité ton premier carry deux étoiles et garde des objets pour Lillia.",
+        positioning: "Hecarim et Lillia protègent deux côtés. Écarte Ezreal et Aphelios face aux sorts de zone.",
+        pivot: "Sans emblème, joue les paliers accessibles ou remplace Aphelios par un soutien adapté à tes unités améliorées.",
+        items: ["DA_18_Ezreal": "Shojin accélère ses tirs, Dernier souffle aide les deux porteurs AD.",
+                "DA_18_Aphelios": "Guinsoo et Kraken valorisent les attaques répétées. Si tu as l’emblème Sylvestre, il peut prendre le troisième emplacement."])
 }

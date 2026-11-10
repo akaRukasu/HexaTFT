@@ -249,6 +249,21 @@ struct MetaPack: Codable {
         guard let partnerRadar, partnerRadar.isValid(for: live?.reference, patch: live?.pack.patch) else { return .bundled }
         return partnerRadar
     }
+    func catalogue(for radar: MetaRadarSnapshot) -> PatchSnapshot? {
+        ([live].compactMap { $0 } + archives).first {
+            $0.pack.patch == radar.patch && $0.pack.set == radar.set && radar.matches($0.reference)
+        }
+    }
+    func nativeGuide(for entry: MetaObservation, in radar: MetaRadarSnapshot,
+                     catalogue: PatchSnapshot?) -> MetaComp? {
+        guard let id = entry.relatedGuide, let reference = catalogue?.reference, radar.matches(reference) else { return nil }
+        if entry.guideID != nil, let guide = catalogue?.pack.data.first(where: { $0.comp_id == id }),
+           !guide.finalBoard.positions.isEmpty, Set(entry.champions).isSubset(of: guide.finalBoard.keys) {
+            return guide
+        }
+        guard radar.patch == "18.6", reference.version.hasPrefix("16.22.") else { return nil }
+        return LiveGuideCatalogue.guides.first { $0.comp_id == id && LiveGuideCatalogue.isCompatible($0, with: reference) }
+    }
     var activePartnerGuides: ExperimentalGuides? {
         guard partnerGuides?.revision == experimental?.version,
               partnerGuides?.set == experimental?.entries.first?.set else { return nil }

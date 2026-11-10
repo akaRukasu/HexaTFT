@@ -153,7 +153,21 @@ final class HexaTFTUITests: XCTestCase {
         card.tap()
         XCTAssertTrue(app.navigationBars["Composition"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Top 4")).firstMatch.exists)
+        let mode = app.segmentedControls["guide-mode"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 8))
+        XCTAssertTrue(mode.buttons["Final"].isSelected)
         snapshot("17-multi-sources")
+        let raptor = app.buttons["board-unit-DA_CrimsonRaptor18"]
+        for _ in 0..<4 where !raptor.isHittable { app.swipeUp() }
+        XCTAssertTrue(raptor.isHittable)
+        snapshot("23-radar-plateau")
+        raptor.tap()
+        XCTAssertTrue(app.staticTexts["Le trio de référence"].waitForExistence(timeout: 8))
+        let recipe = app.staticTexts["Fabriquer cet objet"].firstMatch
+        for _ in 0..<3 where !recipe.isHittable { app.swipeUp() }
+        XCTAssertTrue(recipe.exists)
+        snapshot("24-radar-objets")
+        app.buttons["Fermer"].tap()
         app.tabBars.buttons["Patches"].tap()
         let notes = app.buttons["Notes du patch 18.6"]
         for _ in 0..<3 where !notes.isHittable { app.swipeUp() }

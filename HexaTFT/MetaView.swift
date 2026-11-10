@@ -93,6 +93,7 @@ struct MetaView: View {
     }
     private var observations: some View {
         let snapshot = meta.radar
+        let catalogue = meta.catalogue(for: snapshot)
         let compatible = snapshot.matches(store.reference)
         let readings = sort.readings(snapshot.readings.filter {
             $0.matches(query) && (provider == nil || $0.provider == provider)
@@ -118,10 +119,10 @@ struct MetaView: View {
             if !compatible {
                 Text("Relevé d’un patch antérieur").font(.caption.bold()).foregroundStyle(.orange)
             }
-            Text("Les rangs et les échantillons varient selon la source.")
+            Text("Touche une composition pour ouvrir son plateau. Les rangs et les échantillons varient selon la source.")
                 .font(.caption).foregroundStyle(.secondary)
             ForEach(readings) { entry in
-                observationRow(entry, reference: compatible ? store.reference : nil)
+                observationRow(entry, radar: snapshot, catalogue: catalogue)
             }
             if snapshot.nextCursor != nil {
                 if let error = meta.radarPageError {
@@ -161,21 +162,15 @@ struct MetaView: View {
         }
     }
 
-    private func observationRow(_ entry: MetaObservation, reference: ReferenceData?) -> some View {
+    private func observationRow(_ entry: MetaObservation, radar: MetaRadarSnapshot, catalogue: PatchSnapshot?) -> some View {
         NavigationLink {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    MetaObservationCard(entry: entry, reference: reference)
-                    Link("Ouvrir le relevé d’origine", destination: entry.source).buttonStyle(.bordered)
-                    if reference != nil, let guide = meta.editorialComps.first(where: { entry.relatedGuide == $0.comp_id }) {
-                        NavigationLink("Ouvrir le guide Hexa associé") { MetaDetail(comp: guide) }.buttonStyle(.borderedProminent)
-                        Text("Les chiffres décrivent le regroupement du fournisseur. Le plateau Hexa est une proposition de jeu pour cet archétype.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }.padding()
-            }.background(hexaNavy).navigationTitle("Composition")
+            if let guide = meta.nativeGuide(for: entry, in: radar, catalogue: catalogue) {
+                MetaDetail(comp: guide, snapshot: catalogue, reading: entry)
+            } else {
+                ObservationCoreView(entry: entry, reference: catalogue?.reference, patch: radar.patch)
+            }
         } label: {
-            MetaObservationCard(entry: entry, reference: reference)
+            MetaObservationCard(entry: entry, reference: catalogue?.reference)
         }.buttonStyle(.plain).accessibilityIdentifier("observation-" + entry.id)
     }
 
@@ -190,17 +185,7 @@ struct MetaView: View {
 
     private func archiveRow(_ comp: MetaComp, snapshot: PatchSnapshot) -> some View {
         NavigationLink {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    archiveCard(comp, snapshot: snapshot)
-                    Button("Voir le catalogue de ce patch") { meta.select(.archives, archiveID: snapshot.id) }
-                        .buttonStyle(.borderedProminent)
-                    if let url = comp.sourceURL ?? (snapshot.sourceName == "Blitz" ? comp.url : nil) {
-                        Link("Voir la fiche d’origine", destination: url)
-                            .buttonStyle(.bordered)
-                    }
-                }.padding()
-            }.background(hexaNavy).navigationTitle("Composition archivée")
+            MetaDetail(comp: comp, snapshot: snapshot)
         } label: {
             archiveCard(comp, snapshot: snapshot)
         }.buttonStyle(.plain).accessibilityIdentifier("home-archive-" + snapshot.id + "-" + comp.id)
@@ -318,14 +303,14 @@ struct MetaCard: View {
     }
 }
 struct UnitStrip: View {
-    @EnvironmentObject private var store: Store
+    @GuideReference private var guideReference: ReferenceData?
     let units: [MetaUnit]
     var reference: ReferenceData? = nil
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 8) {
                 ForEach(units) { unit in
-                    let entry = (reference ?? store.reference)?.entries.first { $0.id == "champion:" + unit.name } ?? ReferenceEntry.boardEntity(unit.name)
+                    let entry = (reference ?? guideReference)?.champion(key: unit.name) ?? ReferenceEntry.boardEntity(unit.name)
                     Group {
                         VStack(spacing: 4) {
                             EntryIcon(entry: entry, size: 46)
@@ -352,14 +337,71 @@ struct StatsStrip: View {
         VStack(alignment: .leading, spacing: 4) { Text(value).font(.subheadline.bold()).foregroundStyle(.white); Text(label).font(.system(size: 10)).foregroundStyle(.secondary) }
     }
 }
+struct ObservationCoreView: View {
+    let entry: MetaObservation
+    let reference: ReferenceData?
+    let patch: String
+    @State private var selected: SelectedGuideUnit?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text(entry.title).font(.title.bold())
+                Text("\(entry.provider.rawValue) · Patch \(patch)").font(.subheadline.bold()).foregroundStyle(entry.provider.color)
+                Text(entry.scope ?? entry.provider.context).font(.caption).foregroundStyle(.secondary)
+                MetaObservationMetrics(entry: entry)
+                if let reference {
+                    Panel {
+                        Label("Noyau de la composition", systemImage: "hexagon").font(.headline)
+                        TacticalBoard(comp: nil, board: entry.coreBoard(reference: reference)) {
+                            selected = SelectedGuideUnit(id: $0)
+                        }
+                        Text("Champions du relevé · placement indicatif Hexa").font(.caption).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Text("Le Codex du patch \(patch) est indisponible.").font(.caption).foregroundStyle(.secondary)
+                }
+                Text("Le plateau complet et l’équipement restent à renseigner pour ce relevé.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                Link("Consulter le relevé d’origine", destination: entry.source).buttonStyle(.bordered)
+            }.padding()
+        }
+        .environment(\.guideReference, reference)
+        .background(hexaNavy).navigationTitle("Composition").navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $selected) { selection in
+            if let champion = reference?.champion(key: selection.id) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        EntryIcon(entry: champion, size: 70)
+                        Text(champion.name).font(.title.bold())
+                        Text("Set \(champion.set) · \(champion.cost) PO").font(.caption).foregroundStyle(.secondary)
+                        Text(champion.description)
+                    }.frame(maxWidth: .infinity, alignment: .leading).padding(24)
+                }.presentationDetents([.medium, .large])
+            }
+        }
+    }
+}
+
 struct MetaDetail: View {
     @EnvironmentObject private var store: Store
     @EnvironmentObject private var meta: MetaStore
     let comp: MetaComp
+    var snapshot: PatchSnapshot? = nil
+    var reading: MetaObservation? = nil
     @State private var stage = Stage.opening
+    private var reference: ReferenceData? { snapshot?.reference ?? store.reference }
+    private var provider: String { snapshot?.sourceName ?? meta.sourceName }
+    private var context: String {
+        if snapshot == nil, meta.selection.channel == .pbe {
+            return "PBE · " + (meta.experimental?.version ?? "—") + " · " + (comp.stats == nil ? "Plateau à tester" : provider)
+        }
+        let pack = snapshot?.pack ?? meta.pack
+        return "Set \(pack?.set ?? "—") · Patch \(pack?.patch ?? "—") · \(comp.authored == nil ? provider : "Plan éditorial Hexa")"
+    }
     private var similar: [MetaComp] {
         let units = Set(comp.units.map(\.name))
-        return meta.comps.filter { $0.id != comp.id }.map { candidate in
+        return (snapshot?.pack.data ?? meta.comps).filter { $0.id != comp.id }.map { candidate in
             let other = Set(candidate.units.map(\.name))
             let overlap = Double(units.intersection(other).count) / Double(max(1, units.union(other).count))
             return (candidate, overlap)
@@ -374,16 +416,21 @@ struct MetaDetail: View {
                     Badge(text: comp.style, color: hexaGold)
                     Spacer()
                 }
-                Text(comp.title(store.reference)).font(.title.bold())
-                if let stats = comp.stats { StatsStrip(stats: stats) }
-                HStack {
-                    Button { store.pinMeta(comp) } label: { Label(store.state.pinnedID == comp.id ? "Épinglée" : "Suivre dans Partie", systemImage: "pin.fill").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent)
-                    Button { store.favorite(comp.id) } label: { Image(systemName: store.state.favorites.contains(comp.id) ? "star.fill" : "star") }.buttonStyle(.bordered).accessibilityLabel("Ajouter ou retirer des favoris")
+                Text(reading?.title ?? comp.title(reference)).font(.title.bold())
+                if let reading {
+                    Text(reading.provider.rawValue).font(.subheadline.bold()).foregroundStyle(reading.provider.color)
+                    Text(reading.scope ?? reading.provider.context).font(.caption).foregroundStyle(.secondary)
+                    MetaObservationMetrics(entry: reading)
+                    Text(comp.authored == nil ? "Statistiques de l’archétype · plateau fourni par \(provider)." :
+                         "Statistiques de l’archétype · plateau et objets conseillés par Hexa.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if let stats = comp.stats {
+                    StatsStrip(stats: stats)
                 }
-                Text(meta.selection.channel == .pbe ? "PBE · " + (meta.experimental?.version ?? "—") + " · " + (comp.stats == nil ? "Plateau à tester" : meta.sourceName) :
-                     "Set \(meta.pack?.set ?? "—") · Patch \(meta.pack?.patch ?? "—") · \(comp.authored == nil ? meta.sourceName : "Plan éditorial Hexa")")
-                    .font(.caption).foregroundStyle(.secondary)
-                VisualCompositionGuide(comp: comp, stage: $stage)
+                if snapshot == nil { actions }
+                Text(context).font(.caption).foregroundStyle(.secondary)
+                VisualCompositionGuide(comp: comp, stage: $stage, showFinal: snapshot != nil)
+                if snapshot != nil { actions }
                 if let plan = comp.authored {
                     Panel {
                         Label("Quand jouer ce plan", systemImage: "map").font(.headline)
@@ -401,22 +448,24 @@ struct MetaDetail: View {
                         Label("Plans proches sur ce patch", systemImage: "arrow.triangle.branch").font(.headline)
                         Text("Au moins la moitié des champions sont communs sur l’ensemble des deux plateaux. Vérifie les porteurs avant de transférer tes objets.").font(.caption)
                         ForEach(similar) { option in
-                            NavigationLink { MetaDetail(comp: option) } label: {
-                                Text(option.title(store.reference) + " · " + option.style)
+                            NavigationLink { MetaDetail(comp: option, snapshot: snapshot) } label: {
+                                Text(option.title(reference) + " · " + option.style)
                             }
                         }
                     }
                 }
                 EquipmentRoster(comp: comp)
-                Panel {
-                    Label("Mon atelier", systemImage: "hexagon").font(.headline)
-                    Button("Copier le plateau final dans mon atelier") { store.copyBoard(comp.units_positions ?? []) }.buttonStyle(.bordered)
+                if snapshot == nil || comp.finalBoard.positions.allSatisfy({ store.boardChampion("champion:" + $0.unit_api_name) != nil }) {
+                    Panel {
+                        Label("Mon atelier", systemImage: "hexagon").font(.headline)
+                        Button("Copier le plateau final dans mon atelier") { store.copyBoard(comp.units_positions ?? []) }.buttonStyle(.bordered)
+                    }
                 }
                 if let augments = comp.augments, !augments.isEmpty {
                     Panel {
                         Text("Optimisations fréquentes").font(.headline)
                         ForEach(augments, id: \.self) { key in
-                            if let augment = store.reference?.entries.first(where: { $0.id == "augment:" + key }) {
+                            if let augment = reference?.entries.first(where: { $0.id == "augment:" + key }) {
                                 Text(augment.name).font(.subheadline.bold()); Text(augment.description).font(.caption).foregroundStyle(.secondary)
                             }
                         }
@@ -425,25 +474,37 @@ struct MetaDetail: View {
                 Panel {
                     Text("Source et contexte").font(.headline)
                     if let stats = comp.stats {
-                        Text("\(meta.sourceName) · \(comp.region ?? "WORLD") · \(comp.rank ?? "PLATINUM+") · \(stats.nb_games.formatted()) parties").font(.caption).foregroundStyle(.secondary)
+                        Text("\(provider) · \(comp.region ?? "WORLD") · \(comp.rank ?? "PLATINUM+") · \(stats.nb_games.formatted()) parties").font(.caption).foregroundStyle(.secondary)
                     } else {
-                        Text("Positions et parcours proposés par Hexa. Aucun taux de victoire ni échantillon associé.").font(.caption).foregroundStyle(.secondary)
+                        Text("Positions et parcours proposés par Hexa.").font(.caption).foregroundStyle(.secondary)
                     }
                     if comp.stats != nil { Text("Version des statistiques déclarée par la source : \(comp.display_patch ?? "—"). Le patch de la page est indiqué dans Méta.").font(.caption).foregroundStyle(.secondary) }
-                    if meta.sourceName == "Blitz" {
+                    if let reading {
+                        Link("Consulter le relevé \(reading.provider.rawValue)", destination: reading.source)
+                    } else if provider == "Blitz" {
                         Link("Consulter la fiche originale Blitz", destination: comp.url)
                     } else if let url = comp.sourceURL, url.scheme == "https" {
                         Link("Consulter la source originale", destination: url)
                     }
                 }
             }.padding()
-        }.background(hexaNavy).navigationTitle("Composition").navigationBarTitleDisplayMode(.inline)
+        }.environment(\.guideReference, reference).background(hexaNavy).navigationTitle("Composition").navigationBarTitleDisplayMode(.inline)
+    }
+    private var actions: some View {
+        HStack {
+            Button { store.pinMeta(comp, reference: reference) } label: {
+                Label(store.state.pinnedID == comp.id ? "Épinglée" : "Suivre dans Partie", systemImage: "pin.fill").frame(maxWidth: .infinity)
+            }.buttonStyle(.borderedProminent)
+            Button { store.favorite(comp.id) } label: {
+                Image(systemName: store.state.favorites.contains(comp.id) ? "star.fill" : "star")
+            }.buttonStyle(.bordered).accessibilityLabel("Ajouter ou retirer des favoris")
+        }
     }
 }
 
 
 struct CompositionEvidence: View {
-    @EnvironmentObject private var store: Store
+    @GuideReference private var reference: ReferenceData?
     let comp: MetaComp
     var body: some View {
         Panel {
@@ -468,7 +529,7 @@ struct CompositionEvidence: View {
             }
             if let traits = comp.traits, !traits.isEmpty {
                 let names = traits.prefix(8).compactMap { trait in
-                    store.reference?.entries.first { $0.id == "trait:" + trait.trait_api_name }?.name
+                    reference?.entries.first { $0.id == "trait:" + trait.trait_api_name }?.name
                 }
                 if !names.isEmpty {
                     Text("Traits fréquemment observés").font(.subheadline.bold())
@@ -481,7 +542,7 @@ struct CompositionEvidence: View {
     }
     private func conditionLabel(_ condition: MetaCondition) -> String? {
         let kind = condition.type == "unit" ? "champion" : condition.type
-        guard let entry = store.reference?.entries.first(where: { $0.id == kind + ":" + condition.name }) else { return nil }
+        guard let entry = reference?.entries.first(where: { $0.id == kind + ":" + condition.name }) else { return nil }
         if let stars = condition.unit_star_level { return entry.name + " · " + String(stars) + " ★" }
         if let count = condition.trait_min_count { return entry.name + " · palier " + String(count) }
         return entry.name

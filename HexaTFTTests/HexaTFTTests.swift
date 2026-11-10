@@ -181,7 +181,7 @@ final class HexaTFTTests: XCTestCase {
     @MainActor func testCurrentHexaGuidesHaveValidStagesAndEquipmentWithoutInventedStats() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let meta = MetaStore(directory: directory)
-        XCTAssertEqual(meta.editorialComps.count, 9)
+        XCTAssertEqual(meta.editorialComps.count, 18)
         let reference = try XCTUnwrap(meta.reference)
         for comp in meta.editorialComps {
             XCTAssertNil(comp.stats)
@@ -208,6 +208,31 @@ final class HexaTFTTests: XCTestCase {
             XCTAssertTrue(LiveGuideCatalogue.isCompatible(comp, with: try XCTUnwrap(meta.reference)))
         }
         try? FileManager.default.removeItem(at: directory)
+    }
+
+    @MainActor func testBundledRadarOpensNativeGuidesAndKeepsTheMatchingCodex() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let meta = MetaStore(directory: directory)
+        let radar = MetaRadarSnapshot.bundled
+        let catalogue = try XCTUnwrap(meta.catalogue(for: radar))
+        let reference = try XCTUnwrap(catalogue.reference)
+        meta.select(.archives)
+        XCTAssertNotEqual(meta.reference?.version, reference.version)
+        for entry in radar.readings {
+            let guide = try XCTUnwrap(meta.nativeGuide(for: entry, in: radar, catalogue: catalogue), entry.title)
+            XCTAssertTrue(Set(entry.champions).isSubset(of: guide.finalBoard.keys), entry.title)
+            XCTAssertTrue(guide.finalBoard.positions.count >= 7, entry.title)
+            XCTAssertTrue(guide.finalBoard.units.contains { $0.items?.count == 3 }, entry.title)
+            let core = entry.coreBoard(reference: reference)
+            XCTAssertEqual(core.keys, Set(entry.champions))
+            XCTAssertEqual(Set(core.positions.map(\.board_position)).count, entry.champions.count)
+            XCTAssertTrue(core.units.allSatisfy { $0.items == nil })
+        }
+        let nextPatch = MetaRadarSnapshot(patch: "18.7", build: "16.23", set: "18",
+                                         retrievedAt: Date(), readings: radar.readings)
+        XCTAssertNil(meta.catalogue(for: nextPatch))
+        XCTAssertNil(meta.nativeGuide(for: radar.readings[0], in: nextPatch, catalogue: catalogue))
     }
 
     func testPublicRiotProfileUsesSeparateEscapedNameAndTag() throws {

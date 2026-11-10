@@ -60,7 +60,12 @@ import Combine
         } catch { self.error = "Sauvegarde impossible : \(error.localizedDescription)" }
     }
     func pin(_ guide: Guide) { var next = state; next.pinnedID = guide.id; next.pinnedName = guide.name; commit(next) }
-    func pinMeta(_ comp: MetaComp) { var next = state; next.pinnedID = comp.id; next.pinnedName = comp.title(reference); commit(next) }
+    func pinMeta(_ comp: MetaComp, reference guideReference: ReferenceData? = nil) {
+        var next = state
+        next.pinnedID = comp.id
+        next.pinnedName = comp.title(guideReference ?? reference)
+        commit(next)
+    }
     func copyBoard(_ positions: [MetaPosition]) {
         var next = state; next.board = [:]
         for position in positions where (0..<28).contains(position.board_position) {

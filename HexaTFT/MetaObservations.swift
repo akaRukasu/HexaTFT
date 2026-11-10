@@ -77,6 +77,7 @@ struct MetaObservation: Codable, Identifiable {
     var games: Int? = nil
     let source: URL
     var scope: String? = nil
+    var guideID: String? = nil
 
     static let readings: [Self] = [
         .init(id: "codex-roncier", provider: .codex, title: "Roncier Jungle", champions: ["DA_Brambleback18", "DA_Krug18", "DA_18_ElderDragon"],
@@ -122,13 +123,42 @@ struct MetaObservation: Codable, Identifiable {
     }
 
     var relatedGuide: String? {
-        switch id {
+        if let guideID { return guideID }
+        return switch id {
+        case "metastats-raptor": "hexa-raptor-zyra"
+        case "codex-roncier": "hexa-roncier-jungle"
+        case "codex-draven": "hexa-draven-maokai"
+        case "tactics-ezreal": "hexa-ezreal-sylvestre"
+        case "tactics-morgana": "hexa-morgana-sentinelle"
+        case "codex-veigar": "hexa-veigar-sylvestre"
+        case "codex-azir": "hexa-azir-rammus"
+        case "codex-aphelios": "hexa-aphelios-nidalee"
+        case "codex-soraka": "hexa-soraka-malphite"
+        case "codex-sivir": "hexa-sivir-ashe"
+        case "codex-cassiopeia": "hexa-cassiopeia-fiddlesticks"
+        case "codex-tristana": "hexa-tristana-fae"
+        case "tactics-ezreal-aphelios": "hexa-ezreal-aphelios"
         case "codex-ahri-zyra": "hexa-ahri-zyra"
         case "codex-yunara": "hexa-yunara-solaire"
         case "tactics-yi": "hexa-yi-vi"
         case "metastats-teemo": "hexa-teemo-leblanc"
         default: nil
         }
+    }
+
+    func coreBoard(reference: ReferenceData) -> GuideBoard {
+        let available = champions.prefix(5).compactMap { key in
+            reference.champion(key: key).map { (key, $0) }
+        }
+        var front = [3, 2, 4, 1, 5]
+        var rear = [24, 22, 26, 21, 27]
+        let positions = available.map { key, unit in
+            let cell = (unit.balance?["range"] ?? 0) > 2 ? rear.removeFirst() : front.removeFirst()
+            return MetaPosition(board_position: cell, unit_api_name: key)
+        }
+        return GuideBoard(units: available.map { MetaUnit(name: $0.0, items: nil, star_level: nil) },
+                          positions: positions, sourceLabel: "Noyau du relevé · placement indicatif Hexa",
+                          sample: nil, isFinal: false)
     }
 
     func matches(_ query: String) -> Bool {
@@ -179,7 +209,8 @@ struct MetaRadarSnapshot: Codable {
             reading.scope.map { !$0.isEmpty && $0.count <= 150 } == true &&
             (1...8).contains(reading.average) && (0...1).contains(reading.top4) &&
             reading.top1.map { (0...reading.top4).contains($0) } != false &&
-            reading.games.map { $0 > 0 } != false && reading.champions.count <= 5 &&
+            reading.games.map { $0 > 0 } != false && (1...5).contains(reading.champions.count) &&
+            Set(reading.champions).count == reading.champions.count &&
             reading.champions.allSatisfy { champions.contains("champion:" + $0) } &&
             reading.source.scheme == "https" && reading.source.user == nil && reading.source.password == nil &&
             reading.source.host.map { reading.provider.hosts.contains($0) } == true
@@ -200,7 +231,7 @@ struct MetaObservationCard: View {
                     Text(entry.scope ?? entry.provider.context).font(.caption2).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(entry.provider.color)
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(entry.provider.color).accessibilityHidden(true)
             }
             if let reference {
                 HStack(spacing: 6) {
