@@ -149,7 +149,7 @@ struct MetaRadarPreview: View {
                                 }
                                 .frame(width: 145, alignment: .leading).padding(12)
                                 .background(entry.provider.color.opacity(0.10), in: RoundedRectangle(cornerRadius: 16))
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(.plain).accessibilityIdentifier("radar-preview-" + entry.id)
                         }
                     }
                 }

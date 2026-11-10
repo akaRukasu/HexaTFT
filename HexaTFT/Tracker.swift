@@ -302,6 +302,7 @@ struct TrackerDashboard: View {
     @State private var window = 20
     @State private var mode: String?
     @State private var selectedSet: Int?
+    @State private var selectedPatch: String?
     @State private var rankPeriod = 30
     @State private var rankQueue = "RANKED_TFT"
 
@@ -311,7 +312,8 @@ struct TrackerDashboard: View {
 
     private var recent: [TrackedMatch] {
         Array(profile.matches.filter {
-            (mode == nil || $0.modeName == mode) && (selectedSet == nil || $0.set == selectedSet)
+            (mode == nil || $0.modeName == mode) && (selectedSet == nil || $0.set == selectedSet) &&
+            (selectedPatch == nil || $0.patch == selectedPatch)
         }.prefix(window))
     }
 
@@ -364,6 +366,10 @@ struct TrackerDashboard: View {
             Picker("Set", selection: $selectedSet) {
                 Text("Tous").tag(nil as Int?)
                 ForEach(Set(profile.matches.compactMap(\.set)).sorted(by: >), id: \.self) { Text("Set \($0)").tag(Optional($0)) }
+            }
+            Picker("Version Riot", selection: $selectedPatch) {
+                Text("Toutes").tag(nil as String?)
+                ForEach(Set(profile.matches.compactMap(\.patch)).sorted(), id: \.self) { Text($0).tag(Optional($0)) }
             }
             Picker("Fenêtre", selection: $window) {
                 ForEach([10, 20, 50, 100], id: \.self) { Text("\($0) parties").tag($0) }
