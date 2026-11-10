@@ -182,6 +182,7 @@ final class HexaTFTTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let meta = MetaStore(directory: directory)
         XCTAssertEqual(meta.editorialComps.count, 3)
+        let reference = try XCTUnwrap(meta.reference)
         for comp in meta.editorialComps {
             XCTAssertNil(comp.stats)
             XCTAssertNil(comp.finalBoard.sample)
@@ -191,6 +192,11 @@ final class HexaTFTTests: XCTestCase {
                 XCTAssertFalse(board.positions.isEmpty)
                 XCTAssertEqual(Set(board.positions.map(\.board_position)).count, board.positions.count)
                 XCTAssertNotNil(comp.authored?.stages[stage.rawValue])
+            }
+            for key in comp.units.flatMap({ $0.items ?? [] }) {
+                let item = try XCTUnwrap(reference.entries.first { $0.id == "item:" + key })
+                XCTAssertFalse(item.effectText.isEmpty, item.name)
+                XCTAssertEqual(item.components?.count, 2, item.name)
             }
         }
         meta.select(.pbe)
