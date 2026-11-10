@@ -170,7 +170,9 @@ struct MetaPack: Codable {
     private var lastPBEAttempt: Date?
     @Published private(set) var euwVersion: String?
     private let feedURL: URL?
-    @Published private(set) var partnerGuides: ExperimentalGuides?
+    @Published private(set) var partnerGuides: ExperimentalGuides? {
+        didSet { checkedPBEVersion = nil }
+    }
     @Published private var partnerRadar: MetaRadarSnapshot?
     let context: UltimateContext?
     private let directory: URL
@@ -234,7 +236,11 @@ struct MetaPack: Codable {
         }
     }
     var sourceName: String {
-        selection.channel == .archives ? archive?.sourceName ?? "Archive" : live?.sourceName ?? "Riot"
+        switch selection.channel {
+        case .live: return live?.sourceName ?? "Riot"
+        case .archives: return archive?.sourceName ?? "Archive"
+        case .pbe: return activePBECatalogue?.provider ?? "CommunityDragon"
+        }
     }
     var radar: MetaRadarSnapshot {
         guard let partnerRadar, partnerRadar.isValid(for: live?.reference, patch: live?.pack.patch) else { return .bundled }
@@ -244,6 +250,16 @@ struct MetaPack: Codable {
         guard partnerGuides?.revision == experimental?.version,
               partnerGuides?.set == experimental?.entries.first?.set else { return nil }
         return partnerGuides
+    }
+    private var checkedPBEVersion: String?
+    private var checkedPBECatalogue: PatchSnapshot?
+    private var activePBECatalogue: PatchSnapshot? {
+        guard let experimental, let guides = activePartnerGuides else { return nil }
+        if checkedPBEVersion != experimental.version {
+            checkedPBECatalogue = guides.validatedCatalogue(for: experimental)
+            checkedPBEVersion = experimental.version
+        }
+        return checkedPBECatalogue
     }
     private var pbeCatalogueVersion: String?
     private var pbeCatalogue: [MetaComp] = []
@@ -260,7 +276,8 @@ struct MetaPack: Codable {
         return LiveGuideCatalogue.guides.filter { LiveGuideCatalogue.isCompatible($0, with: reference) }
     }
     var comps: [MetaComp] {
-        (pack?.data ?? []).sorted { ($0.stats?.avg_placement ?? .infinity) < ($1.stats?.avg_placement ?? .infinity) }
+        let entries = selection.channel == .pbe ? activePBECatalogue?.pack.data : pack?.data
+        return (entries ?? []).sorted { ($0.stats?.avg_placement ?? .infinity) < ($1.stats?.avg_placement ?? .infinity) }
     }
 
     func select(_ channel: PatchSelection.Channel, archiveID: String? = nil) {
@@ -327,7 +344,7 @@ struct MetaPack: Codable {
             decoder.dateDecodingStrategy = .iso8601
             let feed = try decoder.decode(PartnerFeed.self, from: data)
             if let pbe = feed.pbe {
-                guard pbe.guides.count <= 100, pbe.guides.allSatisfy({ $0.source.scheme == "https" && !$0.provider.isEmpty && !$0.title.isEmpty }),
+                guard pbe.guides.allSatisfy({ $0.source.scheme == "https" && !$0.provider.isEmpty && !$0.title.isEmpty }),
                       Set(pbe.guides.map(\.id)).count == pbe.guides.count else {
                     throw DataIssue.invalid("Guides PBE du flux incompatibles.")
                 }

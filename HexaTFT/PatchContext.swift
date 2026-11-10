@@ -62,6 +62,21 @@ struct ExperimentalGuides: Codable {
     let set: String
     let retrievedAt: String
     let guides: [PartnerGuide]
+    var catalogue: PatchSnapshot? = nil
+
+    func validatedCatalogue(for reference: ReferenceData?) -> PatchSnapshot? {
+        guard let reference, reference.version == revision, reference.entries.first?.set == set,
+              let catalogue, catalogue.pack.set == set,
+              let provider = catalogue.provider, !provider.isEmpty,
+              catalogue.pack.data.allSatisfy({ $0.display_patch == revision && $0.sourceURL?.scheme == "https" }),
+              let encoded = try? JSONEncoder().encode(catalogue.pack),
+              (try? MetaPack.decode(encoded)) != nil else { return nil }
+        let champions = Set(reference.entries.lazy.filter { $0.kind == "champion" }.map(\.id))
+        guard catalogue.pack.data.allSatisfy({ comp in
+            comp.units.allSatisfy { champions.contains("champion:" + $0.name) }
+        }) else { return nil }
+        return catalogue
+    }
 }
 struct PartnerFeed: Codable {
     let live: PatchSnapshot?

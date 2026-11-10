@@ -358,7 +358,13 @@ struct EsportPlayer: Identifiable {
         .init(id: "7yearsold", name: "7YearsOld", detail: "SEA · 1 968 LP", rank: 1),
         .init(id: "geolo69", name: "geolo69", detail: "EUNE · 1 949 LP", rank: 2),
         .init(id: "kurapika", name: "Kurapika", detail: "LAN · 1 936 LP", rank: 3),
-        .init(id: "araye", name: "ARaye", detail: "SEA · 1 919 LP", rank: 4)
+        .init(id: "araye", name: "ARaye", detail: "SEA · 1 919 LP", rank: 4),
+        .init(id: "kr-102", name: "102", detail: "KR · 1 916 LP", rank: 5),
+        .init(id: "whyyoumadpro", name: "whyyoumadpro", detail: "EUW · 1 894 LP", rank: 6),
+        .init(id: "summertimer", name: "ZETA summertimer", detail: "JP · 1 868 LP", rank: 7),
+        .init(id: "asta1", name: "Asta1 nè", detail: "VN · 1 856 LP", rank: 8),
+        .init(id: "lelouch45123", name: "LELOUCH45123", detail: "LAN · 1 841 LP", rank: 9),
+        .init(id: "zounderkite", name: "Zounderkite", detail: "TR · 1 839 LP", rank: 10)
     ]
 }
 

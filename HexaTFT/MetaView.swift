@@ -141,7 +141,8 @@ struct MetaView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             if meta.selection.channel == .pbe {
-                Text("Plateaux à tester sur cette révision. Les cartes indiquent les paliers et la taille du noyau. Les statistiques LIVE restent dans leur onglet.")
+                Text(meta.comps.isEmpty ? "Plateaux à tester sur cette révision. Les cartes indiquent les paliers et la taille du noyau." :
+                    "Relevés de " + meta.sourceName + " et noyaux théoriques Hexa pour cette révision.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if !meta.comps.isEmpty || !meta.editorialComps.isEmpty {
@@ -275,7 +276,7 @@ struct MetaDetail: View {
                     Button { store.pinMeta(comp) } label: { Label(store.state.pinnedID == comp.id ? "Épinglée" : "Suivre dans Partie", systemImage: "pin.fill").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent)
                     Button { store.favorite(comp.id) } label: { Image(systemName: store.state.favorites.contains(comp.id) ? "star.fill" : "star") }.buttonStyle(.bordered).accessibilityLabel("Ajouter ou retirer des favoris")
                 }
-                Text(meta.selection.channel == .pbe ? "PBE · " + (meta.experimental?.version ?? "—") + " · Plateau à tester" :
+                Text(meta.selection.channel == .pbe ? "PBE · " + (meta.experimental?.version ?? "—") + " · " + (comp.stats == nil ? "Plateau à tester" : meta.sourceName) :
                      "Set \(meta.pack?.set ?? "—") · Patch \(meta.pack?.patch ?? "—") · \(comp.authored == nil ? meta.sourceName : "Plan éditorial Hexa")")
                     .font(.caption).foregroundStyle(.secondary)
                 VisualCompositionGuide(comp: comp, stage: $stage)

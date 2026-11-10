@@ -9,10 +9,15 @@ struct VisualCompositionGuide: View {
     @State private var level = "6"
     @State private var option = 0
     @State private var selected: SelectedGuideUnit?
+    private var levels: [String] {
+        (comp.variations?.levels?.keys.map { $0 } ?? []).sorted { (Int($0) ?? 0) < (Int($1) ?? 0) }
+    }
+    private var activeLevel: String { levels.contains(level) ? level : levels.first ?? level }
+    private var isTraitDraft: Bool { comp.authored?.traitThresholds != nil }
     private var boards: [GuideBoard] {
         switch mode {
         case "Final": return [comp.finalBoard]
-        case "Niveaux": return comp.guideBoards(level: level)
+        case "Niveaux": return comp.guideBoards(level: activeLevel)
         default: return comp.guideBoards(stage: stage)
         }
     }
@@ -29,7 +34,9 @@ struct VisualCompositionGuide: View {
                 Text(comp.style).font(.caption.bold()).foregroundStyle(hexaGold)
             }
             Picker("Parcours du plateau", selection: $mode) {
-                ForEach(["Stades", "Niveaux", "Final"], id: \.self) { Text($0).tag($0) }
+                ForEach(["Stades", "Niveaux", "Final"], id: \.self) {
+                    Text(isTraitDraft && $0 == "Niveaux" ? "Noyaux" : $0).tag($0)
+                }
             }.pickerStyle(.segmented).accessibilityIdentifier("guide-mode")
             if mode == "Stades" { VisualTimeline(stage: $stage) }
             if mode == "Niveaux" { levelPicker }
@@ -37,7 +44,9 @@ struct VisualCompositionGuide: View {
                 Panel {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(mode == "Final" || board.isFinal ? "Plateau cible" : mode == "Niveaux" ? "Niveau " + level : stage.title).font(.title3.bold())
+                            Text(mode == "Final" || board.isFinal ? "Plateau cible" :
+                                 mode == "Niveaux" ? (isTraitDraft ? "Noyau de " + activeLevel + " unités" : "Niveau " + activeLevel) : stage.title)
+                                .font(.title3.bold())
                             let champions = board.units.filter { store.champion("champion:" + $0.name) != nil }.count
                             let summons = board.units.count - champions
                             Text("\(champions) champions" + (summons > 0 ? " · \(summons) invocations" : "") + " · touche un portrait").font(.caption).foregroundStyle(.secondary)
@@ -57,9 +66,11 @@ struct VisualCompositionGuide: View {
                     }
                     HStack(spacing: 12) {
                         Label("Nouveau", systemImage: "plus.circle.fill").foregroundStyle(.mint)
-                        Label("Objet cible", systemImage: "circle.dashed").foregroundStyle(hexaGold)
+                        if !isTraitDraft { Label("Objet cible", systemImage: "circle.dashed").foregroundStyle(hexaGold) }
                     }.font(.system(size: 10))
-                    Text(comp.authored == nil ? "Icônes pleines pour les objets observés, pointillés pour les objets visés ou à transférer." : "Équipement conseillé. Les pointillés indiquent les objets à transférer au porteur final.").font(.caption2).foregroundStyle(.secondary)
+                    if !isTraitDraft {
+                        Text(comp.authored == nil ? "Icônes pleines pour les objets observés, pointillés pour les objets visés ou à transférer." : "Équipement conseillé. Les pointillés indiquent les objets à transférer au porteur final.").font(.caption2).foregroundStyle(.secondary)
+                    }
                     Text(board.sourceLabel).font(.caption2).foregroundStyle(.secondary)
                     if let sample = board.sample { Text("\(sample.formatted()) plateaux / parties dans cet exemple").font(.caption2).foregroundStyle(.secondary) }
                 }
@@ -92,8 +103,9 @@ struct VisualCompositionGuide: View {
     private var levelPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack {
-                ForEach((comp.variations?.levels?.keys.map { $0 } ?? []).sorted { (Int($0) ?? 0) < (Int($1) ?? 0) }, id: \.self) { value in
-                    Button("Niv. " + value) { level = value }.buttonStyle(.bordered).tint(level == value ? hexaGold : .gray).accessibilityIdentifier("guide-level-" + value)
+                ForEach(levels, id: \.self) { value in
+                    Button(isTraitDraft ? value + " unités" : "Niv. " + value) { level = value }
+                        .buttonStyle(.bordered).tint(activeLevel == value ? hexaGold : .gray).accessibilityIdentifier("guide-level-" + value)
                 }
             }
         }

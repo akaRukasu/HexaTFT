@@ -59,7 +59,9 @@ extension MetaComp {
         return [GuideBoard(units: units, positions: units_positions ?? [], sourceLabel: "Pas de variante pour ce stade · plateau final de référence", sample: stats?.nb_games, isFinal: true)]
     }
     func guideBoards(level: String) -> [GuideBoard] {
-        Array((variations?.levels?[level] ?? []).filter { !$0.units.isEmpty }.prefix(3)).map { board(from: $0, label: (authored == nil ? "Plateau observé niveau " : "Plateau proposé niveau ") + level) }
+        let label = authored?.traitThresholds != nil ? "Noyau proposé · " + level + " unités" :
+            (authored == nil ? "Plateau observé niveau " : "Plateau proposé niveau ") + level
+        return (variations?.levels?[level] ?? []).filter { !$0.units.isEmpty }.map { board(from: $0, label: label) }
     }
     func loadout(for key: String, on board: GuideBoard) -> ChampionLoadout {
         if let equipped = board.units.first(where: { $0.name == key })?.items, !equipped.isEmpty {
