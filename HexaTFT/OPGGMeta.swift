@@ -2,7 +2,7 @@ import Foundation
 
 struct OPGGMetaSnapshot: Codable {
     static let source = URL(string: "https://op.gg/tft/meta-trends/comps")!
-    struct Audience: Codable, Equatable {
+    struct Audience: Codable, Hashable {
         let region: String
         let tier: String
         static let global = Self(region: "global", tier: "PLATINUM+")
