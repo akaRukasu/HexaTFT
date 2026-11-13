@@ -19,7 +19,8 @@ struct OPGGProgression {
         let tank = plan.frontline
         let reroll = comp.strategy?.type?.contains("roll_") == true
         let rollLevel = min(7, max(5, plan.targetLevel ?? 6))
-        func entry(_ key: String) -> ReferenceEntry? { reference.champion(key: key) }
+        let champions = Dictionary(uniqueKeysWithValues: reference.entries.filter { $0.kind == "champion" }.map { (String($0.id.dropFirst(9)), $0) })
+        func entry(_ key: String) -> ReferenceEntry? { champions[key] }
         func cost(_ key: String) -> Int { entry(key)?.cost ?? 99 }
         func front(_ key: String) -> Bool { (entry(key)?.balance?["range"] ?? 1) <= 2 }
         func slots(_ key: String) -> Int { key == "DA_18_ElderDragon" ? 2 : 1 }
@@ -45,10 +46,13 @@ struct OPGGProgression {
         }.first.flatMap { templateScore($0) >= 60 ? $0 : nil }
         let opening = template?.guideBoards(stage: .opening).first?.units.map(\.name) ?? []
         let middle = template?.guideBoards(stage: .mid).first?.units.map(\.name) ?? []
-        let physicalItems: Set<String> = ["DA_InfinityEdge", "DA_Deathblade", "DA_LastWhisper", "DA_KrakensFury", "DA_RunaansHurricane"]
-        let physical = !(Set(comp.units.first { $0.name == primary }?.items ?? []).intersection(physicalItems)).isEmpty
-        let carriers = front(primary) ? ["DA_18_Akali_AD", "DA_18_Camille", "DA_18_Warwick"] :
-            physical ? ["DA_18_Xayah", "DA_18_Varus", "DA_18_Caitlyn"] : ["DA_Karma18", "DA_18_LeBlanc", "DA_18_Veigar"]
+        let physicalItems: Set<String> = ["DA_InfinityEdge", "DA_Deathblade", "DA_LastWhisper", "DA_KrakensFury", "DA_RunaansHurricane", "DA_GuinsoosRageblade", "DA_TitansResolve", "DA_Bloodthirster"]
+        let magicItems: Set<String> = ["DA_VoidStaff", "DA_Morellonomicon", "DA_RabadonsDeathcap", "DA_ArchangelsStaff", "DA_JeweledGauntlet", "DA_SpearOfShojin", "DA_HextechGunblade"]
+        let items = Set(comp.units.first { $0.name == primary }?.items ?? [])
+        // A short-range caster such as Morgana still needs a magic item holder.
+        let physical = primary.hasSuffix("_AD") || items.intersection(physicalItems).count > items.intersection(magicItems).count
+        let carriers = physical ? (front(primary) ? ["DA_18_Akali_AD", "DA_18_Camille", "DA_18_Warwick"] :
+            ["DA_18_Xayah", "DA_18_Varus", "DA_18_Caitlyn"]) : ["DA_Karma18", "DA_18_LeBlanc", "DA_18_Veigar"]
         let tanks = ["DA_18_Ornn", "DA_18_Leona", "DA_18_Yorick", "DA_18_Alistar", "DA_18_Sejuani"]
 
         func temporary(for target: String, candidates: [String]) -> String? {
@@ -92,18 +96,18 @@ struct OPGGProgression {
             let candidates = eligible.filter { cost($0) <= ceiling }
             while used < level {
                 let existingTraits = selected.flatMap { entry($0)?.traitNames ?? [] }
+                let frontlineNeeded = selected.filter { front($0) }.count < min(3, level / 2)
                 func score(_ key: String) -> Int {
                     let traits = entry(key)?.traitNames ?? []
                     let synergy = traits.filter { existingTraits.contains($0) }.count
-                    let frontlineNeeded = selected.filter { front($0) }.count < min(3, level / 2)
                     return (roster.contains(key) ? 40 : 0) + (opening.contains(key) ? 16 : 0) +
                         (middle.contains(key) ? 8 : 0) + synergy * 6 +
                         (frontlineNeeded && front(key) ? 25 : 0) - cost(key)
                 }
-                let next = candidates.filter { !selected.contains($0) && used + slots($0) <= level }.sorted {
-                    let lhs = score($0), rhs = score($1)
-                    return lhs == rhs ? $0 < $1 : lhs > rhs
-                }.first
+                let next = candidates.filter { !selected.contains($0) && used + slots($0) <= level }
+                    .map { (key: $0, score: score($0)) }.sorted {
+                        $0.score == $1.score ? $0.key < $1.key : $0.score > $1.score
+                    }.first?.key
                 guard let next else { break }
                 add(next)
             }
