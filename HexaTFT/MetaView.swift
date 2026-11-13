@@ -106,6 +106,18 @@ struct MetaView: View {
             HStack {
                 Label("Compositions du patch", systemImage: "chart.bar.xaxis").font(.headline)
                 Spacer()
+                Button {
+                    Task { await meta.refresh(reference: store.reference) }
+                } label: {
+                    if meta.refreshing {
+                        ProgressView().accessibilityLabel("Actualisation en cours")
+                    } else {
+                        Label("Actualiser", systemImage: "arrow.clockwise")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(meta.refreshing)
+                .accessibilityIdentifier("meta-refresh-now")
             }
             if let published {
                 liveComps(published)

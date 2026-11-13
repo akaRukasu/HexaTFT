@@ -171,6 +171,8 @@ final class HexaTFTUITests: XCTestCase {
         app.launchEnvironment["HEXA_OPGG_META_FIXTURE"] = "<script>self.__next_f.push(\(chunk))</script>"
         app.launch()
         app.buttons["LIVE EUW"].tap()
+        let refresh = app.buttons["meta-refresh-now"]
+        XCTAssertTrue(refresh.waitForExistence(timeout: 8))
         let card = app.buttons["meta-opgg-morgana"]
         for _ in 0..<6 {
             if card.isHittable { break }
