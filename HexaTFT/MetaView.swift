@@ -142,12 +142,17 @@ struct MetaView: View {
                     Text(localAudience.label).tag(localAudience)
                 }.pickerStyle(.segmented).disabled(meta.refreshing)
             }
+            NavigationLink {
+                CurrentMetaSourcesView()
+            } label: {
+                Label("Autres sources · pages actuelles", systemImage: "globe")
+            }.buttonStyle(.bordered).accessibilityIdentifier("meta-current-sources")
             if let published {
                 liveComps(published)
                 Button {
                     showPastReadings.toggle()
                 } label: {
-                    Label(showPastReadings ? "Masquer les autres sources et archives" : "Autres sources et archives",
+                    Label(showPastReadings ? "Masquer les relevés et archives" : "Relevés et archives",
                           systemImage: showPastReadings ? "chevron.up" : "chevron.down")
                 }.buttonStyle(.bordered)
             } else {
@@ -227,12 +232,16 @@ struct MetaView: View {
                     ForEach(MetaSort.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }.labelsHidden().accessibilityIdentifier("meta-observation-sort")
             }
-            Text(snapshot.label + " · " + readings.count.formatted() + " fiches")
-                .font(.caption).foregroundStyle(.secondary)
+            let bundled = meta.currentPartnerRadar == nil
+            Label(bundled ? "Relevé intégré à cette version" : "Relevé du flux partenaire",
+                  systemImage: bundled ? "archivebox" : "arrow.triangle.2.circlepath")
+                .font(.subheadline.bold()).foregroundStyle(bundled ? hexaGold : .mint)
+            Text(snapshot.label + " · " + readings.count.formatted() + " fiches").font(.caption).foregroundStyle(.secondary)
             if !compatible {
                 Text("Relevé d’un patch antérieur").font(.caption.bold()).foregroundStyle(.orange)
             }
-            Text("Sélection datée. Les rangs et les échantillons varient selon la source.")
+            Text(bundled ? "Ces chiffres sont ceux du relevé daté. Les pages actuelles sont accessibles en haut de Méta." :
+                 "Les rangs et les échantillons varient selon la source.")
                 .font(.caption).foregroundStyle(.secondary)
             ForEach(readings) { entry in
                 observationRow(entry, radar: snapshot, catalogue: catalogue)

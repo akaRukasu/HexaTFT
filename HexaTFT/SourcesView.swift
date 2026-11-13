@@ -77,7 +77,7 @@ struct EmbeddedPage: View {
                 Text(page.host.isEmpty ? (home.host ?? "") : page.host).font(.caption).lineLimit(1)
                 Spacer()
                 Button { page.view.load(URLRequest(url: home)) } label: { Image(systemName: "house") }.accessibilityLabel("Accueil de la source")
-                Button { page.view.reload() } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("Recharger la page")
+                Button { page.view.reloadFromOrigin() } label: { Image(systemName: "arrow.clockwise") }.accessibilityLabel("Recharger la page")
             }.padding(12).buttonStyle(.borderless)
             if page.loading { ProgressView().frame(maxWidth: .infinity).padding(4) }
             if let error = page.error {
@@ -89,6 +89,31 @@ struct EmbeddedPage: View {
             }
             WebCanvas(page: page)
         }
+    }
+}
+struct CurrentMetaSourcesView: View {
+    @State private var selected = MetaObservation.Provider.codex
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Picker("Source", selection: $selected) {
+                ForEach(MetaObservation.Provider.allCases) { provider in
+                    Text(provider.rawValue).tag(provider)
+                }
+            }.pickerStyle(.segmented).padding().accessibilityIdentifier("meta-web-source-picker")
+            HStack {
+                Text("Chiffres publiés par la source").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Link(destination: selected.currentCompsURL) {
+                    Label("Site d’origine", systemImage: "arrow.up.right.square").font(.caption)
+                }
+            }.padding(.horizontal).padding(.bottom, 6)
+            EmbeddedPage(url: selected.currentCompsURL, allowedHosts: selected.hosts)
+                .id(selected)
+        }
+        .background(hexaNavy)
+        .navigationTitle("Autres sources")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 struct SourcesView: View {

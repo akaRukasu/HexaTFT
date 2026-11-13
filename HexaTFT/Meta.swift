@@ -265,10 +265,11 @@ struct MetaPack: Codable {
         case .pbe: return activePBECatalogue?.provider ?? "CommunityDragon"
         }
     }
-    var radar: MetaRadarSnapshot {
-        guard let partnerRadar, partnerRadar.isValid(for: live?.reference, patch: live?.pack.patch) else { return .bundled }
+    var currentPartnerRadar: MetaRadarSnapshot? {
+        guard let partnerRadar, partnerRadar.isValid(for: live?.reference, patch: live?.pack.patch) else { return nil }
         return partnerRadar
     }
+    var radar: MetaRadarSnapshot { currentPartnerRadar ?? .bundled }
     func catalogue(for radar: MetaRadarSnapshot) -> PatchSnapshot? {
         ([live].compactMap { $0 } + archives).first {
             $0.pack.patch == radar.patch && $0.pack.set == radar.set && radar.matches($0.reference)

@@ -44,6 +44,13 @@ struct MetaObservation: Codable, Identifiable {
         case metastats = "MetaStats.gg"
 
         var id: String { rawValue }
+        var currentCompsURL: URL {
+            switch self {
+            case .codex: URL(string: "https://tftcodex.com/comps/")!
+            case .tactics: URL(string: "https://tactics.tools/team-compositions/top")!
+            case .metastats: URL(string: "https://www.metastats.gg/en/tft/comps/atlas")!
+            }
+        }
         var context: String {
             switch self {
             case .codex: "Classé Diamant+ · 5–10 nov. 2026"

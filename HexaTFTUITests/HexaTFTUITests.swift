@@ -173,6 +173,7 @@ final class HexaTFTUITests: XCTestCase {
         app.buttons["LIVE EUW"].tap()
         let refresh = app.buttons["meta-refresh-now"]
         XCTAssertTrue(refresh.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["meta-current-sources"].exists)
         let card = app.buttons["meta-opgg-morgana"]
         for _ in 0..<6 {
             if card.isHittable { break }
@@ -191,6 +192,22 @@ final class HexaTFTUITests: XCTestCase {
         let unit = app.buttons["board-unit-DA_18_Morgana"]
         for _ in 0..<4 where !unit.isHittable { app.swipeUp() }
         XCTAssertTrue(unit.isHittable)
+        app.navigationBars["Composition"].buttons.firstMatch.tap()
+        let sources = app.buttons["meta-current-sources"]
+        for _ in 0..<5 where !sources.isHittable { app.swipeDown() }
+        guard sources.isHittable else {
+            XCTFail("L’accès aux pages actuelles est introuvable.")
+            return
+        }
+        sources.tap()
+        let picker = app.segmentedControls["meta-web-source-picker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 8))
+        for provider in ["Tactics.Tools", "MetaStats.gg", "TFT Codex"] {
+            picker.buttons[provider].tap()
+            XCTAssertTrue(picker.buttons[provider].isSelected)
+        }
+        XCTAssertTrue(app.buttons["Recharger la page"].exists)
     }
     @MainActor func testTrackerNativeOverviewOpensAnOPGGMatch() {
         let app = XCUIApplication()
@@ -220,6 +237,7 @@ final class HexaTFTUITests: XCTestCase {
         app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launch()
         app.buttons["LIVE EUW"].tap()
+        XCTAssertTrue(app.staticTexts["Relevé intégré à cette version"].exists)
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "observation-")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 8))
         XCTAssertEqual(card.identifier, "observation-metastats-raptor")
