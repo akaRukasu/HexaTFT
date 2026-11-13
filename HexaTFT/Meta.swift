@@ -269,7 +269,7 @@ struct MetaPack: Codable {
         guard let partnerRadar, partnerRadar.isValid(for: live?.reference, patch: live?.pack.patch) else { return nil }
         return partnerRadar
     }
-    var radar: MetaRadarSnapshot { currentPartnerRadar ?? .bundled }
+    var radar: MetaRadarSnapshot { currentPartnerRadar ?? .editorial }
     func catalogue(for radar: MetaRadarSnapshot) -> PatchSnapshot? {
         ([live].compactMap { $0 } + archives).first {
             $0.pack.patch == radar.patch && $0.pack.set == radar.set && radar.matches($0.reference)
@@ -443,7 +443,7 @@ struct MetaPack: Codable {
                 message = "Catalogue du flux actualisé."
             }
             if let offered = feed.radar, offered.isValid(for: live?.reference, patch: live?.pack.patch),
-               !radar.matches(live?.reference) || offered.retrievedAt > radar.retrievedAt || (partnerRadar == nil && offered.retrievedAt == radar.retrievedAt) {
+               currentPartnerRadar.map({ offered.retrievedAt > $0.retrievedAt }) ?? true {
                 try save(offered, to: "partner-radar.json")
                 partnerRadar = offered
                 loadedRadarCursors.removeAll()

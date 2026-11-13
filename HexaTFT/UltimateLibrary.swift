@@ -558,33 +558,7 @@ struct UltimateLibraryView: View {
             Section("Mes données et références") {
                 NavigationLink { JournalView() } label: { Label("Journal manuel", systemImage: "book") }
                 NavigationLink { SourcesView() } label: { Label("Sources", systemImage: "globe") }
-                NavigationLink { ProviderDirectoryView() } label: { Label("Annuaire des fournisseurs", systemImage: "link") }
             }
         }.navigationTitle("Plus")
-    }
-}
-
-struct ProviderDirectoryView: View {
-    private let sites = [
-        ("TFT Academy", "https://tftacademy.com"), ("TFTips", "https://tftips.app"),
-        ("Sologesang · MetaTFT", "https://www.metatft.com/pro-comps"), ("TFT Flow", "https://tftflow.com"),
-        ("TFT Codex", "https://tftcodex.com"), ("Tactics.tools", "https://tactics.tools"),
-        ("MetaTFT", "https://www.metatft.com"), ("Mobalytics", "https://mobalytics.gg/tft"),
-        ("Blitz", "https://blitz.gg/tft/comps"), ("TFT Ninja", "https://tft.ninja"),
-        ("La Casita del TFT", "https://lacasitadeltft.com"), ("BunnyMuffins", "https://bunnymuffins.lol"),
-        ("TFTable", "https://www.tftable.cc"), ("HexComps", "https://hexcomps.com"),
-        ("TFT Handbook", "https://tfthandbook.com"), ("TFTraits", "https://tftraits.com")
-    ]
-    var body: some View {
-        List {
-            Section("Données natives") {
-                Label("Blitz · catalogue historique", systemImage: "chart.bar")
-                Label("CommunityDragon · Codex et révisions", systemImage: "books.vertical")
-                Label("Riot · nouvelles officielles et tracker", systemImage: "person.text.rectangle")
-            }
-            Section("Consultation chez les fournisseurs") {
-                ForEach(sites.indices, id: \.self) { index in Link(sites[index].0, destination: URL(string: sites[index].1)!) }
-            }
-        }.navigationTitle("Fournisseurs")
     }
 }

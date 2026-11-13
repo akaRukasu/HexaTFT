@@ -185,6 +185,40 @@ struct MetaRadarSnapshot: Codable {
                              retrievedAt: Date(timeIntervalSince1970: 1794302220),
                              readings: MetaObservation.readings)
 
+    static let editorial = Self(patch: "18.6", build: "16.22", set: "18",
+        retrievedAt: ISO8601DateFormatter().date(from: "2026-11-13T09:17:00Z")!,
+        readings: [
+            .init(id: "nov13-codex-roncier", provider: .codex, title: "Roncier Jungle", champions: ["DA_Brambleback18", "DA_Krug18", "DA_18_ElderDragon"],
+                  average: 4.18, top4: 0.557, top1: 0.139, games: 113_475,
+                  source: URL(string: "https://tftcodex.com/comps/riftbeast-brambleback.html")!,
+                  scope: "Diamant+ · 7–13 nov. · publié le 13 nov.", guideID: "hexa-roncier-jungle"),
+            .init(id: "nov13-codex-teemo", provider: .codex, title: "Teemo · Alistar Ami de la forêt", champions: ["DA_18_Teemo", "DA_18_Alistar", "DA_18_LeBlanc"],
+                  average: 4.33, top4: 0.556, top1: 0.058, games: 36_541,
+                  source: URL(string: "https://tftcodex.com/comps/sprykin-teemo.html")!,
+                  scope: "Diamant+ · 7–13 nov. · publié le 13 nov.", guideID: "hexa-teemo-leblanc"),
+            .init(id: "nov13-codex-yi", provider: .codex, title: "Maître Yi Fleur spirituelle", champions: ["DA_18_MasterYi_AD", "DA_Vi18", "DA_18_Yorick"],
+                  average: 4.25, top4: 0.551, top1: 0.113, games: 59_030,
+                  source: URL(string: "https://tftcodex.com/comps/blossom-master-yi.html")!,
+                  scope: "Diamant+ · 7–13 nov. · publié le 13 nov.", guideID: "hexa-yi-vi"),
+            .init(id: "nov13-codex-azir", provider: .codex, title: "Rammus · Azir Ami de la forêt", champions: ["DA_18_Rammus", "DA_18_Azir", "DA_18_Teemo"],
+                  average: 4.30, top4: 0.540, top1: 0.122, games: 25_260,
+                  source: URL(string: "https://tftcodex.com/comps/sprykin-rammus.html")!,
+                  scope: "Diamant+ · 7–13 nov. · publié le 13 nov.", guideID: "hexa-azir-rammus"),
+            .init(id: "nov13-tactics-morgana", provider: .tactics, title: "Morgana · Sentinelle", champions: ["DA_18_Morgana", "DA_Sentinel18", "DA_18_Sett"],
+                  average: 4.21, top4: 0.547, top1: 0.180, source: MetaObservation.Provider.tactics.currentCompsURL,
+                  scope: "Maître+ · patch 18.6 · consulté le 13 nov.", guideID: "hexa-morgana-sentinelle"),
+            .init(id: "nov13-tactics-yi", provider: .tactics, title: "Maître Yi · Vi Fleur spirituelle", champions: ["DA_18_MasterYi_AD", "DA_Vi18", "DA_18_Yorick"],
+                  average: 4.26, top4: 0.551, top1: 0.117, source: MetaObservation.Provider.tactics.currentCompsURL,
+                  scope: "Maître+ · patch 18.6 · consulté le 13 nov.", guideID: "hexa-yi-vi"),
+            .init(id: "nov13-tactics-roncier", provider: .tactics, title: "Roncier Jungle", champions: ["DA_Brambleback18", "DA_Krug18", "DA_Sentinel18"],
+                  average: 4.17, top4: 0.563, top1: 0.135, source: MetaObservation.Provider.tactics.currentCompsURL,
+                  scope: "Maître+ · patch 18.6 · consulté le 13 nov.", guideID: "hexa-roncier-jungle"),
+            .init(id: "nov13-metastats-teemo", provider: .metastats, title: "Teemo · LeBlanc Incantateur", champions: ["DA_18_Teemo", "DA_18_LeBlanc", "DA_18_Alistar"],
+                  average: 4.37, top4: 0.55, top1: 0.05, games: 16_806,
+                  source: URL(string: "https://www.metastats.gg/en/tft/comps/invoker-teemo?bucket=diamond_plus&days=3&region=all")!,
+                  scope: "Diamant+ · filtre 3 jours · consulté le 13 nov.", guideID: "hexa-teemo-leblanc")
+        ])
+
     var label: String {
         "Relevé " + patch + " · " + retrievedAt.formatted(.dateTime.day().month(.abbreviated).year())
     }

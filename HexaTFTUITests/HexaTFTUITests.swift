@@ -20,16 +20,18 @@ final class HexaTFTUITests: XCTestCase {
         let sources = app.buttons["Sources"]
         XCTAssertTrue(sources.waitForExistence(timeout: 8))
         sources.tap()
-        XCTAssertTrue(app.buttons["MetaTFT"].waitForExistence(timeout: 8))
-        for source in ["Mobalytics", "MetaTFT", "Blitz"] {
-            app.buttons[source].tap()
-            if source == "MetaTFT" {
-                XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
-            } else {
-                XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "source-original-" + source).firstMatch.waitForExistence(timeout: 8))
-            }
-            snapshot("05-source-" + source)
-        }
+        let directory = app.navigationBars["Toutes les sources"]
+        XCTAssertTrue(directory.waitForExistence(timeout: 8))
+        let metaTFT = app.descendants(matching: .any).matching(identifier: "provider-metatft").firstMatch
+        XCTAssertTrue(metaTFT.waitForExistence(timeout: 8))
+        metaTFT.tap()
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 15))
+        snapshot("05-source-MetaTFT")
+        app.navigationBars["MetaTFT"].buttons.firstMatch.tap()
+        let blitz = app.descendants(matching: .any).matching(identifier: "provider-blitz").firstMatch
+        XCTAssertTrue(blitz.waitForExistence(timeout: 8))
+        blitz.tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "source-original-Blitz").firstMatch.waitForExistence(timeout: 8))
     }
     @MainActor func testCodexOpensFromLibrary() {
         let app = XCUIApplication()
@@ -200,13 +202,12 @@ final class HexaTFTUITests: XCTestCase {
             return
         }
         sources.tap()
-        let picker = app.segmentedControls["meta-web-source-picker"]
-        XCTAssertTrue(picker.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.navigationBars["Toutes les sources"].waitForExistence(timeout: 8))
+        snapshot("29-meta-sources")
+        let tactics = app.descendants(matching: .any).matching(identifier: "provider-tactics").firstMatch
+        XCTAssertTrue(tactics.waitForExistence(timeout: 8))
+        tactics.tap()
         XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 8))
-        for provider in ["Tactics.Tools", "MetaStats.gg", "TFT Codex"] {
-            picker.buttons[provider].tap()
-            XCTAssertTrue(picker.buttons[provider].isSelected)
-        }
         XCTAssertTrue(app.buttons["Recharger la page"].exists)
     }
     @MainActor func testTrackerNativeOverviewOpensAnOPGGMatch() {
@@ -237,15 +238,20 @@ final class HexaTFTUITests: XCTestCase {
         app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launch()
         app.buttons["LIVE EUW"].tap()
-        XCTAssertTrue(app.staticTexts["Relevé intégré à cette version"].exists)
-        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "observation-")).firstMatch
-        XCTAssertTrue(card.waitForExistence(timeout: 8))
-        XCTAssertEqual(card.identifier, "observation-metastats-raptor")
-        for _ in 0..<3 where !card.isHittable { app.swipeUp() }
-        XCTAssertTrue(card.label.contains("8 unités") ||
-                      card.staticTexts["Plateau conseillé par Hexa · 8 unités"].exists)
+        XCTAssertTrue(app.staticTexts["Relevé vérifié à la publication d’Hexa"].exists)
+        let newest = app.buttons["observation-nov13-tactics-roncier"]
+        XCTAssertTrue(newest.exists)
+        let historical = app.descendants(matching: .any).matching(identifier: "meta-historical-readings").firstMatch
+        for _ in 0..<8 where !historical.isHittable { app.swipeUp() }
+        XCTAssertTrue(historical.isHittable)
+        historical.tap()
+        let old = app.buttons["observation-metastats-raptor"]
+        for _ in 0..<3 where !old.isHittable { app.swipeUp() }
+        XCTAssertTrue(old.isHittable)
+        XCTAssertTrue(old.label.contains("8 unités") ||
+                      old.staticTexts["Plateau conseillé par Hexa · 8 unités"].exists)
         snapshot("16-home-radar")
-        card.tap()
+        old.tap()
         XCTAssertTrue(app.navigationBars["Composition"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "Top 4")).firstMatch.exists)
         let mode = app.segmentedControls["guide-mode"]

@@ -215,6 +215,9 @@ final class HexaTFTTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let meta = MetaStore(directory: directory)
         let radar = MetaRadarSnapshot.bundled
+        XCTAssertGreaterThan(MetaRadarSnapshot.editorial.retrievedAt, radar.retrievedAt)
+        XCTAssertEqual(Set(MetaRadarSnapshot.editorial.readings.map(\.provider)), Set(MetaObservation.Provider.allCases))
+        XCTAssertTrue(MetaRadarSnapshot.editorial.isValid(for: meta.reference, patch: "18.6"))
         let catalogue = try XCTUnwrap(meta.catalogue(for: radar))
         let reference = try XCTUnwrap(catalogue.reference)
         meta.select(.archives)

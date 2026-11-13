@@ -26,6 +26,7 @@ struct MetaView: View {
     @State private var provider: MetaObservation.Provider?
     @State private var easierComps = false
     @State private var showPastReadings = false
+    @State private var showOriginalReadings = false
     private var localAudience: OPGGMetaSnapshot.Audience? {
         guard let identity = tracker.identity, let profile = tracker.profile else { return nil }
         return .init(identity: identity, profile: profile)
@@ -143,18 +144,21 @@ struct MetaView: View {
                 }.pickerStyle(.segmented).disabled(meta.refreshing)
             }
             NavigationLink {
-                CurrentMetaSourcesView()
+                SourcesView()
             } label: {
-                Label("Autres sources · pages actuelles", systemImage: "globe")
+                Label("Comparer les sources", systemImage: "globe")
             }.buttonStyle(.bordered).accessibilityIdentifier("meta-current-sources")
             if let published {
-                liveComps(published)
                 Button {
                     showPastReadings.toggle()
                 } label: {
-                    Label(showPastReadings ? "Masquer les relevés et archives" : "Relevés et archives",
+                    Label(showPastReadings ? "Masquer les relevés multisources" : "Relevés multisources",
                           systemImage: showPastReadings ? "chevron.up" : "chevron.down")
                 }.buttonStyle(.bordered)
+                if showPastReadings {
+                    legacyReadings(snapshot, readings: readings, catalogue: catalogue, compatible: compatible, includesArchives: includesArchives)
+                }
+                liveComps(published)
             } else {
                 if meta.refreshing { ProgressView("Vérification de la méta OP.GG") }
                 else if meta.publicMetaIsFromOlderBuild {
@@ -164,7 +168,7 @@ struct MetaView: View {
                     Text(meta.publicMetaError ?? "En attente d’un relevé OP.GG vérifié.").font(.caption).foregroundStyle(.secondary)
                 }
             }
-            if published == nil || showPastReadings {
+            if published == nil {
                 legacyReadings(snapshot, readings: readings, catalogue: catalogue, compatible: compatible, includesArchives: includesArchives)
             }
         }
@@ -233,14 +237,14 @@ struct MetaView: View {
                 }.labelsHidden().accessibilityIdentifier("meta-observation-sort")
             }
             let bundled = meta.currentPartnerRadar == nil
-            Label(bundled ? "Relevé intégré à cette version" : "Relevé du flux partenaire",
+            Label(bundled ? "Relevé vérifié à la publication d’Hexa" : "Relevé du flux partenaire",
                   systemImage: bundled ? "archivebox" : "arrow.triangle.2.circlepath")
                 .font(.subheadline.bold()).foregroundStyle(bundled ? hexaGold : .mint)
             Text(snapshot.label + " · " + readings.count.formatted() + " fiches").font(.caption).foregroundStyle(.secondary)
             if !compatible {
                 Text("Relevé d’un patch antérieur").font(.caption.bold()).foregroundStyle(.orange)
             }
-            Text(bundled ? "Ces chiffres sont ceux du relevé daté. Les pages actuelles sont accessibles en haut de Méta." :
+            Text(bundled ? "Les chiffres de chaque source gardent leur date et leurs filtres. Pour les dernières publications, ouvre Comparer les sources." :
                  "Les rangs et les échantillons varient selon la source.")
                 .font(.caption).foregroundStyle(.secondary)
             ForEach(readings) { entry in
@@ -263,6 +267,13 @@ struct MetaView: View {
                 }
             }
             if includesArchives {
+                DisclosureGroup("Relevé historique · 10 novembre 2026", isExpanded: $showOriginalReadings) {
+                    let original = MetaRadarSnapshot.bundled
+                    let originalCatalogue = meta.catalogue(for: original)
+                    ForEach(sort.readings(original.readings.filter { $0.matches(query) })) { entry in
+                        observationRow(entry, radar: original, catalogue: originalCatalogue)
+                    }
+                }.accessibilityIdentifier("meta-historical-readings")
                 ForEach(meta.archives) { archive in
                     let matching = archivedComps(archive)
                     if !matching.isEmpty {

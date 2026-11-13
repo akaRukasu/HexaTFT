@@ -1,15 +1,64 @@
 import SwiftUI
 import WebKit
 
-enum ContentSource: String, CaseIterable, Identifiable {
-    case mobalytics = "Mobalytics", metatft = "MetaTFT", blitz = "Blitz"
-    var id: String { rawValue }
-    var url: URL {
-        switch self {
-        case .mobalytics: return URL(string: "https://mobalytics.gg/tft/team-comps")!
-        case .metatft: return URL(string: "https://www.metatft.com/comps")!
-        case .blitz: return URL(string: "https://blitz.gg/tft/comps")!
+private struct TFTSource: Identifiable {
+    enum Category: String, CaseIterable, Identifiable {
+        case stats = "Statistiques", guides = "Guides", tools = "Outils et références"
+        var id: String { rawValue }
+        var icon: String {
+            switch self {
+            case .stats: "chart.bar.xaxis"
+            case .guides: "book.closed"
+            case .tools: "wrench.and.screwdriver"
+            }
         }
+    }
+    let id: String
+    let name: String
+    let description: String
+    let url: URL
+    let category: Category
+    let external: Bool
+
+    init(_ id: String, _ name: String, _ description: String, _ url: URL, _ category: Category, external: Bool = false) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.url = url
+        self.category = category
+        self.external = external
+    }
+
+    static let all: [Self] = [
+        .init("opgg", "OP.GG", "Statistiques synchronisées dans Méta", OPGGMetaSnapshot.source, .stats),
+        .init("codex", "TFT Codex", "Classements et variantes par rang", MetaObservation.Provider.codex.currentCompsURL, .stats),
+        .init("tactics", "Tactics.Tools", "Compositions, variantes et objets", MetaObservation.Provider.tactics.currentCompsURL, .stats),
+        .init("metastats", "MetaStats.gg", "Atlas et filtres de rang", MetaObservation.Provider.metastats.currentCompsURL, .stats),
+        .init("metatft", "MetaTFT", "Compositions issues des matchs classés", URL(string: "https://www.metatft.com/comps")!, .stats),
+        .init("blitz", "Blitz", "Compositions et builds", URL(string: "https://blitz.gg/tft/comps")!, .stats, external: true),
+        .init("ninja", "TFT Ninja", "Plateaux et statistiques du patch", URL(string: "https://tft.ninja/comps")!, .stats),
+        .init("tftable", "TFTable", "Atlas des compositions et tendances", URL(string: "https://www.tftable.cc/comps")!, .stats),
+        .init("lolchess", "LoLCHESS.GG", "Compositions et classements · Corée", URL(string: "https://lolchess.gg/")!, .stats),
+        .init("academy", "TFT Academy", "Tier list et guides de joueurs experts", URL(string: "https://tftacademy.com/tierlist/comps")!, .guides),
+        .init("sologesang", "Sologesang Pro Comps", "Sélection de Sologesang sur MetaTFT", URL(string: "https://www.metatft.com/pro-comps")!, .guides),
+        .init("flow", "TFT Flow", "Choix de compo selon ton départ", URL(string: "https://tftflow.com/")!, .guides),
+        .init("mobalytics", "Mobalytics", "Guides et compositions Challenger", URL(string: "https://mobalytics.gg/tft/team-comps")!, .guides, external: true),
+        .init("casita", "La Casita del TFT", "Tier list et plans de jeu", URL(string: "https://lacasitadeltft.com/en/tierlist/comps")!, .guides),
+        .init("bunny", "BunnyMuffins", "Sélection méta et guides", URL(string: "https://bunnymuffins.lol/meta/")!, .guides, external: true),
+        .init("hexcomps", "HexComps", "Guides par stade et placements", URL(string: "https://hexcomps.com/fr/")!, .guides),
+        .init("handbook", "TFT Handbook", "Plans de jeu de Robinsongz", URL(string: "https://tfthandbook.com/")!, .guides),
+        .init("tftips", "TFTips", "Outils et références du jeu", URL(string: "https://tftips.app/")!, .tools, external: true),
+        .init("tftraits", "TFTraits", "Recherche de synergies et planificateur", URL(string: "https://tftraits.com/")!, .tools),
+        .init("pbe", "PBE · Tactics.Tools", "Unités et synergies du set en test", URL(string: "https://tactics.tools/info/pbe")!, .tools),
+        .init("riot", "Riot Games", "Notes officielles du patch", URL(string: "https://teamfighttactics.leagueoflegends.com/fr-fr/news/game-updates/")!, .tools),
+        .init("dragon", "CommunityDragon", "Données du client utilisées dans le Codex", URL(string: "https://www.communitydragon.org/")!, .tools),
+        .init("compete", "Compete TFT", "Tournois et calendrier officiel", URL(string: "https://competetft.com/en-US/schedule")!, .tools)
+    ]
+
+    var hosts: Set<String> {
+        guard let host = url.host else { return [] }
+        let domain = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        return [domain, "www." + domain]
     }
 }
 @MainActor final class WebPage: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
@@ -91,58 +140,64 @@ struct EmbeddedPage: View {
         }
     }
 }
-struct CurrentMetaSourcesView: View {
-    @State private var selected = MetaObservation.Provider.codex
+struct SourcesView: View {
+    @State private var query = ""
+    private var sources: [TFTSource] {
+        TFTSource.all.filter { query.isEmpty || ($0.name + " " + $0.description).localizedStandardContains(query) }
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Picker("Source", selection: $selected) {
-                ForEach(MetaObservation.Provider.allCases) { provider in
-                    Text(provider.rawValue).tag(provider)
-                }
-            }.pickerStyle(.segmented).padding().accessibilityIdentifier("meta-web-source-picker")
-            HStack {
-                Text("Chiffres publiés par la source").font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Link(destination: selected.currentCompsURL) {
-                    Label("Site d’origine", systemImage: "arrow.up.right.square").font(.caption)
-                }
-            }.padding(.horizontal).padding(.bottom, 6)
-            EmbeddedPage(url: selected.currentCompsURL, allowedHosts: selected.hosts)
-                .id(selected)
-        }
-        .background(hexaNavy)
-        .navigationTitle("Autres sources")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-struct SourcesView: View {
-    @State private var selected = ContentSource.mobalytics
-    @State private var visited: Set<ContentSource> = [.mobalytics]
-    var body: some View {
-        VStack(spacing: 0) {
-            Picker("Source", selection: $selected) {
-                ForEach(ContentSource.allCases) { Text($0.rawValue).tag($0) }
-            }.pickerStyle(.segmented).padding()
-            ZStack {
-                ForEach(ContentSource.allCases) { source in
-                    if visited.contains(source) {
-                        Group {
-                            if source == .mobalytics || source == .blitz {
-                                VStack(spacing: 12) {
-                                    Text(source.rawValue).font(.title2.bold())
-                                    Link("Ouvrir le site original", destination: source.url)
-                                        .buttonStyle(.borderedProminent)
-                                        .accessibilityIdentifier("source-original-" + source.rawValue)
-                                }.frame(maxWidth: .infinity, maxHeight: .infinity)
-                            } else { EmbeddedPage(url: source.url) }
-                        }.opacity(selected == source ? 1 : 0)
-                            .allowsHitTesting(selected == source).accessibilityHidden(selected != source)
+        List {
+            ForEach(TFTSource.Category.allCases) { category in
+                let group = sources.filter { $0.category == category }
+                if !group.isEmpty {
+                    Section(category.rawValue) {
+                        ForEach(group) { source in
+                            NavigationLink { SourcePage(source: source) } label: {
+                                Label {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(source.name).font(.headline)
+                                        Text(source.description).font(.caption).foregroundStyle(.secondary)
+                                    }
+                                } icon: {
+                                    Image(systemName: category.icon).foregroundStyle(category == .stats ? .mint : hexaGold)
+                                }
+                            }.accessibilityIdentifier("provider-" + source.id)
+                        }
                     }
                 }
             }
-        }
-        .onChange(of: selected) { _, value in visited.insert(value) }
-        .navigationTitle("Toutes les sources").navigationBarTitleDisplayMode(.inline)
+        }.scrollContentBackground(.hidden).background(hexaNavy)
+            .overlay { if sources.isEmpty { ContentUnavailableView.search(text: query) } }
+            .searchable(text: $query, prompt: "Chercher une source")
+            .navigationTitle("Toutes les sources").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SourcePage: View {
+    let source: TFTSource
+    var body: some View {
+        Group {
+            if source.external {
+                VStack(alignment: .leading, spacing: 18) {
+                    FeatureBanner(eyebrow: source.category.rawValue, title: source.name, detail: source.description, icon: source.category.icon)
+                    Link(destination: source.url) {
+                        Label("Ouvrir le site original", systemImage: "arrow.up.right.square")
+                    }.buttonStyle(.borderedProminent).accessibilityIdentifier("source-original-" + source.name)
+                    Spacer()
+                }.padding()
+            } else {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("Page du fournisseur").font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                        Link(destination: source.url) {
+                            Label("Site d’origine", systemImage: "arrow.up.right.square").font(.caption)
+                        }
+                    }.padding(.horizontal).padding(.top, 8)
+                    EmbeddedPage(url: source.url, allowedHosts: source.hosts)
+                }
+            }
+        }.background(hexaNavy).navigationTitle(source.name).navigationBarTitleDisplayMode(.inline)
     }
 }
