@@ -310,6 +310,22 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertThrowsError(try OPGGTracker.parse(html, identity: wrong))
     }
 
+    func testRankedReviewUsesFinishedRankedGamesAndRepeatedEquippedUnits() {
+        let yi = TrackedMatch.Unit(key: "yi", stars: 2, items: ["one", "two"])
+        let unbuilt = TrackedMatch.Unit(key: "ahri", stars: 1, items: ["one"])
+        let matches = [(1, 8, 40, 1090), (2, 7, 41, 1100), (3, 5, 0, 1100), (4, 3, 40, 1100)]
+            .map { index, place, gold, queue in
+                TrackedMatch(id: String(index), timestamp: Double(index), patch: "18.6", set: 18, queue: queue,
+                             mode: nil, placement: place, level: 7, units: [yi, yi, unbuilt],
+                             traits: [], augments: [], lobby: [], goldLeft: gold)
+            }
+        let review = RankedReview(matches: matches)
+        XCTAssertEqual(review.recent.map(\.placement), [3, 5, 7])
+        XCTAssertEqual(review.bottomFourWithGold.map(\.placement), [7])
+        XCTAssertEqual(review.carries.map(\.id), ["yi"])
+        XCTAssertEqual(review.carries.first?.appearances.count, 3)
+    }
+
     func testOfficialCalendarKeepsDatesInParisAndRejectsCancelledEvents() throws {
         let calendar = """
         BEGIN:VCALENDAR

@@ -136,6 +136,40 @@ struct MatchSummary {
     }
 }
 
+struct RankedReview {
+    struct Carry: Identifiable {
+        let id: String
+        let name: String?
+        let appearances: [TrackedMatch]
+        let stars: [Int]
+    }
+
+    let recent: [TrackedMatch]
+    let bottomFourWithGold: [TrackedMatch]
+    let carries: [Carry]
+
+    init(matches: [TrackedMatch]) {
+        recent = Array(matches.filter { $0.queue == 1100 && (1...8).contains($0.placement) }
+            .sorted { $0.timestamp > $1.timestamp }.prefix(10))
+        bottomFourWithGold = recent.filter { $0.placement >= 5 && ($0.goldLeft ?? 0) >= 20 }
+        var equipped: [String: [(TrackedMatch, TrackedMatch.Unit)]] = [:]
+        for match in recent {
+            var seen = Set<String>()
+            for unit in match.units where unit.items.count >= 2 && seen.insert(unit.key).inserted {
+                equipped[unit.key, default: []].append((match, unit))
+            }
+        }
+        carries = equipped.compactMap { key, values in
+            guard values.count >= 2 else { return nil }
+            return Carry(id: key, name: values.compactMap { $0.1.name }.first,
+                         appearances: values.map { $0.0 }, stars: values.compactMap { $0.1.stars })
+        }.sorted {
+            if $0.appearances.count != $1.appearances.count { return $0.appearances.count > $1.appearances.count }
+            return $0.id < $1.id
+        }
+    }
+}
+
 @MainActor final class TrackerStore: ObservableObject {
     @Published private(set) var state = TrackerState()
     @Published private(set) var busy = false
@@ -434,6 +468,7 @@ struct TrackerDashboard: View {
         case .summary:
             filters
             performance
+            rankedReview
             if !recent.isEmpty {
                 Section("Derniers résultats") {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -464,6 +499,42 @@ struct TrackerDashboard: View {
         case .progress:
             rankHistory
             setHistory
+        }
+    }
+
+    @ViewBuilder private var rankedReview: some View {
+        let review = RankedReview(matches: profile.matches)
+        if review.recent.count >= 3 {
+            Section {
+                Panel {
+                    Label("Que travailler en classé ?", systemImage: "target").font(.headline)
+                    Text("Tes \(review.recent.count) dernières parties classées · \(profile.sourceName)")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if !review.bottomFourWithGold.isEmpty {
+                        Text("Or gardé à l’élimination").font(.subheadline.bold()).foregroundStyle(hexaGold)
+                        Text("\(review.bottomFourWithGold.count) sorties hors du Top 4 avec au moins 20 PO restants. Quand tu risques de sortir au prochain combat, utilise ton or pour améliorer ton plateau.")
+                            .font(.subheadline)
+                    }
+                    ForEach(review.carries.prefix(4)) { unit in
+                        let reference = unit.appearances.first.flatMap { meta.matchReference($0) }
+                        let champion = reference?.champion(key: unit.id)
+                        let name = champion?.name ?? unit.name ?? unit.id
+                        let finishes = unit.appearances.map { String($0.placement) }.joined(separator: " · ")
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(name).font(.subheadline.bold())
+                            Text("Places · \(finishes)").font(.caption).monospacedDigit()
+                            if let cost = champion?.cost, (1...3).contains(cost),
+                               unit.stars.count == unit.appearances.count, unit.stars.allSatisfy({ $0 == 2 }),
+                               unit.appearances.allSatisfy({ $0.placement > 4 }) {
+                                Text("Toujours 2★ dans ces parties. Si tu vises un reroll, vérifie tes copies et la concurrence avant de continuer à investir.")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    Text("Unités avec au moins 2 objets sur le plateau final. Plusieurs unités peuvent apparaître dans la même partie.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
         }
     }
 
