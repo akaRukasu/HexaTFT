@@ -188,6 +188,7 @@ struct MetaPack: Codable {
     @Published private(set) var publicMeta: OPGGMetaSnapshot?
     @Published private(set) var publicMetaCheckedAt: Date?
     @Published private(set) var publicMetaError: String?
+    @Published private(set) var publicMetaAudience = OPGGMetaSnapshot.Audience.global
     @Published private(set) var loadingRadarPage = false
     @Published private(set) var radarPageError: String?
     private var loadedRadarCursors: Set<String> = []
@@ -205,6 +206,7 @@ struct MetaPack: Codable {
         }
         feedURL = DragonFeed.bundledEndpoint("HexaMetaService")
         publicMeta = read("opgg-meta.json")
+        if let audience: OPGGMetaSnapshot.Audience = read("opgg-meta-audience.json") { publicMetaAudience = audience }
         #if DEBUG
         if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1" { publicMeta = nil }
         #endif
@@ -319,11 +321,21 @@ struct MetaPack: Codable {
 
     var currentPublicMeta: OPGGMetaSnapshot? {
         guard let publicMeta, let reference = live?.reference,
+              (publicMeta.audience ?? .global) == publicMetaAudience,
               publicMeta.pack.set == reference.entries.first?.set,
               publicMeta.pack.patch == live?.pack.patch,
               euwVersion.map({ $0.split(separator: ".").prefix(2).joined(separator: ".") == publicMeta.build }) != false,
               reference.version.hasPrefix(publicMeta.build + ".") else { return nil }
         return publicMeta
+    }
+
+    func selectPublicMetaAudience(_ audience: OPGGMetaSnapshot.Audience) {
+        guard audience != publicMetaAudience else { return }
+        publicMetaAudience = audience
+        try? save(audience, to: "opgg-meta-audience.json")
+        publicMetaCheckedAt = nil
+        publicMetaError = nil
+        lastAttempt = nil
     }
 
     var publicMetaIsFromOlderBuild: Bool {
@@ -374,12 +386,13 @@ struct MetaPack: Codable {
     func refresh(reference _: ReferenceData?) async {
         guard !refreshing else { return }
         let previousAttempt = lastAttempt
+        let audience = publicMetaAudience
         refreshing = true; message = nil; lastAttempt = Date()
         defer {
-            if Task.isCancelled { lastAttempt = previousAttempt }
+            if Task.isCancelled, publicMetaAudience == audience { lastAttempt = previousAttempt }
             refreshing = false
         }
-        async let publicResult = OPGGMetaSnapshot.fetch()
+        async let publicResult = OPGGMetaSnapshot.fetch(audience: audience)
         do {
             let euw = try await DragonFeed.liveEUW()
             try Task.checkCancellation()
@@ -399,7 +412,7 @@ struct MetaPack: Codable {
                 try install(PatchSnapshot(pack: pack, reference: reference, provider: "Riot · CommunityDragon"))
             }
             let result = await publicResult
-            updatePublicMeta(result, branch: branch)
+            if audience == publicMetaAudience { updatePublicMeta(result, branch: branch, audience: audience) }
             guard !Task.isCancelled else { return }
             guard let feedURL else { return }
             let data = try await DragonFeed.get(feedURL, max: 20_000_000)
@@ -450,11 +463,11 @@ struct MetaPack: Codable {
         return "18.\(minor - 16)"
     }
 
-    private func updatePublicMeta(_ result: OPGGMetaSnapshot.Page?, branch: String) {
+    private func updatePublicMeta(_ result: OPGGMetaSnapshot.Page?, branch: String, audience: OPGGMetaSnapshot.Audience) {
         guard !Task.isCancelled, let reference = live?.reference else { return }
         publicMetaCheckedAt = .now
         guard let result,
-              let snapshot = result.snapshot(reference: reference, branch: branch, patch: live?.pack.patch),
+              let snapshot = result.snapshot(reference: reference, branch: branch, patch: live?.pack.patch, audience: audience),
               acceptsPublicMeta(snapshot) else {
             publicMetaError = "OP.GG ne fournit pas de relevé compatible pour le moment."
             return

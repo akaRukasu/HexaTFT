@@ -2,17 +2,49 @@ import Foundation
 
 struct OPGGMetaSnapshot: Codable {
     static let source = URL(string: "https://op.gg/tft/meta-trends/comps")!
+    struct Audience: Codable, Equatable {
+        let region: String
+        let tier: String
+        static let global = Self(region: "global", tier: "PLATINUM+")
+
+        init(region: String, tier: String) {
+            self.region = region
+            self.tier = tier
+        }
+
+        init?(identity: RiotIdentity, profile: RiotProfile) {
+            guard let region = identity.opggProfile?.pathComponents.dropLast().last,
+                  let tier = profile.ranks.first(where: { $0.queue == "RANKED_TFT" })?.tier,
+                  Self.labels[tier] != nil else { return nil }
+            self.init(region: region, tier: tier)
+        }
+
+        private static let labels = ["IRON": "Fer", "BRONZE": "Bronze", "SILVER": "Argent", "GOLD": "Or",
+                                     "PLATINUM": "Platine", "EMERALD": "Émeraude", "DIAMOND": "Diamant",
+                                     "MASTER": "Maître", "GRANDMASTER": "Grand maître", "CHALLENGER": "Challenger",
+                                     "PLATINUM+": "Platine+"]
+        var label: String { "\(region == "global" ? "Toutes régions" : region.uppercased()) · \(Self.labels[tier] ?? tier)" }
+
+        var url: URL {
+            guard self != .global, var components = URLComponents(url: OPGGMetaSnapshot.source, resolvingAgainstBaseURL: false) else {
+                return OPGGMetaSnapshot.source
+            }
+            components.queryItems = [URLQueryItem(name: "region", value: region), URLQueryItem(name: "tier", value: tier)]
+            return components.url ?? OPGGMetaSnapshot.source
+        }
+    }
     let pack: MetaPack
     let build: String
     let publishedAt: Date
     let scope: String
+    var audience: Audience? = nil
 
-    static func fetch() async -> Page? {
+    static func fetch(audience: Audience) async -> Page? {
         #if DEBUG
         if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1" { return nil }
         if let html = ProcessInfo.processInfo.environment["HEXA_OPGG_META_FIXTURE"] { return Page(html) }
         #endif
-        guard let data = try? await DragonFeed.get(source, max: 8_000_000),
+        guard let data = try? await DragonFeed.get(audience.url, max: 8_000_000),
               let html = String(data: data, encoding: .utf8) else { return nil }
         return await Task.detached(priority: .utility) { Page(html) }.value
     }
@@ -28,7 +60,7 @@ struct OPGGMetaSnapshot: Codable {
             self.data = data
         }
 
-        func snapshot(reference: ReferenceData, branch: String, patch: String?) -> OPGGMetaSnapshot? {
+        func snapshot(reference: ReferenceData, branch: String, patch: String?, audience: Audience = .global) -> OPGGMetaSnapshot? {
             guard let generation = page.object(data["generation"]),
                   let set = generation["set"] as? Int, reference.entries.first?.set == String(set),
                   let version = generation["patch"] as? String, version.range(of: #"^\d{1,2}\.\d{1,2}$"#, options: .regularExpression) != nil,
@@ -42,19 +74,19 @@ struct OPGGMetaSnapshot: Codable {
                   let date = OPGGTracker.timestampDate(timestamp), date <= .now.addingTimeInterval(300),
                   let filters = page.object(data["filters"]),
                   let rank = filters["tier"] as? String, let region = filters["region"] as? String,
+                  rank == audience.tier, region == audience.region,
                   let hours = filters["window"] as? Int, hours > 0,
                   let rows = page.resolve(data["comps"]) as? [Any] else { return nil }
             let ids = Set(reference.entries.map(\.id))
             let champs = Set(reference.entries.filter { $0.kind == "champion" }.map { String($0.id.dropFirst(9)) })
-            let comps = rows.compactMap { comp($0, build: branch, rank: rank, region: region, ids: ids, champions: champs) }
+            let comps = rows.compactMap { comp($0, build: branch, audience: audience, ids: ids, champions: champs) }
             guard !comps.isEmpty, Set(comps.map(\.id)).count == comps.count else { return nil }
-            let rankLabel = rank == "PLATINUM+" ? "Platine+" : rank
             return OPGGMetaSnapshot(pack: MetaPack(data: comps, retrievedAt: timestamp, set: String(set), patch: version),
                                     build: branch, publishedAt: date,
-                                    scope: "\(region == "global" ? "Toutes régions" : region.uppercased()) · \(rankLabel) · \(hours) h")
+                                    scope: "\(audience.label) · \(hours) h", audience: audience)
         }
 
-        private func comp(_ value: Any, build: String, rank: String, region: String,
+        private func comp(_ value: Any, build: String, audience: Audience,
                           ids: Set<String>, champions: Set<String>) -> MetaComp? {
             guard let row = page.object(value), let id = row["id"] as? String,
                   id.range(of: #"^[a-zA-Z0-9_-]{1,140}$"#, options: .regularExpression) != nil,
@@ -85,7 +117,7 @@ struct OPGGMetaSnapshot: Codable {
                             carry_units: carries, traits: nil,
                             strategy: MetaStrategy(type: type, level_stage: nil), variations: nil, augments: nil,
                             carry_item_holders: nil, units_stats: nil, carousel_priority: nil, play_conditions: nil,
-                            display_patch: build, rank: rank, region: region, sourceURL: OPGGMetaSnapshot.source,
+                            display_patch: build, rank: audience.tier, region: audience.region, sourceURL: audience.url,
                             publishedPlan: PublishedMetaPlan(name: name, difficulty: row["difficulty"] as? Int,
                                                             targetLevel: level, requirements: requirements,
                                                             primaryUnit: carries.first, frontline: front,

@@ -16,6 +16,7 @@ struct HexaBrand: View {
 struct MetaView: View {
     @EnvironmentObject private var meta: MetaStore
     @EnvironmentObject private var store: Store
+    @EnvironmentObject private var tracker: TrackerStore
     @State private var query = ""
     @State private var favorites = false
     @State private var style = "Tous"
@@ -25,6 +26,10 @@ struct MetaView: View {
     @State private var provider: MetaObservation.Provider?
     @State private var easierComps = false
     @State private var showPastReadings = false
+    private var localAudience: OPGGMetaSnapshot.Audience? {
+        guard let identity = tracker.identity, let profile = tracker.profile else { return nil }
+        return .init(identity: identity, profile: profile)
+    }
     private var styles: [String] { ["Tous"] + Set((meta.comps + meta.editorialComps).map(\.style)).sorted() }
     private var filtered: [MetaComp] {
         let comps = (meta.comps + meta.editorialComps).filter { comp in
@@ -91,6 +96,16 @@ struct MetaView: View {
         .background(hexaNavy).navigationTitle("Méta").navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, prompt: "Champion, composition…")
         .refreshable { if meta.selection.channel == .live { await meta.refresh(reference: store.reference) } }
+        .onChange(of: localAudience) { previous, current in
+            if previous != nil, meta.publicMetaAudience == previous {
+                Task { await changeAudience(current ?? .global) }
+            }
+        }
+        .task {
+            if meta.publicMetaAudience != .global, meta.publicMetaAudience != localAudience {
+                await changeAudience(localAudience ?? .global)
+            }
+        }
         .onChange(of: meta.selection) { _, _ in style = "Tous"; gems = false }
     }
     private var observations: some View {
@@ -119,6 +134,14 @@ struct MetaView: View {
                 .disabled(meta.refreshing)
                 .accessibilityIdentifier("meta-refresh-now")
             }
+            if let localAudience {
+                Picker("Population", selection: Binding(get: { meta.publicMetaAudience }, set: { audience in
+                    Task { await changeAudience(audience) }
+                })) {
+                    Text("Global · Platine+").tag(OPGGMetaSnapshot.Audience.global)
+                    Text(localAudience.label).tag(localAudience)
+                }.pickerStyle(.segmented).disabled(meta.refreshing)
+            }
             if let published {
                 liveComps(published)
                 Button {
@@ -140,6 +163,11 @@ struct MetaView: View {
                 legacyReadings(snapshot, readings: readings, catalogue: catalogue, compatible: compatible, includesArchives: includesArchives)
             }
         }
+    }
+
+    private func changeAudience(_ audience: OPGGMetaSnapshot.Audience) async {
+        meta.selectPublicMetaAudience(audience)
+        await meta.autoRefresh()
     }
 
     private func liveComps(_ feed: OPGGMetaSnapshot) -> some View {

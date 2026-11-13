@@ -267,6 +267,8 @@ final class HexaTFTTests: XCTestCase {
         let reference = try XCTUnwrap(MetaStore(directory: directory).reference)
         XCTAssertNil(page.snapshot(reference: reference, branch: "16.22", patch: "18.7"))
         XCTAssertNil(page.snapshot(reference: reference, branch: "16.23", patch: "18.6"))
+        XCTAssertNil(page.snapshot(reference: reference, branch: "16.22", patch: "18.6",
+                                   audience: .init(region: "euw", tier: "SILVER")))
         let snapshot = try XCTUnwrap(page.snapshot(reference: reference, branch: "16.22", patch: "18.6"))
         let comp = try XCTUnwrap(snapshot.pack.data.first)
         XCTAssertEqual(comp.units.map(\.name), ["DA_18_Morgana", "DA_Sentinel18"])
