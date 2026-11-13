@@ -205,6 +205,9 @@ struct MetaPack: Codable {
         }
         feedURL = DragonFeed.bundledEndpoint("HexaMetaService")
         publicMeta = read("opgg-meta.json")
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1" { publicMeta = nil }
+        #endif
         if feedURL != nil {
             partnerGuides = read("partner-pbe.json")
             partnerRadar = read("partner-radar.json")
@@ -439,7 +442,10 @@ struct MetaPack: Codable {
             publicMetaError = "OP.GG ne fournit pas de relevé compatible pour le moment."
             return
         }
-        if let published = currentPublicMeta, published.publishedAt > snapshot.publishedAt { return }
+        if let published = currentPublicMeta, published.publishedAt >= snapshot.publishedAt {
+            publicMetaError = nil
+            return
+        }
         do {
             // The provider identifies both the set and current TFT patch. On a new set,
             // use this only after Riot and CommunityDragon agree on the client branch.

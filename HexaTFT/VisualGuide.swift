@@ -49,7 +49,9 @@ struct VisualCompositionGuide: View {
         switch mode {
         case "Final": return [comp.suggestedPublicBoard(reference: reference) ?? comp.finalBoard]
         case "Niveaux": return comp.guideBoards(level: activeLevel)
-        default: return comp.guideBoards(stage: stage)
+        default:
+            if let final = comp.suggestedPublicBoard(reference: reference) { return [final] }
+            return comp.guideBoards(stage: stage)
         }
     }
     private var board: GuideBoard? { boards.indices.contains(option) ? boards[option] : boards.first }
@@ -113,7 +115,8 @@ struct VisualCompositionGuide: View {
                     Panel {
                         Label("Le plan à cette étape", systemImage: "flag.checkered").font(.headline)
                         Text(comp.economy(at: stage)).font(.subheadline).foregroundStyle(.secondary)
-                        Text(comp.authored == nil ? "Repères généraux du style · plateaux observés par la source" : "Plan de jeu et plateau proposés par Hexa").font(.caption2).foregroundStyle(.secondary)
+                        Text(comp.publishedPlan != nil ? "Repères Hexa · le plateau affiché reste le plateau final" :
+                            comp.authored == nil ? "Repères généraux du style · plateaux observés par la source" : "Plan de jeu et plateau proposés par Hexa").font(.caption2).foregroundStyle(.secondary)
                         HStack {
                             Button { advance(-1) } label: { Label("Précédente", systemImage: "chevron.left") }.disabled(stage == Stage.allCases.first)
                             Spacer()

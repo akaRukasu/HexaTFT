@@ -123,6 +123,7 @@ final class HexaTFTUITests: XCTestCase {
     }
     @MainActor func testLiveGuideShowsPlayableBoardAndItemPlan() {
         let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launch()
         app.buttons["LIVE EUW"].tap()
         app.segmentedControls["meta-library"].buttons["Guides"].tap()
@@ -149,6 +150,45 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Le trio de référence"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH %@", "Fabrique d’abord Shojin")).firstMatch.exists)
         snapshot("14-live-objets")
+    }
+    @MainActor func testCurrentMetaShowsPublishedRosterAndConditions() throws {
+        let app = XCUIApplication()
+        let json = """
+        ["$","$L2",null,{"data":{
+            "status":"ready","generation":{"set":18,"patch":"18.6"},
+            "metadata":{"currentPatch":"18.6","updatedAt":"\(Date.now.ISO8601Format())","sliceApplied":true},
+            "filters":{"region":"global","tier":"PLATINUM+","window":72},
+            "comps":[{"id":"morgana","name":"Vanguard Morgana","difficulty":3,"strategyLevel":8,
+                      "stats":{"avgPlacement":3.85,"winRate":0.25,"top4Rate":0.60,"count":41163,"pickRate":0.018},
+                      "units":[{"key":"DA_18_Morgana","role":"carry","items":[{"key":"DA_VoidStaff"}]},
+                               {"key":"DA_Sentinel18","role":"tank"}],
+                      "requirementBadges":[{"name":"Emblème test"}]}]
+        }}]
+        """
+        let payload = try JSONSerialization.jsonObject(with: Data(json.utf8))
+        let line = "1:" + String(decoding: try JSONSerialization.data(withJSONObject: payload), as: UTF8.self) + "\n"
+        let chunk = String(decoding: try JSONSerialization.data(withJSONObject: [1, line]), as: UTF8.self)
+        app.launchEnvironment["HEXA_OPGG_META_FIXTURE"] = "<script>self.__next_f.push(\(chunk))</script>"
+        app.launch()
+        app.buttons["LIVE EUW"].tap()
+        let card = app.buttons["meta-opgg-morgana"]
+        for _ in 0..<6 {
+            if card.isHittable { break }
+            app.swipeUp()
+        }
+        guard card.isHittable else {
+            XCTFail("Le relevé OP.GG est absent de l’accueil.")
+            return
+        }
+        snapshot("27-meta-opgg")
+        card.tap()
+        XCTAssertTrue(app.navigationBars["Composition"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Quand jouer cette compo"].exists)
+        XCTAssertTrue(app.staticTexts["Emblème test"].exists)
+        snapshot("28-meta-conditions")
+        let unit = app.buttons["board-unit-DA_18_Morgana"]
+        for _ in 0..<4 where !unit.isHittable { app.swipeUp() }
+        XCTAssertTrue(unit.isHittable)
     }
     @MainActor func testTrackerNativeOverviewOpensAnOPGGMatch() {
         let app = XCUIApplication()

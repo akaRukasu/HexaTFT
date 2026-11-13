@@ -10,6 +10,7 @@ struct OPGGMetaSnapshot: Codable {
     static func fetch() async -> Page? {
         #if DEBUG
         if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1" { return nil }
+        if let html = ProcessInfo.processInfo.environment["HEXA_OPGG_META_FIXTURE"] { return Page(html) }
         #endif
         guard let data = try? await DragonFeed.get(source, max: 8_000_000),
               let html = String(data: data, encoding: .utf8) else { return nil }
