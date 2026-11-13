@@ -348,6 +348,8 @@ final class HexaTFTTests: XCTestCase {
             let route = try XCTUnwrap(OPGGProgression(comp: comp, reference: reference))
             XCTAssertEqual(route.steps[.transition]?.level, level)
             XCTAssertEqual(route.steps[.mid]?.level, level == 5 ? 5 : 6)
+            XCTAssertEqual(route.steps[.opening]?.level, level == 5 ? 3 : 4)
+            XCTAssertEqual(route.steps[.early]?.level, level == 5 ? 4 : 5)
             XCTAssertLessThanOrEqual(try XCTUnwrap(route.steps[.transition]).board.units.count, level)
         }
     }

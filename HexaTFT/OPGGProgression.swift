@@ -65,8 +65,8 @@ struct OPGGProgression {
             let level: Int
             let ceiling: Int
             switch stage {
-            case .opening: level = 4; ceiling = 2
-            case .early: level = 5; ceiling = 2
+            case .opening: level = reroll && rollLevel == 5 ? 3 : 4; ceiling = 2
+            case .early: level = reroll && rollLevel == 5 ? 4 : 5; ceiling = 2
             case .mid: level = reroll && rollLevel == 5 ? 5 : 6; ceiling = 3
             case .transition: level = reroll ? rollLevel : 8; ceiling = 4
             case .late: level = 8; ceiling = 4
@@ -126,6 +126,13 @@ struct OPGGProgression {
     func advice(at stage: Stage, comp: MetaComp, reference: ReferenceData?) -> String {
         guard let step = steps[stage] else { return comp.economy(at: stage) }
         var text = comp.economy(at: stage)
+        if comp.strategy?.type?.hasSuffix("roll_5") == true {
+            if stage == .opening {
+                text = "Reste niveau 3 au 2-1 sans acheter d’XP pour ce plan de reroll à 1 PO. Garde les copies du carry et joue les meilleures améliorations trouvées. Préserve les premiers paliers d’intérêts."
+            } else if stage == .early {
+                text = "Laisse l’XP naturelle t’amener au niveau 4. Conserve les copies prioritaires et construis l’économie vers 50 PO. Prépare le niveau 5 vers 3-2 pour chercher tes trois étoiles ; stabilise plus tôt si tes PV chutent."
+            }
+        }
         if stage == .mid, comp.strategy?.type?.hasSuffix("roll_7") == true {
             text = "Repère : niveau 6 au 3-2. Prépare le niveau 7 vers 3-5 ou 4-1 selon tes PV et ton or, puis cherche les copies du carry. Relance l’excédent au-dessus de 50 PO quand ton plateau est stable."
         }
