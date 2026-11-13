@@ -241,7 +241,7 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Relevé vérifié à la publication d’Hexa"].exists)
         let newest = app.buttons["observation-nov13-tactics-roncier"]
         XCTAssertTrue(newest.exists)
-        let historical = app.descendants(matching: .any).matching(identifier: "meta-historical-readings").firstMatch
+        let historical = app.buttons["meta-historical-readings"]
         for _ in 0..<8 where !historical.isHittable { app.swipeUp() }
         XCTAssertTrue(historical.isHittable)
         historical.tap()

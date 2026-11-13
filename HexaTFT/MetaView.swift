@@ -267,13 +267,18 @@ struct MetaView: View {
                 }
             }
             if includesArchives {
-                DisclosureGroup("Relevé historique · 10 novembre 2026", isExpanded: $showOriginalReadings) {
+                Button {
+                    showOriginalReadings.toggle()
+                } label: {
+                    Label("Relevé historique · 10 novembre 2026", systemImage: showOriginalReadings ? "chevron.up" : "archivebox")
+                }.buttonStyle(.bordered).accessibilityIdentifier("meta-historical-readings")
+                if showOriginalReadings {
                     let original = MetaRadarSnapshot.bundled
                     let originalCatalogue = meta.catalogue(for: original)
                     ForEach(sort.readings(original.readings.filter { $0.matches(query) })) { entry in
                         observationRow(entry, radar: original, catalogue: originalCatalogue)
                     }
-                }.accessibilityIdentifier("meta-historical-readings")
+                }
                 ForEach(meta.archives) { archive in
                     let matching = archivedComps(archive)
                     if !matching.isEmpty {
