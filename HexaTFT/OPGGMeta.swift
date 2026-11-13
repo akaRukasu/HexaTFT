@@ -129,15 +129,20 @@ struct OPGGMetaSnapshot: Codable {
 extension MetaComp {
     func suggestedPublicBoard(reference: ReferenceData?) -> GuideBoard? {
         guard let plan = publishedPlan, let reference, !units.isEmpty else { return nil }
+        return GuideBoard(units: units, positions: Self.suggestedPositions(units: units, frontline: plan.frontline, reference: reference),
+                          sourceLabel: "Unités OP.GG · placement indicatif Hexa", sample: nil, isFinal: true)
+    }
+
+    static func suggestedPositions(units: [MetaUnit], frontline: String?, reference: ReferenceData) -> [MetaPosition] {
         let front = [3, 2, 4, 1, 5, 0, 6, 10, 9, 11, 8, 12, 7, 13]
         let back = [24, 22, 26, 23, 25, 21, 27, 17, 16, 18, 15, 19, 14, 20]
         let ordered = units.sorted {
             if $0.name == $1.name { return false }
-            if $0.name == plan.frontline { return true }
-            if $1.name == plan.frontline { return false }
+            if $0.name == frontline { return true }
+            if $1.name == frontline { return false }
             return $0.name < $1.name
         }
-        let melee = ordered.filter { $0.name == plan.frontline || (reference.champion(key: $0.name)?.balance?["range"] ?? 1) <= 2 }
+        let melee = ordered.filter { $0.name == frontline || (reference.champion(key: $0.name)?.balance?["range"] ?? 1) <= 2 }
         let meleeKeys = Set(melee.map(\.name))
         let ranged = ordered.filter { !meleeKeys.contains($0.name) }
         let first = zip(melee, front + Array(back.dropFirst(ranged.count).reversed()))
@@ -145,7 +150,6 @@ extension MetaComp {
         let positions = (Array(first) + Array(second)).map { unit, cell in
             MetaPosition(board_position: cell, unit_api_name: unit.name)
         }
-        return GuideBoard(units: units, positions: positions, sourceLabel: "Unités OP.GG · placement indicatif Hexa",
-                          sample: nil, isFinal: true)
+        return positions
     }
 }

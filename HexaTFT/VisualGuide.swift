@@ -33,6 +33,7 @@ struct VisualCompositionGuide: View {
     @State private var level = "6"
     @State private var option = 0
     @State private var selected: SelectedGuideUnit?
+    @State private var progression: OPGGProgression?
 
     init(comp: MetaComp, stage: Binding<Stage>, showFinal: Bool = false) {
         self.comp = comp
@@ -41,23 +42,30 @@ struct VisualCompositionGuide: View {
     }
 
     private var levels: [String] {
-        (comp.variations?.levels?.keys.map { $0 } ?? []).sorted { (Int($0) ?? 0) < (Int($1) ?? 0) }
+        if let progression { return progression.levels.keys.sorted().map(String.init) }
+        return (comp.variations?.levels?.keys.map { $0 } ?? []).sorted { (Int($0) ?? 0) < (Int($1) ?? 0) }
     }
     private var activeLevel: String { levels.contains(level) ? level : levels.first ?? level }
     private var isTraitDraft: Bool { comp.authored?.traitThresholds != nil }
     private var boards: [GuideBoard] {
         switch mode {
         case "Final": return [comp.suggestedPublicBoard(reference: reference) ?? comp.finalBoard]
-        case "Niveaux": return comp.guideBoards(level: activeLevel)
+        case "Niveaux":
+            if let progression { return Int(activeLevel).flatMap { progression.levels[$0] }.map { [$0] } ?? [] }
+            return comp.guideBoards(level: activeLevel)
         default:
-            if let final = comp.suggestedPublicBoard(reference: reference) { return [final] }
+            if let progression { return progression.steps[stage].map { [$0.board] } ?? [] }
+            if comp.publishedPlan != nil { return [] }
             return comp.guideBoards(stage: stage)
         }
     }
     private var board: GuideBoard? { boards.indices.contains(option) ? boards[option] : boards.first }
     private var previous: GuideBoard? {
         guard mode == "Stades", let index = Stage.allCases.firstIndex(of: stage), index > 0 else { return nil }
-        return comp.guideBoards(stage: Stage.allCases[index - 1]).first
+        let previousStage = Stage.allCases[index - 1]
+        if let progression { return progression.steps[previousStage]?.board }
+        if comp.publishedPlan != nil { return nil }
+        return comp.guideBoards(stage: previousStage).first
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -71,6 +79,11 @@ struct VisualCompositionGuide: View {
                     Text(isTraitDraft && $0 == "Niveaux" ? "Noyaux" : $0).tag($0)
                 }
             }.pickerStyle(.segmented).accessibilityIdentifier("guide-mode")
+            if comp.publishedPlan != nil, mode != "Final" {
+                Label("Parcours proposé par Hexa", systemImage: "map.fill").font(.subheadline.bold()).foregroundStyle(hexaGold)
+                Text("Les étapes intermédiaires et les porteurs temporaires sont des suggestions Hexa. Le plateau final et ses objets viennent d’OP.GG. Adapte ce parcours aux unités que tu trouves.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if mode == "Stades" { VisualTimeline(stage: $stage) }
             if mode == "Niveaux" { levelPicker }
             if let board {
@@ -80,6 +93,11 @@ struct VisualCompositionGuide: View {
                             Text(mode == "Final" || board.isFinal ? "Plateau cible" :
                                  mode == "Niveaux" ? (isTraitDraft ? "Noyau de " + activeLevel + " unités" : "Niveau " + activeLevel) : stage.title)
                                 .font(.title3.bold())
+                                .accessibilityIdentifier("guide-board-title")
+                            if mode == "Stades", let step = progression?.steps[stage] {
+                                Text("Stade \(stage.rawValue) · niveau \(step.level)").font(.subheadline.bold()).foregroundStyle(hexaGold)
+                                    .accessibilityIdentifier("guide-stage-level")
+                            }
                             let champions = board.units.filter { reference?.champion(key: $0.name) != nil }.count
                             let summons = board.units.count - champions
                             Text("\(champions) champions" + (summons > 0 ? " · \(summons) invocations" : "") + " · touche un portrait").font(.caption).foregroundStyle(.secondary)
@@ -102,7 +120,7 @@ struct VisualCompositionGuide: View {
                         if !isTraitDraft { Label("Objet cible", systemImage: "circle.dashed").foregroundStyle(hexaGold) }
                     }.font(.system(size: 10))
                     if !isTraitDraft {
-                        Text(comp.publishedPlan != nil ? "Équipement publié par OP.GG pour cet archétype." :
+                        Text(comp.publishedPlan != nil ? "Objets cibles OP.GG. Les pointillés indiquent un objectif ou un transfert proposé par Hexa." :
                             comp.authored == nil ? "Icônes pleines pour les objets observés, pointillés pour les objets visés ou à transférer." : "Équipement conseillé. Les pointillés indiquent les objets à transférer au porteur final.").font(.caption2).foregroundStyle(.secondary)
                     }
                     Text(board.sourceLabel).font(.caption2).foregroundStyle(.secondary)
@@ -111,26 +129,42 @@ struct VisualCompositionGuide: View {
                 if let previous, mode == "Stades", previous.keys != board.keys {
                     BoardComparison(previous: previous, current: board)
                 }
+                if !board.itemTargets.isEmpty {
+                    Panel {
+                        Label("Objets à préparer et transférer", systemImage: "arrow.right.arrow.left").font(.headline)
+                        ForEach(board.itemTargets.keys.sorted(), id: \.self) { holder in
+                            if let target = board.itemTargets[holder], comp.loadout(for: holder, on: board).hasItems {
+                                TransferPortraits(from: holder, to: target)
+                                ItemIcons(keys: comp.loadout(for: holder, on: board).items, size: 30)
+                            }
+                        }
+                        Text("Transferts proposés par Hexa. Garde une copie de remplacement et sécurise le champion cible avant de vendre le porteur temporaire.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }.accessibilityIdentifier("guide-stage-transfers")
+                }
                 if mode == "Stades" {
                     Panel {
                         Label("Le plan à cette étape", systemImage: "flag.checkered").font(.headline)
-                        Text(comp.economy(at: stage)).font(.subheadline).foregroundStyle(.secondary)
-                        Text(comp.publishedPlan != nil ? "Repères Hexa · le plateau affiché reste le plateau final" :
+                        Text(progression?.advice(at: stage, comp: comp, reference: reference) ?? comp.economy(at: stage)).font(.subheadline).foregroundStyle(.secondary)
+                        Text(comp.publishedPlan != nil ? "Repères Hexa · suis le stade correspondant à ta partie" :
                             comp.authored == nil ? "Repères généraux du style · plateaux observés par la source" : "Plan de jeu et plateau proposés par Hexa").font(.caption2).foregroundStyle(.secondary)
                         HStack {
-                            Button { advance(-1) } label: { Label("Précédente", systemImage: "chevron.left") }.disabled(stage == Stage.allCases.first)
+                            Button { advance(-1) } label: { Label("Précédente", systemImage: "chevron.left") }.disabled(stage == Stage.allCases.first).accessibilityIdentifier("guide-previous")
                             Spacer()
-                            Button { advance(1) } label: { Label("Suivante", systemImage: "chevron.right") }.disabled(stage == Stage.allCases.last)
+                            Button { advance(1) } label: { Label("Suivante", systemImage: "chevron.right") }.disabled(stage == Stage.allCases.last).accessibilityIdentifier("guide-next")
                         }.buttonStyle(.bordered)
                     }
                 }
             } else {
-                ContentUnavailableView("Aucun exemple à ce niveau", systemImage: "hexagon", description: Text("Choisis un autre niveau ou le plateau final."))
+                ContentUnavailableView("Aucun parcours compatible", systemImage: "hexagon", description: Text("Le plateau final reste disponible. Les étapes Hexa nécessitent un guide compatible avec cette version du set."))
             }
         }
         .onChange(of: stage) { _, _ in option = 0 }
         .onChange(of: level) { _, _ in option = 0 }
         .onChange(of: mode) { _, _ in option = 0 }
+        .onChange(of: comp.id + (reference?.version ?? ""), initial: true) { _, _ in
+            progression = OPGGProgression(comp: comp, reference: reference)
+        }
         .sheet(item: $selected) { selection in
             if let board { NavigationStack { ChampionEquipmentView(comp: comp, unitKey: selection.id, board: board) } }
         }
@@ -259,7 +293,9 @@ struct BoardComparison: View {
             let removed = previous.units.filter { !current.keys.contains($0.name) }
             if !added.isEmpty { Text("+ Entrent dans cet exemple").font(.caption.bold()).foregroundStyle(.mint); UnitStrip(units: added) }
             if !removed.isEmpty { Text("− Sortent de cet exemple").font(.caption.bold()).foregroundStyle(.orange); UnitStrip(units: removed) }
-            Text("Comparaison de deux plateaux observés indépendamment, pour visualiser les différences.").font(.caption2).foregroundStyle(.secondary)
+            Text(previous.isSuggestedProgression || current.isSuggestedProgression ?
+                 "Transition proposée par Hexa. Remplace les unités quand tu as trouvé et amélioré les nouveaux porteurs." :
+                 "Comparaison de deux exemples de plateaux, pour visualiser les différences.").font(.caption2).foregroundStyle(.secondary)
         }
     }
 }

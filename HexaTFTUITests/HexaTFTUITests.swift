@@ -163,7 +163,9 @@ final class HexaTFTUITests: XCTestCase {
             "comps":[{"id":"morgana","name":"Vanguard Morgana","difficulty":3,"strategyLevel":8,
                       "stats":{"avgPlacement":3.85,"winRate":0.25,"top4Rate":0.60,"count":41163,"pickRate":0.018},
                       "units":[{"key":"DA_18_Morgana","role":"carry","items":[{"key":"DA_VoidStaff"}]},
-                               {"key":"DA_Sentinel18","role":"tank"}],
+                               {"key":"DA_Sentinel18","role":"tank","items":[{"key":"DA_WarmogsArmor"}]},
+                               {"key":"DA_18_Alune"},{"key":"DA_Taric18"},{"key":"DA_18_Diana"},
+                               {"key":"DA_18_Cassiopeia"},{"key":"DA_18_Elise"},{"key":"DA_18_ElderDragon"}],
                       "requirementBadges":[{"name":"Emblème test"}]}]
         }}]
         """
@@ -191,9 +193,32 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Quand jouer cette compo"].exists)
         XCTAssertTrue(app.staticTexts["Emblème test"].exists)
         snapshot("28-meta-conditions")
+        let mode = app.segmentedControls["guide-mode"]
+        for _ in 0..<4 where !mode.isHittable { app.swipeUp() }
+        XCTAssertTrue(mode.waitForExistence(timeout: 8))
+        XCTAssertTrue(mode.buttons["Stades"].isSelected)
+        XCTAssertEqual(app.staticTexts["guide-stage-level"].label, "Stade 2-1 · niveau 4")
+        XCTAssertTrue(app.buttons["board-unit-DA_Karma18"].exists)
+        XCTAssertFalse(app.buttons["board-unit-DA_18_Morgana"].exists)
+        snapshot("30-opgg-ouverture")
+        app.buttons["guide-stage-3-2"].tap()
+        XCTAssertEqual(app.staticTexts["guide-stage-level"].label, "Stade 3-2 · niveau 6")
+        snapshot("31-opgg-milieu")
+        app.buttons["guide-stage-4-1"].tap()
+        XCTAssertEqual(app.staticTexts["guide-stage-level"].label, "Stade 4-1 · niveau 8")
         let unit = app.buttons["board-unit-DA_18_Morgana"]
         for _ in 0..<4 where !unit.isHittable { app.swipeUp() }
         XCTAssertTrue(unit.isHittable)
+        snapshot("32-opgg-transition")
+        unit.tap()
+        XCTAssertTrue(app.staticTexts["equipment-champion-title"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.otherElements["equipment-recipe-item:DA_VoidStaff"].exists)
+        app.buttons["Fermer"].tap()
+        for _ in 0..<4 where !mode.isHittable { app.swipeDown() }
+        mode.buttons["Niveaux"].tap()
+        XCTAssertTrue(app.buttons["guide-level-4"].exists)
+        mode.buttons["Final"].tap()
+        XCTAssertTrue(app.buttons["board-unit-DA_18_ElderDragon"].exists)
         app.navigationBars["Composition"].buttons.firstMatch.tap()
         let sources = app.buttons["meta-current-sources"]
         for _ in 0..<5 where !sources.isHittable { app.swipeDown() }

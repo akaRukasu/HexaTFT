@@ -284,6 +284,64 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertEqual(Set(board.positions.map(\.board_position)).count, 2)
     }
 
+    @MainActor func testOPGGProgressionChangesBoardsAndTransfersPublishedItems() throws {
+        let reference = try XCTUnwrap(MetaStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)).reference)
+        let roster = ["DA_18_Morgana", "DA_Sentinel18", "DA_18_Alune", "DA_Taric18", "DA_18_Diana", "DA_18_Cassiopeia", "DA_18_Elise", "DA_18_ElderDragon"]
+        let json: [String: Any] = ["comp_id": "progression", "slug": "progression", "display_patch": "16.22",
+            "strategy": ["type": "fast_8"],
+            "units": roster.map { key -> [String: Any] in ["name": key, "items": key == "DA_18_Morgana" ? ["DA_VoidStaff"] : key == "DA_Sentinel18" ? ["DA_WarmogsArmor"] : []] },
+            "publishedPlan": ["name": "Vanguard Morgana", "targetLevel": 8, "requirements": [], "primaryUnit": "DA_18_Morgana", "frontline": "DA_Sentinel18", "smallSample": false]]
+        let comp = try JSONDecoder().decode(MetaComp.self, from: JSONSerialization.data(withJSONObject: json))
+        let route = try XCTUnwrap(OPGGProgression(comp: comp, reference: reference))
+        XCTAssertEqual(route.steps.count, Stage.allCases.count)
+        XCTAssertEqual(route.steps[.opening]?.board.units.count, 4)
+        XCTAssertEqual(route.steps[.early]?.board.units.count, 5)
+        XCTAssertEqual(route.steps[.mid]?.board.units.count, 6)
+        XCTAssertNotEqual(route.steps[.opening]?.board.keys, route.steps[.mid]?.board.keys)
+        XCTAssertFalse(try XCTUnwrap(route.steps[.opening]).board.keys.contains("DA_18_Morgana"))
+        XCTAssertTrue(try XCTUnwrap(route.steps[.transition]).board.keys.contains("DA_18_Morgana"))
+        XCTAssertEqual(route.steps[.end]?.board.units.map(\.name), roster)
+        XCTAssertEqual(route.steps[.end]?.level, 9) // Elder Dragon occupies two slots.
+        XCTAssertEqual(route.steps[.end]?.board.units.first?.items, ["DA_VoidStaff"])
+        for step in route.steps.values {
+            let board = step.board
+            XCTAssertNil(board.sample)
+            XCTAssertEqual(board.positions.count, board.units.count)
+            XCTAssertEqual(Set(board.positions.map(\.board_position)).count, board.units.count)
+            XCTAssertEqual(Set(board.positions.map(\.unit_api_name)), board.keys)
+            XCTAssertTrue(board.positions.allSatisfy { (0..<28).contains($0.board_position) })
+            XCTAssertLessThanOrEqual(board.units.reduce(0) { $0 + ($1.name == "DA_18_ElderDragon" ? 2 : 1) }, step.level)
+            for (holder, target) in board.itemTargets {
+                XCTAssertTrue(board.keys.contains(holder))
+                XCTAssertFalse(board.keys.contains(target))
+                XCTAssertFalse(roster.contains(holder))
+                let loadout = comp.loadout(for: holder, on: board)
+                XCTAssertTrue(loadout.isProjected)
+                XCTAssertEqual(loadout.target, target)
+                XCTAssertEqual(loadout.items, comp.units.first { $0.name == target }?.items)
+            }
+        }
+        let opening = try XCTUnwrap(route.steps[.opening]?.board)
+        XCTAssertEqual(opening.itemTargets["DA_Karma18"], "DA_18_Morgana")
+        XCTAssertEqual(comp.loadout(for: "DA_Karma18", on: opening).items, ["DA_VoidStaff"])
+        XCTAssertFalse(comp.loadout(for: "DA_18_Morgana", on: try XCTUnwrap(route.steps[.end]?.board)).isProjected)
+        XCTAssertTrue(route.advice(at: .opening, comp: comp, reference: reference).contains("Morgana"))
+        XCTAssertNil(OPGGProgression(comp: comp, reference: nil))
+        var future = json; future["display_patch"] = "16.23"
+        XCTAssertNil(OPGGProgression(comp: try JSONDecoder().decode(MetaComp.self, from: JSONSerialization.data(withJSONObject: future)), reference: reference))
+
+        for level in [5, 6, 7] {
+            var reroll = json
+            reroll["strategy"] = ["type": "roll_\(level)"]
+            reroll["publishedPlan"] = ["name": "Reroll", "targetLevel": level, "requirements": [], "primaryUnit": "DA_18_Morgana", "frontline": "DA_Sentinel18", "smallSample": false] as [String: Any]
+            let comp = try JSONDecoder().decode(MetaComp.self, from: JSONSerialization.data(withJSONObject: reroll))
+            let route = try XCTUnwrap(OPGGProgression(comp: comp, reference: reference))
+            XCTAssertEqual(route.steps[.transition]?.level, level)
+            XCTAssertEqual(route.steps[.mid]?.level, level == 5 ? 5 : 6)
+            XCTAssertLessThanOrEqual(try XCTUnwrap(route.steps[.transition]).board.units.count, level)
+        }
+    }
+
     func testOPGGPublicProfileNormalizesMatchesAndUsesProviderPoints() throws {
         let json = """
         ["$","$L2",null,{"data":{

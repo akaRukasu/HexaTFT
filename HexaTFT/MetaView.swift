@@ -620,7 +620,7 @@ struct MetaDetail: View {
                 Text(context).font(.caption).foregroundStyle(.secondary)
                 if let plan = comp.publishedPlan { publicPlan(plan) }
                 personalResults
-                VisualCompositionGuide(comp: comp, stage: $stage, showFinal: snapshot != nil || comp.publishedPlan != nil)
+                VisualCompositionGuide(comp: comp, stage: $stage, showFinal: snapshot != nil && comp.publishedPlan == nil)
                 if snapshot != nil { actions }
                 if let plan = comp.authored {
                     Panel {

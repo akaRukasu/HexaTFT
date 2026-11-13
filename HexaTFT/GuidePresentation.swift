@@ -6,6 +6,8 @@ struct GuideBoard {
     let sourceLabel: String
     let sample: Int?
     let isFinal: Bool
+    var itemTargets: [String: String] = [:]
+    var isSuggestedProgression: Bool = false
     var keys: Set<String> { Set(units.map(\.name)) }
 }
 struct ChampionLoadout {
@@ -64,6 +66,9 @@ extension MetaComp {
         return (variations?.levels?[level] ?? []).filter { !$0.units.isEmpty }.map { board(from: $0, label: label) }
     }
     func loadout(for key: String, on board: GuideBoard) -> ChampionLoadout {
+        if let target = board.itemTargets[key], !board.keys.contains(target) {
+            return ChampionLoadout(items: units.first { $0.name == target }?.items ?? [], target: target, isProjected: true)
+        }
         if let equipped = board.units.first(where: { $0.name == key })?.items, !equipped.isEmpty {
             return ChampionLoadout(items: equipped, target: key, isProjected: false)
         }
