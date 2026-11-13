@@ -328,7 +328,17 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertTrue(route.advice(at: .opening, comp: comp, reference: reference).contains("Morgana"))
         XCTAssertNil(OPGGProgression(comp: comp, reference: nil))
         var future = json; future["display_patch"] = "16.23"
-        XCTAssertNil(OPGGProgression(comp: try JSONDecoder().decode(MetaComp.self, from: JSONSerialization.data(withJSONObject: future)), reference: reference))
+        let futureComp = try JSONDecoder().decode(MetaComp.self, from: JSONSerialization.data(withJSONObject: future))
+        XCTAssertNil(OPGGProgression(comp: futureComp, reference: reference))
+        let nextReference = ReferenceData(version: "16.23.1", source: reference.source, retrievedAt: reference.retrievedAt, entries: reference.entries)
+        XCTAssertNotNil(OPGGProgression(comp: futureComp, reference: nextReference))
+        let store = Store(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        store.setStage(.end)
+        store.pinMeta(comp, reference: reference)
+        XCTAssertEqual(store.state.stage, .opening)
+        store.setStage(.mid)
+        store.pinMeta(comp, reference: reference)
+        XCTAssertEqual(store.state.stage, .mid)
 
         for level in [5, 6, 7] {
             var reroll = json

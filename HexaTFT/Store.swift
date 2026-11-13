@@ -62,6 +62,7 @@ import Combine
     func pin(_ guide: Guide) { var next = state; next.pinnedID = guide.id; next.pinnedName = guide.name; commit(next) }
     func pinMeta(_ comp: MetaComp, reference guideReference: ReferenceData? = nil) {
         var next = state
+        if comp.publishedPlan != nil, next.pinnedID != comp.id { next.stage = .opening }
         next.pinnedID = comp.id
         next.pinnedName = comp.title(guideReference ?? reference)
         commit(next)

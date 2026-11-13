@@ -67,6 +67,20 @@ struct VisualCompositionGuide: View {
         if comp.publishedPlan != nil { return nil }
         return comp.guideBoards(stage: previousStage).first
     }
+    private var progressionKey: String {
+        let units = comp.units.map { $0.name + ":" + ($0.items ?? []).joined(separator: ",") }.joined(separator: "|")
+        return [comp.id, comp.display_patch ?? "", comp.strategy?.type ?? "", reference?.version ?? "",
+                comp.publishedPlan?.primaryUnit ?? "", comp.publishedPlan?.frontline ?? "",
+                String(comp.publishedPlan?.targetLevel ?? 0), units].joined(separator: "/")
+    }
+    private var transfers: [String: String] {
+        guard let board else { return [:] }
+        var targets = board.itemTargets
+        if mode == "Stades", let previous {
+            for (holder, target) in previous.itemTargets where board.keys.contains(target) { targets[holder] = target }
+        }
+        return targets
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -129,13 +143,15 @@ struct VisualCompositionGuide: View {
                 if let previous, mode == "Stades", previous.keys != board.keys {
                     BoardComparison(previous: previous, current: board)
                 }
-                if !board.itemTargets.isEmpty {
+                if !transfers.isEmpty {
                     Panel {
                         Label("Objets à préparer et transférer", systemImage: "arrow.right.arrow.left").font(.headline)
-                        ForEach(board.itemTargets.keys.sorted(), id: \.self) { holder in
-                            if let target = board.itemTargets[holder], comp.loadout(for: holder, on: board).hasItems {
+                        ForEach(transfers.keys.sorted(), id: \.self) { holder in
+                            if let target = transfers[holder] {
                                 TransferPortraits(from: holder, to: target)
-                                ItemIcons(keys: comp.loadout(for: holder, on: board).items, size: 30)
+                                Text(board.keys.contains(target) ? "Transfère quand le nouveau porteur est prêt." : "À garder sur le porteur temporaire en attendant le champion cible.")
+                                    .font(.caption).foregroundStyle(hexaGold)
+                                ItemIcons(keys: comp.units.first { $0.name == target }?.items ?? [], size: 30)
                             }
                         }
                         Text("Transferts proposés par Hexa. Garde une copie de remplacement et sécurise le champion cible avant de vendre le porteur temporaire.")
@@ -162,7 +178,7 @@ struct VisualCompositionGuide: View {
         .onChange(of: stage) { _, _ in option = 0 }
         .onChange(of: level) { _, _ in option = 0 }
         .onChange(of: mode) { _, _ in option = 0 }
-        .onChange(of: comp.id + (reference?.version ?? ""), initial: true) { _, _ in
+        .onChange(of: progressionKey, initial: true) { _, _ in
             progression = OPGGProgression(comp: comp, reference: reference)
         }
         .sheet(item: $selected) { selection in

@@ -212,13 +212,24 @@ final class HexaTFTUITests: XCTestCase {
         snapshot("32-opgg-transition")
         unit.tap()
         XCTAssertTrue(app.staticTexts["equipment-champion-title"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.otherElements["equipment-recipe-item:DA_VoidStaff"].exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "equipment-recipe-item:DA_VoidStaff").firstMatch.exists)
         app.buttons["Fermer"].tap()
         for _ in 0..<4 where !mode.isHittable { app.swipeDown() }
         mode.buttons["Niveaux"].tap()
         XCTAssertTrue(app.buttons["guide-level-4"].exists)
         mode.buttons["Final"].tap()
         XCTAssertTrue(app.buttons["board-unit-DA_18_ElderDragon"].exists)
+        let pin = app.buttons["Suivre dans Partie"]
+        for _ in 0..<6 where !pin.isHittable { app.swipeUp() }
+        XCTAssertTrue(pin.isHittable)
+        pin.tap()
+        app.tabBars.buttons["Partie"].tap()
+        XCTAssertTrue(app.staticTexts["guide-stage-level"].waitForExistence(timeout: 8))
+        XCTAssertEqual(app.staticTexts["guide-stage-level"].label, "Stade 2-1 · niveau 4")
+        app.buttons["guide-stage-3-2"].tap()
+        XCTAssertEqual(app.staticTexts["guide-stage-level"].label, "Stade 3-2 · niveau 6")
+        snapshot("33-opgg-partie")
+        app.tabBars.buttons["Méta"].tap()
         app.navigationBars["Composition"].buttons.firstMatch.tap()
         let sources = app.buttons["meta-current-sources"]
         for _ in 0..<5 where !sources.isHittable { app.swipeDown() }

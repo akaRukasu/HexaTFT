@@ -11,7 +11,7 @@ struct OPGGProgression {
 
     init?(comp: MetaComp, reference: ReferenceData?) {
         guard let plan = comp.publishedPlan, let reference,
-              reference.entries.first?.set == "18", reference.version.hasPrefix("16.22."), comp.display_patch == "16.22",
+              reference.entries.first?.set == "18", let branch = comp.display_patch, reference.version.hasPrefix(branch + "."),
               !comp.units.isEmpty, comp.units.allSatisfy({ reference.champion(key: $0.name) != nil }),
               let final = comp.suggestedPublicBoard(reference: reference) else { return nil }
         let roster = Set(comp.units.map(\.name))
