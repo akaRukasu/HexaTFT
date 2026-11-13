@@ -104,10 +104,12 @@ struct OPGGProgression {
                         (middle.contains(key) ? 8 : 0) + synergy * 6 +
                         (frontlineNeeded && front(key) ? 25 : 0) - cost(key)
                 }
-                let next = candidates.filter { !selected.contains($0) && used + slots($0) <= level }
-                    .map { (key: $0, score: score($0)) }.sorted {
-                        $0.score == $1.score ? $0.key < $1.key : $0.score > $1.score
-                    }.first?.key
+                var next: String?
+                var bestScore = Int.min
+                for candidate in candidates where !selected.contains(candidate) && used + slots(candidate) <= level {
+                    let candidateScore = score(candidate)
+                    if candidateScore > bestScore { next = candidate; bestScore = candidateScore }
+                }
                 guard let next else { break }
                 add(next)
             }
