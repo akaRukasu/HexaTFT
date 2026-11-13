@@ -205,6 +205,16 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "F7F8CB37AA339DF3971E4C49";
 		};
+		"174A0F510D970ECFC26296BE" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "OPGGMeta.swift";
+			"sourceTree" = "<group>";
+		};
+		"811231505AD8E2E92EB8F09E" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "174A0F510D970ECFC26296BE";
+		};
 		"9684C21ECA1CD378B6FC80D7" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "text.json";
@@ -322,6 +332,7 @@
 				"777A2554EE85DEE6B4FFEA3D",
 				"52BEE8046C34F31182BAEC4E",
 				"F7F8CB37AA339DF3971E4C49",
+				"174A0F510D970ECFC26296BE",
 				"0189424A5A60FED329FA868E",
 				"3685E330EC5277A9DD5661C6",
 			);
@@ -404,6 +415,7 @@
 				"65A4182EE7F1FBE10CA6E7FD",
 				"62F3882D5C478A52DE5A1AFB",
 				"BD3C2AA45F4564853B62F134",
+				"811231505AD8E2E92EB8F09E",
 			);
 			"runOnlyForDeploymentPostprocessing" = "0";
 		};
@@ -500,8 +512,8 @@
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
 				"INFOPLIST_KEY_UISupportedInterfaceOrientations" = "UIInterfaceOrientationPortrait";
 				"TARGETED_DEVICE_FAMILY" = "1";
-				"MARKETING_VERSION" = "0.7.0";
-				"CURRENT_PROJECT_VERSION" = "10";
+				"MARKETING_VERSION" = "0.7.1";
+				"CURRENT_PROJECT_VERSION" = "11";
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
@@ -524,8 +536,8 @@
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
 				"INFOPLIST_KEY_UISupportedInterfaceOrientations" = "UIInterfaceOrientationPortrait";
 				"TARGETED_DEVICE_FAMILY" = "1";
-				"MARKETING_VERSION" = "0.7.0";
-				"CURRENT_PROJECT_VERSION" = "10";
+				"MARKETING_VERSION" = "0.7.1";
+				"CURRENT_PROJECT_VERSION" = "11";
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";

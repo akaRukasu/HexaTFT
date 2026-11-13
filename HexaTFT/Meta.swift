@@ -65,6 +65,15 @@ struct AuthoredGuide: Codable {
     let itemPlans: [String: String]
     var traitThresholds: [Int]? = nil
 }
+struct PublishedMetaPlan: Codable {
+    let name: String
+    let difficulty: Int?
+    let targetLevel: Int?
+    let requirements: [String]
+    let primaryUnit: String?
+    let frontline: String?
+    let smallSample: Bool
+}
 struct MetaComp: Codable, Identifiable {
     let comp_id: String
     let slug: String
@@ -85,7 +94,8 @@ struct MetaComp: Codable, Identifiable {
     let region: String?
     let sourceURL: URL?
     var authored: AuthoredGuide? = nil
-    var id: String { (authored == nil ? "blitz:" : "hexa:") + comp_id }
+    var publishedPlan: PublishedMetaPlan? = nil
+    var id: String { (publishedPlan != nil ? "opgg:" : authored == nil ? "blitz:" : "hexa:") + comp_id }
     var tier: String { stats.flatMap { [1:"S",2:"A",3:"B",4:"C",5:"D"][$0.tier] } ?? "—" }
     var style: String {
         switch strategy?.type {
@@ -125,6 +135,7 @@ struct MetaComp: Codable, Identifiable {
     }
     var url: URL { URL(string: "https://blitz.gg/tft/comps/" + slug)! }
     func title(_ reference: ReferenceData?) -> String {
+        if let publishedPlan { return publishedPlan.name }
         if let title = authored?.title { return title }
         let carries = (carry_units ?? []).prefix(2).map { key in reference?.entries.first { $0.id == "champion:" + key }?.name ?? key }
         return carries.isEmpty ? slug.replacingOccurrences(of: "-", with: " ").capitalized : carries.joined(separator: " · ")
@@ -174,6 +185,9 @@ struct MetaPack: Codable {
         didSet { checkedPBEVersion = nil }
     }
     @Published private var partnerRadar: MetaRadarSnapshot?
+    @Published private(set) var publicMeta: OPGGMetaSnapshot?
+    @Published private(set) var publicMetaCheckedAt: Date?
+    @Published private(set) var publicMetaError: String?
     @Published private(set) var loadingRadarPage = false
     @Published private(set) var radarPageError: String?
     private var loadedRadarCursors: Set<String> = []
@@ -190,6 +204,7 @@ struct MetaPack: Codable {
             live = PatchSnapshot(pack: livePack, reference: Self.bundle("live-reference"), provider: "Riot · CommunityDragon")
         }
         feedURL = DragonFeed.bundledEndpoint("HexaMetaService")
+        publicMeta = read("opgg-meta.json")
         if feedURL != nil {
             partnerGuides = read("partner-pbe.json")
             partnerRadar = read("partner-radar.json")
@@ -295,7 +310,17 @@ struct MetaPack: Codable {
     }
     var comps: [MetaComp] {
         let entries = selection.channel == .pbe ? activePBECatalogue?.pack.data : pack?.data
-        return (entries ?? []).sorted { ($0.stats?.avg_placement ?? .infinity) < ($1.stats?.avg_placement ?? .infinity) }
+        let published = selection.channel == .live ? currentPublicMeta?.pack.data ?? [] : []
+        return ((entries ?? []) + published).sorted { ($0.stats?.avg_placement ?? .infinity) < ($1.stats?.avg_placement ?? .infinity) }
+    }
+
+    var currentPublicMeta: OPGGMetaSnapshot? {
+        guard let publicMeta, let reference = live?.reference,
+              publicMeta.pack.set == reference.entries.first?.set,
+              publicMeta.pack.patch == live?.pack.patch,
+              euwVersion.map({ $0.split(separator: ".").prefix(2).joined(separator: ".") == publicMeta.build }) != false,
+              reference.version.hasPrefix(publicMeta.build + ".") else { return nil }
+        return publicMeta
     }
 
     func select(_ channel: PatchSelection.Channel, archiveID: String? = nil) {
@@ -333,7 +358,7 @@ struct MetaPack: Codable {
     }
 
     func autoRefresh() async {
-        guard lastAttempt.map({ Date().timeIntervalSince($0) > 600 }) ?? true else { return }
+        guard lastAttempt.map({ Date().timeIntervalSince($0) >= 300 }) ?? true else { return }
         await refresh(reference: live?.reference)
     }
 
@@ -341,6 +366,7 @@ struct MetaPack: Codable {
         guard !refreshing else { return }
         refreshing = true; message = nil; lastAttempt = Date()
         defer { refreshing = false }
+        async let publicResult = OPGGMetaSnapshot.fetch()
         do {
             let euw = try await DragonFeed.liveEUW()
             euwVersion = euw
@@ -353,9 +379,12 @@ struct MetaPack: Codable {
             if currentBranch != branch {
                 let revision = try await DragonFeed.build(at: branch)
                 let reference = try await DragonFeed.reference(branch: branch, revision: revision, set: nil)
-                let pack = MetaPack(data: [], retrievedAt: Date().ISO8601Format(), set: reference.entries.first?.set, patch: nil)
+                let patch = Self.patchNumber(for: branch, set: reference.entries.first?.set)
+                let pack = MetaPack(data: [], retrievedAt: Date().ISO8601Format(), set: reference.entries.first?.set, patch: patch)
                 try install(PatchSnapshot(pack: pack, reference: reference, provider: "Riot · CommunityDragon"))
             }
+            await updatePublicMeta(publicResult, branch: branch)
+            guard !Task.isCancelled else { return }
             guard let feedURL else { return }
             let data = try await DragonFeed.get(feedURL, max: 20_000_000)
             let decoder = JSONDecoder()
@@ -392,6 +421,38 @@ struct MetaPack: Codable {
             }
         } catch {
             if !Task.isCancelled { message = "\(error.localizedDescription) Les dernières fiches restent disponibles." }
+        }
+    }
+
+    static func patchNumber(for branch: String, set: String?) -> String? {
+        // During set 18, TFT 18.1–18.7 map to client branches 16.17–16.23.
+        guard set == "18", branch.hasPrefix("16."),
+              let minor = Int(branch.dropFirst(3)), (17...23).contains(minor) else { return nil }
+        return "18.\(minor - 16)"
+    }
+
+    private func updatePublicMeta(_ result: OPGGMetaSnapshot.Page?, branch: String) async {
+        guard !Task.isCancelled, let reference = live?.reference else { return }
+        publicMetaCheckedAt = .now
+        guard let result,
+              let snapshot = result.snapshot(reference: reference, branch: branch, patch: live?.pack.patch) else {
+            publicMetaError = "OP.GG ne fournit pas de relevé compatible pour le moment."
+            return
+        }
+        if let published = currentPublicMeta, published.publishedAt > snapshot.publishedAt { return }
+        do {
+            // The provider identifies both the set and current TFT patch. On a new set,
+            // use this only after Riot and CommunityDragon agree on the client branch.
+            if let current = live, current.pack.patch == nil {
+                var pack = current.pack
+                pack.patch = snapshot.pack.patch
+                try install(PatchSnapshot(pack: pack, reference: reference, provider: current.provider))
+            }
+            try save(snapshot, to: "opgg-meta.json")
+            publicMeta = snapshot
+            publicMetaError = nil
+        } catch {
+            publicMetaError = "Impossible d’enregistrer le relevé OP.GG."
         }
     }
 

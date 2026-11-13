@@ -23,6 +23,8 @@ struct MetaView: View {
     @State private var gems = false
     @State private var showingObservations = true
     @State private var provider: MetaObservation.Provider?
+    @State private var easierComps = false
+    @State private var showPastReadings = false
     private var styles: [String] { ["Tous"] + Set((meta.comps + meta.editorialComps).map(\.style)).sorted() }
     private var filtered: [MetaComp] {
         let comps = (meta.comps + meta.editorialComps).filter { comp in
@@ -95,15 +97,81 @@ struct MetaView: View {
         let snapshot = meta.radar
         let catalogue = meta.catalogue(for: snapshot)
         let compatible = snapshot.matches(store.reference)
+        let published = meta.currentPublicMeta
         let readings = sort.readings(snapshot.readings.filter {
             $0.matches(query) && (provider == nil || $0.provider == provider)
         })
         let includesArchives = provider == nil
         return Group {
             HStack {
-                Label("Compositions et statistiques", systemImage: "chart.bar.xaxis").font(.headline)
+                Label("Compositions du patch", systemImage: "chart.bar.xaxis").font(.headline)
                 Spacer()
             }
+            if let published {
+                liveComps(published)
+                Button {
+                    showPastReadings.toggle()
+                } label: {
+                    Label(showPastReadings ? "Masquer les autres sources et archives" : "Autres sources et archives",
+                          systemImage: showPastReadings ? "chevron.up" : "chevron.down")
+                }.buttonStyle(.bordered)
+            } else {
+                if meta.refreshing { ProgressView("Vérification de la méta OP.GG") }
+                else { Text(meta.publicMetaError ?? "En attente d’un relevé OP.GG vérifié.").font(.caption).foregroundStyle(.secondary) }
+            }
+            if published == nil || showPastReadings {
+                legacyReadings(snapshot, readings: readings, catalogue: catalogue, compatible: compatible, includesArchives: includesArchives)
+            }
+        }
+    }
+
+    private func liveComps(_ feed: OPGGMetaSnapshot) -> some View {
+        let snapshot = PatchSnapshot(pack: feed.pack, reference: meta.live?.reference, provider: "OP.GG")
+        let comps = sort.guides(feed.pack.data.filter { comp in
+            (!easierComps || (comp.publishedPlan?.difficulty ?? 3) <= 2 && comp.publishedPlan?.requirements.isEmpty == true) &&
+            (query.isEmpty || searchable(comp).localizedStandardContains(query))
+        }) { comp in
+            guard let stats = comp.stats else { return -.infinity }
+            return sort.score(average: stats.avg_placement, top4: stats.top_4_percent, top1: stats.top_1_percent)
+        }
+        return Group {
+            Panel {
+                Label("OP.GG · Patch \(feed.pack.patch ?? "—")", systemImage: "chart.bar.xaxis").font(.headline)
+                Text(feed.scope).font(.caption).foregroundStyle(.secondary)
+                Text("Données publiées le " + feed.publishedAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.subheadline)
+                if let checked = meta.publicMetaCheckedAt {
+                    Text("Vérifiées par Hexa le " + checked.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let error = meta.publicMetaError {
+                    Label(error, systemImage: "clock.arrow.circlepath").font(.caption).foregroundStyle(.orange)
+                } else if Date.now.timeIntervalSince(feed.publishedAt) > 86_400 {
+                    Label("Dernier relevé publié il y a plus de 24 h", systemImage: "clock").font(.caption).foregroundStyle(.orange)
+                }
+                Toggle("Compos faciles ou moyennes sans prérequis signalé", isOn: $easierComps)
+                    .font(.subheadline)
+                Picker("Trier", selection: $sort) {
+                    Text(MetaSort.top4.rawValue).tag(MetaSort.top4)
+                    Text(MetaSort.top1.rawValue).tag(MetaSort.top1)
+                    Text(MetaSort.average.rawValue).tag(MetaSort.average)
+                    if sort == .discovery { Text(MetaSort.discovery.rawValue).tag(MetaSort.discovery) }
+                }.pickerStyle(.segmented)
+            }
+            ForEach(comps) { comp in
+                NavigationLink { MetaDetail(comp: comp, snapshot: snapshot) } label: {
+                    MetaCard(comp: comp)
+                }.buttonStyle(.plain).accessibilityIdentifier("meta-opgg-" + comp.comp_id)
+            }
+            if comps.isEmpty {
+                ContentUnavailableView("Aucune compo pour ces filtres", systemImage: "magnifyingglass")
+            }
+        }
+    }
+
+    private func legacyReadings(_ snapshot: MetaRadarSnapshot, readings: [MetaObservation],
+                                catalogue: PatchSnapshot?, compatible: Bool, includesArchives: Bool) -> some View {
+        Group {
             HStack {
                 Picker("Source", selection: $provider) {
                     Text("Toutes les sources").tag(nil as MetaObservation.Provider?)
@@ -114,12 +182,12 @@ struct MetaView: View {
                     ForEach(MetaSort.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }.labelsHidden().accessibilityIdentifier("meta-observation-sort")
             }
-            Text(snapshot.label + " · " + readings.count.formatted() + " relevés")
+            Text(snapshot.label + " · " + readings.count.formatted() + " fiches")
                 .font(.caption).foregroundStyle(.secondary)
             if !compatible {
                 Text("Relevé d’un patch antérieur").font(.caption.bold()).foregroundStyle(.orange)
             }
-            Text("Touche une composition pour ouvrir son plateau. Les rangs et les échantillons varient selon la source.")
+            Text("Sélection datée. Les rangs et les échantillons varient selon la source.")
                 .font(.caption).foregroundStyle(.secondary)
             ForEach(readings) { entry in
                 observationRow(entry, radar: snapshot, catalogue: catalogue)
@@ -134,9 +202,9 @@ struct MetaView: View {
                         .task(id: snapshot.nextCursor) { await meta.loadNextRadarPage() }
                 }
             }
-            if provider == nil, !meta.comps.isEmpty {
+            if provider == nil, let native = meta.pack?.data, !native.isEmpty {
                 Text("Guides chiffrés · " + meta.sourceName).font(.title3.bold())
-                ForEach(filtered.filter { $0.stats != nil }) { comp in
+                ForEach(filtered.filter { $0.stats != nil && $0.publishedPlan == nil }) { comp in
                     NavigationLink { MetaDetail(comp: comp) } label: { MetaCard(comp: comp) }.buttonStyle(.plain)
                 }
             }
@@ -247,7 +315,13 @@ struct MetaView: View {
                         .accessibilityLabel(favorites ? "Afficher toutes les compos" : "Afficher les favoris")
                 }
                 ForEach(filtered) { comp in
-                    NavigationLink { MetaDetail(comp: comp) } label: { MetaCard(comp: comp) }
+                    NavigationLink {
+                        if comp.publishedPlan != nil, let published = meta.currentPublicMeta {
+                            MetaDetail(comp: comp, snapshot: PatchSnapshot(pack: published.pack, reference: meta.live?.reference, provider: "OP.GG"))
+                        } else {
+                            MetaDetail(comp: comp)
+                        }
+                    } label: { MetaCard(comp: comp) }
                         .buttonStyle(.plain).accessibilityIdentifier("meta-card-" + comp.comp_id)
                 }
                 if filtered.isEmpty { ContentUnavailableView("Aucune composition", systemImage: "magnifyingglass", description: Text("Change la recherche ou les filtres.")) }
@@ -270,7 +344,9 @@ struct MetaCard: View {
     var body: some View {
         Panel {
             HStack(alignment: .top) {
-                if comp.authored != nil {
+                if comp.publishedPlan != nil {
+                    Image(systemName: "chart.bar.xaxis").font(.title2).foregroundStyle(.mint).frame(width: 35, height: 40)
+                } else if comp.authored != nil {
                     Image(systemName: "hexagon").font(.title2).foregroundStyle(.mint).frame(width: 35, height: 40)
                 } else {
                     Text(comp.tier).font(.title.bold()).foregroundStyle(hexaGold).frame(width: 35, height: 40)
@@ -284,7 +360,8 @@ struct MetaCard: View {
             }
             MetaRoster(keys: comp.units.map(\.name), reference: store.reference)
             if let stats = comp.stats {
-                StatsStrip(stats: stats)
+                StatsStrip(stats: stats, sampleLabel: comp.publishedPlan == nil ? "Parties" : "Plateaux")
+                if let plan = comp.publishedPlan { PublishedPlanSummary(plan: plan) }
             } else if meta.selection.channel == .pbe {
                 HStack {
                     DashboardMetric(title: "Unités", value: comp.units.count.formatted(), accent: .mint)
@@ -343,16 +420,34 @@ struct UnitStrip: View {
 }
 struct StatsStrip: View {
     let stats: MetaStats
+    var sampleLabel = "Parties"
     var body: some View {
         HStack {
             metric("Place moy.", String(format: "%.2f",stats.avg_placement))
             Spacer(); metric("Top 4", String(format: "%.1f %%",stats.top_4_percent * 100))
             Spacer(); metric("Top 1", String(format: "%.1f %%",stats.top_1_percent * 100))
-            Spacer(); metric("Parties", stats.nb_games.formatted())
+            Spacer(); metric(sampleLabel, stats.nb_games.formatted())
         }
     }
     private func metric(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) { Text(value).font(.subheadline.bold()).foregroundStyle(.white); Text(label).font(.system(size: 10)).foregroundStyle(.secondary) }
+    }
+}
+private struct PublishedPlanSummary: View {
+    let plan: PublishedMetaPlan
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let difficulty = plan.difficulty, let title = [1: "Facile", 2: "Moyenne", 3: "Difficile"][difficulty] {
+                Label("Difficulté OP.GG · " + title, systemImage: "gauge.with.dots.needle.50percent")
+                    .foregroundStyle(difficulty == 3 ? Color.orange : .secondary)
+            }
+            ForEach(plan.requirements, id: \.self) { requirement in
+                Label(requirement, systemImage: "exclamationmark.circle").foregroundStyle(.orange)
+            }
+            if plan.smallSample {
+                Label("Petit échantillon selon OP.GG", systemImage: "chart.bar.xaxis").foregroundStyle(.orange)
+            }
+        }.font(.caption)
     }
 }
 struct ObservationCoreView: View {
@@ -404,12 +499,14 @@ struct ObservationCoreView: View {
 struct MetaDetail: View {
     @EnvironmentObject private var store: Store
     @EnvironmentObject private var meta: MetaStore
+    @EnvironmentObject private var tracker: TrackerStore
     let comp: MetaComp
     var snapshot: PatchSnapshot? = nil
     var reading: MetaObservation? = nil
     @State private var stage = Stage.opening
     private var reference: ReferenceData? { snapshot?.reference ?? store.reference }
-    private var provider: String { snapshot?.sourceName ?? meta.sourceName }
+    private var provider: String { comp.publishedPlan != nil ? "OP.GG" : snapshot?.sourceName ?? meta.sourceName }
+    private var positions: [MetaPosition] { comp.suggestedPublicBoard(reference: reference)?.positions ?? comp.finalBoard.positions }
     private var context: String {
         if snapshot == nil, meta.selection.channel == .pbe {
             return "PBE · " + (meta.experimental?.version ?? "—") + " · " + (comp.stats == nil ? "Plateau à tester" : provider)
@@ -443,11 +540,17 @@ struct MetaDetail: View {
                          "Statistiques de l’archétype · plateau et objets conseillés par Hexa.")
                         .font(.caption).foregroundStyle(.secondary)
                 } else if let stats = comp.stats {
-                    StatsStrip(stats: stats)
+                    StatsStrip(stats: stats, sampleLabel: comp.publishedPlan == nil ? "Parties" : "Plateaux")
+                    if comp.publishedPlan != nil {
+                        Text("Ces résultats portent sur des plateaux recensés. Ton départ, tes objets et la concurrence changent tes chances de les atteindre.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 if snapshot == nil { actions }
                 Text(context).font(.caption).foregroundStyle(.secondary)
-                VisualCompositionGuide(comp: comp, stage: $stage, showFinal: snapshot != nil)
+                if let plan = comp.publishedPlan { publicPlan(plan) }
+                personalResults
+                VisualCompositionGuide(comp: comp, stage: $stage, showFinal: snapshot != nil || comp.publishedPlan != nil)
                 if snapshot != nil { actions }
                 if let plan = comp.authored {
                     Panel {
@@ -458,7 +561,7 @@ struct MetaDetail: View {
                         Text("Plan de secours").font(.headline)
                         Text(plan.pivot)
                     }.font(.subheadline)
-                } else {
+                } else if comp.publishedPlan == nil {
                     CompositionEvidence(comp: comp)
                 }
                 if comp.authored == nil, !similar.isEmpty {
@@ -473,10 +576,10 @@ struct MetaDetail: View {
                     }
                 }
                 EquipmentRoster(comp: comp)
-                if snapshot == nil || comp.finalBoard.positions.allSatisfy({ store.boardChampion("champion:" + $0.unit_api_name) != nil }) {
+                if !positions.isEmpty && (snapshot == nil || positions.allSatisfy({ store.boardChampion("champion:" + $0.unit_api_name) != nil })) {
                     Panel {
                         Label("Mon atelier", systemImage: "hexagon").font(.headline)
-                        Button("Copier le plateau final dans mon atelier") { store.copyBoard(comp.units_positions ?? []) }.buttonStyle(.bordered)
+                        Button("Copier le plateau final dans mon atelier") { store.copyBoard(positions) }.buttonStyle(.bordered)
                     }
                 }
                 if let augments = comp.augments, !augments.isEmpty {
@@ -491,12 +594,18 @@ struct MetaDetail: View {
                 }
                 Panel {
                     Text("Source et contexte").font(.headline)
-                    if let stats = comp.stats {
+                    if let stats = comp.stats, comp.publishedPlan != nil {
+                        Text("OP.GG · \(stats.nb_games.formatted()) plateaux · \(comp.rank ?? "—")").font(.caption).foregroundStyle(.secondary)
+                        if let date = snapshot?.pack.retrievedAt.flatMap(OPGGTracker.timestampDate) {
+                            Text("Relevé publié le " + date.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    } else if let stats = comp.stats {
                         Text("\(provider) · \(comp.region ?? "WORLD") · \(comp.rank ?? "PLATINUM+") · \(stats.nb_games.formatted()) parties").font(.caption).foregroundStyle(.secondary)
                     } else {
                         Text("Positions et parcours proposés par Hexa.").font(.caption).foregroundStyle(.secondary)
                     }
-                    if comp.stats != nil { Text("Version des statistiques déclarée par la source : \(comp.display_patch ?? "—"). Le patch de la page est indiqué dans Méta.").font(.caption).foregroundStyle(.secondary) }
+                    if comp.stats != nil, comp.publishedPlan == nil { Text("Build des statistiques · \(comp.display_patch ?? "—")").font(.caption).foregroundStyle(.secondary) }
                     if let reading {
                         Link("Consulter le relevé \(reading.provider.rawValue)", destination: reading.source)
                     } else if provider == "Blitz" {
@@ -507,6 +616,54 @@ struct MetaDetail: View {
                 }
             }.padding()
         }.environment(\.guideReference, reference).background(hexaNavy).navigationTitle("Composition").navigationBarTitleDisplayMode(.inline)
+    }
+    @ViewBuilder private var personalResults: some View {
+        let pack = snapshot?.pack ?? meta.pack
+        if let carry = comp.publishedPlan?.primaryUnit ?? comp.carry_units?.first,
+           let name = reference?.champion(key: carry)?.name,
+           let patch = pack?.patch, let set = pack?.set,
+           let profile = tracker.profile {
+            let matches = Array(profile.matches.filter { match in
+                match.queue == 1100 && match.set.map(String.init) == set &&
+                match.patch == patch && match.units.contains { $0.key == carry && $0.items.count >= 2 }
+            }.prefix(10))
+            if !matches.isEmpty {
+                Panel {
+                    Label("Tes parties avec " + name, systemImage: "person.crop.circle").font(.headline)
+                    Text("Classé · Patch \(patch) · \(name) avec au moins 2 objets en fin de partie")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(matches) { match in
+                                NavigationLink { TrackedMatchView(match: match) } label: {
+                                    Badge(text: "Top \(match.placement)", color: match.placement <= 4 ? .mint : .orange)
+                                }.buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    Text("La sélection se base sur le carry équipé en fin de partie.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+    private func publicPlan(_ plan: PublishedMetaPlan) -> some View {
+        let carry = plan.primaryUnit.flatMap { reference?.champion(key: $0)?.name }
+        let tank = plan.frontline.flatMap { reference?.champion(key: $0)?.name }
+        let reroll = comp.strategy?.type?.hasPrefix("roll_") == true
+        return Panel {
+            Label("Quand jouer cette compo", systemImage: "map").font(.headline)
+            PublishedPlanSummary(plan: plan)
+            if let level = plan.targetLevel {
+                Text(reroll ? "Relance au niveau \(level) si tu as déjà plusieurs copies du carry et peu de concurrence." :
+                    "Monte au niveau \(level) si tes PV et ton économie te laissent assez d’or pour améliorer le carry et la première ligne.")
+            }
+            if let carry { Text("Carry prioritaire · " + carry) }
+            if let tank { Text("Tank prioritaire · " + tank) }
+            Text(reroll ? "Si les copies manquent, garde tes unités deux étoiles et transfère les objets sur un autre carry compatible." :
+                 "Si tes PV chutent, stabilise ton plateau au niveau actuel avec tes meilleures unités deux étoiles.")
+                .foregroundStyle(.secondary)
+        }.font(.subheadline)
     }
     private var actions: some View {
         HStack {

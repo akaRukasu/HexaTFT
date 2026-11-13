@@ -175,6 +175,7 @@ final class HexaTFTUITests: XCTestCase {
     }
     @MainActor func testRadarPatchDetailsAndEsport() {
         let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launch()
         app.buttons["LIVE EUW"].tap()
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "observation-")).firstMatch

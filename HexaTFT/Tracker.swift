@@ -371,8 +371,12 @@ private struct TrackerProfileCard: View {
                 }
             }
             if let profile {
-                Label(profile.sourceName + " · données du " + Date(timeIntervalSince1970: profile.observedAt).formatted(date: .abbreviated, time: .shortened),
+                Label(profile.sourceName + " · rang relevé le " + Date(timeIntervalSince1970: profile.observedAt).formatted(date: .abbreviated, time: .shortened),
                       systemImage: "clock").font(.caption).foregroundStyle(.secondary)
+                if let lastMatch = profile.matches.first {
+                    Text("Dernière partie reçue · " + lastMatch.date.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 if let checked = profile.checkedAt {
                     Text("Vérifié le " + checked.formatted(date: .abbreviated, time: .shortened))
                         .font(.caption2).foregroundStyle(.secondary)

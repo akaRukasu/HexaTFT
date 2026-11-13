@@ -245,6 +245,40 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertNil(RiotIdentity("Tactikk#EUW", region: "invalid"))
     }
 
+    @MainActor func testOPGGMetaRejectsWrongPatchAndKeepsPublishedRoster() throws {
+        let json = """
+        ["$","$L2",null,{"children":["$","$L3",null,{"data":{
+          "status":"ready","generation":{"set":18,"patch":"18.6"},
+          "metadata":{"currentPatch":"18.6","updatedAt":"2026-11-13T00:31:09.198Z","sliceApplied":true},
+          "filters":{"region":"global","tier":"PLATINUM+","window":72},
+          "items":[{"key":"DA_WarmogsArmor"}],
+          "comps":[{"id":"vanguard_morgana","name":"Vanguard Morgana","difficulty":3,"strategyLevel":8,
+                    "stats":{"avgPlacement":3.85,"winRate":0.25,"top4Rate":0.60,"count":41163,"pickRate":0.018},
+                    "units":[{"key":"DA_18_Morgana","role":"carry"},
+                             {"key":"DA_Sentinel18","role":"tank","items":["$1:props:children:props:data:items:0"]}],
+                    "requirementBadges":[{"name":"Emblème"}]}]
+        }}]}]
+        """
+        let value = try JSONSerialization.jsonObject(with: Data(json.utf8))
+        let line = "1:" + String(decoding: try JSONSerialization.data(withJSONObject: value), as: UTF8.self) + "\n"
+        let chunk = String(decoding: try JSONSerialization.data(withJSONObject: [1, line]), as: UTF8.self)
+        let page = try XCTUnwrap(OPGGMetaSnapshot.Page("<script>self.__next_f.push(\(chunk))</script>"))
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let reference = try XCTUnwrap(MetaStore(directory: directory).reference)
+        XCTAssertNil(page.snapshot(reference: reference, branch: "16.22", patch: "18.7"))
+        XCTAssertNil(page.snapshot(reference: reference, branch: "16.23", patch: "18.6"))
+        let snapshot = try XCTUnwrap(page.snapshot(reference: reference, branch: "16.22", patch: "18.6"))
+        let comp = try XCTUnwrap(snapshot.pack.data.first)
+        XCTAssertEqual(comp.units.map(\.name), ["DA_18_Morgana", "DA_Sentinel18"])
+        XCTAssertEqual(comp.units.last?.items, ["DA_WarmogsArmor"])
+        XCTAssertEqual(comp.publishedPlan?.difficulty, 3)
+        XCTAssertEqual(comp.stats?.top_4_percent, 0.60)
+        XCTAssertNil(comp.units_positions)
+        let board = try XCTUnwrap(comp.suggestedPublicBoard(reference: reference))
+        XCTAssertEqual(Set(board.positions.map(\.unit_api_name)), board.keys)
+        XCTAssertEqual(Set(board.positions.map(\.board_position)).count, 2)
+    }
+
     func testOPGGPublicProfileNormalizesMatchesAndUsesProviderPoints() throws {
         let json = """
         ["$","$L2",null,{"data":{

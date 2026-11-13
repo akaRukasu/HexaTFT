@@ -1,4 +1,4 @@
-# HexaTFT Ultimate 0.7.0
+# HexaTFT Ultimate 0.7.1
 
 ## Audit et périmètre
 
@@ -29,6 +29,8 @@ L’accueil affiche les cartes statistiques par source avec les chiffres sous le
 Les fiches des patches 18.5 et 18.6 résument les changements de Riot avec catégories et valeurs avant/après. Le fil officiel détecte de nouvelles publications. À l’ouverture d’une nouvelle note, Hexa lit les valeurs avant/après quand elles sont structurées dans la page Riot. L’esport distingue résultats de tournoi, ladder daté et effectifs des clubs français vérifiés. Le calendrier regroupe les prochaines compétitions et les événements terminés. Le catalogue PBE génère des noyaux de trait avec des plateaux interactifs à partir du Codex expérimental.
 
 ## Actualisation
+
+Méta vérifie le relevé public OP.GG toutes les cinq minutes en premier plan. Seules les statistiques dont le patch correspond au build et au set EUW apparaissent en tête. La date de publication de la source est affichée séparément de la dernière vérification. La fiche montre la difficulté, les prérequis signalés et le nombre de plateaux recensés. Le placement sur les hexagones est indicatif.
 
 Hexa vérifie les sources en premier plan sans action manuelle. Les vérifications se répètent suivant des intervalles d’au moins 10 minutes pour les catalogues, 5 minutes pour les articles Riot et le calendrier Compete TFT et 15 minutes pour le tracker OP.GG. Une requête d’actualisation est soumise à iOS pour l’arrière-plan. Le système choisit l’heure d’exécution. Les fichiers valides sont conservés en cas d’échec. Une nouvelle version EUW archive le précédent catalogue de compositions lorsqu’il existe. Les anciennes révisions PBE sont conservées pour comparaison.
 

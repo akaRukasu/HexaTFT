@@ -47,7 +47,7 @@ struct VisualCompositionGuide: View {
     private var isTraitDraft: Bool { comp.authored?.traitThresholds != nil }
     private var boards: [GuideBoard] {
         switch mode {
-        case "Final": return [comp.finalBoard]
+        case "Final": return [comp.suggestedPublicBoard(reference: reference) ?? comp.finalBoard]
         case "Niveaux": return comp.guideBoards(level: activeLevel)
         default: return comp.guideBoards(stage: stage)
         }
@@ -100,7 +100,8 @@ struct VisualCompositionGuide: View {
                         if !isTraitDraft { Label("Objet cible", systemImage: "circle.dashed").foregroundStyle(hexaGold) }
                     }.font(.system(size: 10))
                     if !isTraitDraft {
-                        Text(comp.authored == nil ? "Icônes pleines pour les objets observés, pointillés pour les objets visés ou à transférer." : "Équipement conseillé. Les pointillés indiquent les objets à transférer au porteur final.").font(.caption2).foregroundStyle(.secondary)
+                        Text(comp.publishedPlan != nil ? "Équipement publié par OP.GG pour cet archétype." :
+                            comp.authored == nil ? "Icônes pleines pour les objets observés, pointillés pour les objets visés ou à transférer." : "Équipement conseillé. Les pointillés indiquent les objets à transférer au porteur final.").font(.caption2).foregroundStyle(.secondary)
                     }
                     Text(board.sourceLabel).font(.caption2).foregroundStyle(.secondary)
                     if let sample = board.sample { Text("\(sample.formatted()) plateaux / parties dans cet exemple").font(.caption2).foregroundStyle(.secondary) }

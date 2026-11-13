@@ -18,8 +18,8 @@ enum OPGGTracker {
     }
 
     static func parse(_ html: String, identity: RiotIdentity, checkedAt: Date = .now) throws -> RiotProfile {
-        let page = PublicPage(html)
-        guard let data = page.tracker, let profile = page.object(data["profile"]),
+        let page = OPGGPublicPage(html)
+        guard let data = page.payload(containing: ["profile", "selectedSet"]), let profile = page.object(data["profile"]),
               let name = profile["gameName"] as? String, let tag = profile["tagLine"] as? String,
               let region = profile["region"] as? String,
               region == identity.opggProfile?.pathComponents.dropLast().last,
@@ -49,7 +49,7 @@ enum OPGGTracker {
                            source: "OP.GG", checkedAt: checkedAt, publishedPoints: points)
     }
 
-    private static func parseMatch(_ value: Any, page: PublicPage, platform: String) -> TrackedMatch? {
+    private static func parseMatch(_ value: Any, page: OPGGPublicPage, platform: String) -> TrackedMatch? {
         guard let fields = page.object(value), let id = fields["id"] as? String,
               fields["region"] as? String == platform, let time = fields["playedAt"] as? Double, time > 0,
               let placement = (fields["displayPlacement"] ?? fields["placement"]) as? Int,
@@ -71,7 +71,7 @@ enum OPGGTracker {
                             playersEliminated: fields["playersEliminated"] as? Int, source: "OP.GG")
     }
 
-    private static func parsePoints(_ history: [String: Any]?, page: PublicPage, queue: String) -> [RankPoint] {
+    private static func parsePoints(_ history: [String: Any]?, page: OPGGPublicPage, queue: String) -> [RankPoint] {
         guard history?["period"] as? String == "day", let points = page.resolve(history?["points"]) as? [Any] else { return [] }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -86,58 +86,69 @@ enum OPGGTracker {
         }
     }
 
-    private static func timestampDate(_ value: String) -> Date? {
+    static func timestampDate(_ value: String) -> Date? {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions.insert(.withFractionalSeconds)
         if let date = formatter.date(from: value) { return date }
         formatter.formatOptions.remove(.withFractionalSeconds)
         return formatter.date(from: value)
     }
+}
 
-    // Read the JSON that powers the public page, without running its scripts.
-    private struct PublicPage {
-        let rows: [String: Any]
-        let tracker: [String: Any]?
+// Read the JSON that powers the public page, without running its scripts.
+struct OPGGPublicPage {
+    private let rows: [String: Any]
 
-        init(_ html: String) {
-            let pattern = #"self\.__next_f\.push\((\[1,.*?)\)</script>"#
-            let regex = try! NSRegularExpression(pattern: pattern)
-            let chunks = regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap { match -> String? in
-                guard let range = Range(match.range(at: 1), in: html),
-                      let array = try? JSONSerialization.jsonObject(with: Data(html[range].utf8)) as? [Any],
-                      array.count == 2 else { return nil }
-                return array[1] as? String
-            }
-            var rows: [String: Any] = [:]
-            var tracker: [String: Any]?
-            for line in chunks.joined().split(separator: "\n") {
-                guard let colon = line.firstIndex(of: ":") else { continue }
-                let key = String(line[..<colon])
-                let payload = line[line.index(after: colon)...]
-                guard Int(key, radix: 16) != nil, payload.first == "[" || payload.first == "{",
-                      let value = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) else { continue }
-                rows[key] = value
-                if let view = value as? [Any], view.count == 4, let props = view[3] as? [String: Any],
-                   let data = props["data"] as? [String: Any], data["profile"] != nil, data["selectedSet"] != nil {
-                    tracker = data
-                }
-            }
-            self.rows = rows
-            self.tracker = tracker
+    init(_ html: String) {
+        let pattern = #"self\.__next_f\.push\((\[1,.*?)\)</script>"#
+        let regex = try! NSRegularExpression(pattern: pattern)
+        let chunks = regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: html),
+                  let array = try? JSONSerialization.jsonObject(with: Data(html[range].utf8)) as? [Any],
+                  array.count == 2 else { return nil }
+            return array[1] as? String
         }
-
-        func object(_ value: Any?) -> [String: Any]? { resolve(value) as? [String: Any] }
-
-        func resolve(_ value: Any?, depth: Int = 0) -> Any? {
-            guard let reference = value as? String, reference.hasPrefix("$") else { return value }
-            let path = reference.dropFirst().split(separator: ":")
-            guard depth < 8, let id = path.first, var result = rows[String(id)] else { return nil }
-            for key in path.dropFirst() {
-                if let object = result as? [String: Any], let next = object[String(key)] { result = next }
-                else if let array = result as? [Any], let index = key == "props" ? 3 : Int(key), array.indices.contains(index) { result = array[index] }
-                else { return nil }
-            }
-            return resolve(result, depth: depth + 1)
+        var rows: [String: Any] = [:]
+        for line in chunks.joined().split(separator: "\n") {
+            guard let colon = line.firstIndex(of: ":") else { continue }
+            let key = String(line[..<colon])
+            let payload = line[line.index(after: colon)...]
+            guard Int(key, radix: 16) != nil, payload.first == "[" || payload.first == "{",
+                  let value = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) else { continue }
+            rows[key] = value
         }
+        self.rows = rows
+    }
+
+    func payload(containing keys: [String]) -> [String: Any]? {
+        func find(_ value: Any, depth: Int) -> [String: Any]? {
+            guard depth > 0 else { return nil }
+            if let object = value as? [String: Any] {
+                if let data = self.object(object["data"]), keys.allSatisfy({ data[$0] != nil }) { return data }
+                if let children = object["children"] { return find(children, depth: depth - 1) }
+            }
+            if let view = value as? [Any], view.count == 4, view.first as? String == "$" {
+                return find(view[3], depth: depth - 1)
+            }
+            return nil
+        }
+        for key in rows.keys.sorted() {
+            if let row = rows[key], let data = find(row, depth: 8) { return data }
+        }
+        return nil
+    }
+
+    func object(_ value: Any?) -> [String: Any]? { resolve(value) as? [String: Any] }
+
+    func resolve(_ value: Any?, depth: Int = 0) -> Any? {
+        guard let reference = value as? String, reference.hasPrefix("$") else { return value }
+        let path = reference.dropFirst().split(separator: ":")
+        guard depth < 8, let id = path.first, var result = rows[String(id)] else { return nil }
+        for key in path.dropFirst() {
+            if let object = result as? [String: Any], let next = object[String(key)] { result = next }
+            else if let array = result as? [Any], let index = key == "props" ? 3 : Int(key), array.indices.contains(index) { result = array[index] }
+            else { return nil }
+        }
+        return resolve(result, depth: depth + 1)
     }
 }
