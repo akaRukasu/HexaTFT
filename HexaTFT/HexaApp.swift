@@ -45,12 +45,19 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in if phase == .background { HexaApp.scheduleRefresh() } }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
+            await meta.autoRefresh(returningToApp: true)
             while !Task.isCancelled {
-                async let metaSync: Void = meta.autoRefresh()
-                async let riotSync: Void = tracker.autoRefresh()
+                try? await Task.sleep(for: .seconds(60))
+                if !Task.isCancelled { await meta.autoRefresh() }
+            }
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                async let trackerSync: Void = tracker.autoRefresh()
                 async let pbeSync: Void = meta.autoRefreshPBE()
                 async let newsSync: Void = news.refresh()
-                _ = await (metaSync, riotSync, pbeSync, newsSync)
+                _ = await (trackerSync, pbeSync, newsSync)
                 try? await Task.sleep(for: .seconds(60))
             }
         }

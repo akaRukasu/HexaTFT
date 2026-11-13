@@ -117,7 +117,12 @@ struct MetaView: View {
                 }.buttonStyle(.bordered)
             } else {
                 if meta.refreshing { ProgressView("Vérification de la méta OP.GG") }
-                else { Text(meta.publicMetaError ?? "En attente d’un relevé OP.GG vérifié.").font(.caption).foregroundStyle(.secondary) }
+                else if meta.publicMetaIsFromOlderBuild {
+                    Text("Nouveau build EUW détecté. En attente des statistiques du patch.")
+                        .font(.caption).foregroundStyle(.orange)
+                } else {
+                    Text(meta.publicMetaError ?? "En attente d’un relevé OP.GG vérifié.").font(.caption).foregroundStyle(.secondary)
+                }
             }
             if published == nil || showPastReadings {
                 legacyReadings(snapshot, readings: readings, catalogue: catalogue, compatible: compatible, includesArchives: includesArchives)

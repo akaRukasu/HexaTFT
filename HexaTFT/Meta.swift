@@ -326,6 +326,11 @@ struct MetaPack: Codable {
         return publicMeta
     }
 
+    var publicMetaIsFromOlderBuild: Bool {
+        guard let publicMeta, let euwVersion else { return false }
+        return euwVersion.split(separator: ".").prefix(2).joined(separator: ".") != publicMeta.build
+    }
+
     func select(_ channel: PatchSelection.Channel, archiveID: String? = nil) {
         selection = PatchSelection(channel: channel, archiveID: archiveID ?? selection.archiveID)
         try? save(selection, to: "patch-selection.json")
@@ -360,18 +365,24 @@ struct MetaPack: Codable {
         } catch { archiveMessage = error.localizedDescription }
     }
 
-    func autoRefresh() async {
-        guard lastAttempt.map({ Date().timeIntervalSince($0) >= 300 }) ?? true else { return }
+    func autoRefresh(returningToApp: Bool = false) async {
+        let interval: TimeInterval = returningToApp ? 60 : 300
+        guard lastAttempt.map({ Date().timeIntervalSince($0) >= interval }) ?? true else { return }
         await refresh(reference: live?.reference)
     }
 
     func refresh(reference _: ReferenceData?) async {
         guard !refreshing else { return }
+        let previousAttempt = lastAttempt
         refreshing = true; message = nil; lastAttempt = Date()
-        defer { refreshing = false }
+        defer {
+            if Task.isCancelled { lastAttempt = previousAttempt }
+            refreshing = false
+        }
         async let publicResult = OPGGMetaSnapshot.fetch()
         do {
             let euw = try await DragonFeed.liveEUW()
+            try Task.checkCancellation()
             euwVersion = euw
             let branch = euw.split(separator: ".").prefix(2).joined(separator: ".")
             guard branch.range(of: #"^[0-9]+\.[0-9]+$"#, options: .regularExpression) != nil else {
@@ -382,11 +393,13 @@ struct MetaPack: Codable {
             if currentBranch != branch {
                 let revision = try await DragonFeed.build(at: branch)
                 let reference = try await DragonFeed.reference(branch: branch, revision: revision, set: nil)
+                try Task.checkCancellation()
                 let patch = Self.patchNumber(for: branch, set: reference.entries.first?.set)
                 let pack = MetaPack(data: [], retrievedAt: Date().ISO8601Format(), set: reference.entries.first?.set, patch: patch)
                 try install(PatchSnapshot(pack: pack, reference: reference, provider: "Riot · CommunityDragon"))
             }
-            await updatePublicMeta(publicResult, branch: branch)
+            let result = await publicResult
+            updatePublicMeta(result, branch: branch)
             guard !Task.isCancelled else { return }
             guard let feedURL else { return }
             let data = try await DragonFeed.get(feedURL, max: 20_000_000)
@@ -423,7 +436,10 @@ struct MetaPack: Codable {
                 radarPageError = nil
             }
         } catch {
-            if !Task.isCancelled { message = "\(error.localizedDescription) Les dernières fiches restent disponibles." }
+            if !Task.isCancelled {
+                message = "\(error.localizedDescription) Les dernières fiches restent disponibles."
+                if publicMetaError == nil { publicMetaError = "La vérification du patch ou du relevé n’a pas abouti." }
+            }
         }
     }
 
@@ -434,11 +450,12 @@ struct MetaPack: Codable {
         return "18.\(minor - 16)"
     }
 
-    private func updatePublicMeta(_ result: OPGGMetaSnapshot.Page?, branch: String) async {
+    private func updatePublicMeta(_ result: OPGGMetaSnapshot.Page?, branch: String) {
         guard !Task.isCancelled, let reference = live?.reference else { return }
         publicMetaCheckedAt = .now
         guard let result,
-              let snapshot = result.snapshot(reference: reference, branch: branch, patch: live?.pack.patch) else {
+              let snapshot = result.snapshot(reference: reference, branch: branch, patch: live?.pack.patch),
+              acceptsPublicMeta(snapshot) else {
             publicMetaError = "OP.GG ne fournit pas de relevé compatible pour le moment."
             return
         }
@@ -460,6 +477,12 @@ struct MetaPack: Codable {
         } catch {
             publicMetaError = "Impossible d’enregistrer le relevé OP.GG."
         }
+    }
+
+    private func acceptsPublicMeta(_ incoming: OPGGMetaSnapshot) -> Bool {
+        guard let previous = publicMeta, previous.build != incoming.build, previous.pack.set == incoming.pack.set,
+              let oldPatch = previous.pack.patch, let newPatch = incoming.pack.patch else { return true }
+        return newPatch.compare(oldPatch, options: .numeric) == .orderedDescending
     }
 
     func loadNextRadarPage() async {
