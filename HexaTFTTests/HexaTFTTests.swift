@@ -303,6 +303,8 @@ final class HexaTFTTests: XCTestCase {
         XCTAssertEqual(route.steps[.end]?.board.units.map(\.name), roster)
         XCTAssertEqual(route.steps[.end]?.level, 9) // Elder Dragon occupies two slots.
         XCTAssertEqual(route.steps[.end]?.board.units.first?.items, ["DA_VoidStaff"])
+        let morganaCell = try XCTUnwrap(route.steps[.end]?.board.positions.first { $0.unit_api_name == "DA_18_Morgana" }?.board_position)
+        XCTAssertTrue((7..<14).contains(morganaCell)) // Range 2: behind the tank, rather than on the first row.
         for step in route.steps.values {
             let board = step.board
             XCTAssertNil(board.sample)

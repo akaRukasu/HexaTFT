@@ -142,14 +142,16 @@ extension MetaComp {
             if $1.name == frontline { return false }
             return $0.name < $1.name
         }
-        let melee = ordered.filter { $0.name == frontline || (reference.champion(key: $0.name)?.balance?["range"] ?? 1) <= 2 }
-        let meleeKeys = Set(melee.map(\.name))
-        let ranged = ordered.filter { !meleeKeys.contains($0.name) }
-        let first = zip(melee, front + Array(back.dropFirst(ranged.count).reversed()))
-        let second = zip(ranged, back + Array(front.dropFirst(melee.count).reversed()))
-        let positions = (Array(first) + Array(second)).map { unit, cell in
-            MetaPosition(board_position: cell, unit_api_name: unit.name)
+        var occupied: Set<Int> = []
+        return ordered.compactMap { unit in
+            let range = reference.champion(key: unit.name)?.balance?["range"] ?? 1
+            let preferred: [Int]
+            if unit.name == frontline || range <= 1 { preferred = front + back.reversed() }
+            else if range <= 2 { preferred = [10, 9, 11, 8, 12, 7, 13] + front + back }
+            else { preferred = back + front.reversed() }
+            guard let cell = preferred.first(where: { !occupied.contains($0) }) else { return nil }
+            occupied.insert(cell)
+            return MetaPosition(board_position: cell, unit_api_name: unit.name)
         }
-        return positions
     }
 }
