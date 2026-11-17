@@ -106,15 +106,28 @@ struct CompanionView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var stayAwake = false
     @State private var active = false
+    @State private var frozen: MetaComp?
+    @State private var frozenReference: ReferenceData?
+    private var composition: MetaComp? { frozen ?? (meta.comps + meta.editorialComps).first { $0.id == store.state.pinnedID } }
     private func updateIdleTimer() { UIApplication.shared.isIdleTimerDisabled = active && stayAwake && scenePhase == .active }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 PatchPicker()
-                if let composition = (meta.comps + meta.editorialComps).first(where: { $0.id == store.state.pinnedID }) {
+                SessionPracticeCard()
+                if let composition {
                     Text(composition.title(store.reference)).font(.title2.bold())
+                    HStack {
+                        Label(frozen == nil ? "Guide actualisable" : "Guide figé pour cette session",systemImage:frozen == nil ? "arrow.trianglehead.2.clockwise.rotate.90" : "lock.fill").font(.caption).foregroundStyle(.mint)
+                        Spacer()
+                        Button(frozen == nil ? "Figer" : "Actualiser le guide") {
+                            if frozen == nil { frozen = composition; frozenReference = store.reference } else { frozen = nil; frozenReference = nil }
+                        }.buttonStyle(.bordered).accessibilityIdentifier("session-freeze-guide")
+                    }
                     VisualCompositionGuide(comp: composition, stage: Binding(get: { store.state.stage }, set: { store.setStage($0) }))
+                        .environment(\.guideReference, frozenReference)
                     EquipmentRoster(comp: composition)
+                        .environment(\.guideReference, frozenReference)
                     NavigationLink(composition.stats == nil ? "Guide complet" : "Guide complet et statistiques") { MetaDetail(comp: composition) }.buttonStyle(.bordered)
                     Toggle("Garder l’écran allumé ici", isOn: $stayAwake)
                 } else if let pinned = store.state.pinnedID,
@@ -152,5 +165,6 @@ struct CompanionView: View {
         .onDisappear { active = false; updateIdleTimer() }
         .onChange(of: stayAwake) { _, _ in updateIdleTimer() }
         .onChange(of: scenePhase) { _, _ in updateIdleTimer() }
+        .onChange(of: store.state.pinnedID) { _, _ in frozen = nil; frozenReference = nil }
     }
 }

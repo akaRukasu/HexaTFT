@@ -3,7 +3,13 @@ import SwiftUI
 import Charts
 
 struct TrackedMatch: Codable, Identifiable {
-    struct Unit: Codable { let key: String; let stars: Int?; let items: [String]; var name: String? = nil }
+    struct Unit: Codable {
+        let key: String; let stars: Int?; let items: [String]; var name: String? = nil
+        var equipment: [MatchItem]? = nil
+        var cost: Int? = nil
+        var range: Double? = nil
+        var imageURL: String? = nil
+    }
     struct Trait: Codable { let key: String; let count: Int; let tier: Int; var name: String? = nil }
     struct LobbyPlayer: Codable { let placement: Int; let name: String }
     let id: String
@@ -24,6 +30,7 @@ struct TrackedMatch: Codable, Identifiable {
     var playerDamage: Int? = nil
     var playersEliminated: Int? = nil
     var source: String? = nil
+    var augmentsKnown: Bool? = nil
     var date: Date { Date(timeIntervalSince1970: timestamp) }
     var modeName: String {
         switch queue { case 1100: return "Classé"; case 1090: return "Normal"; case 1160: return "Double Up"; case 1130: return "Hyper Roll"; default: return mode ?? "Autre" }
@@ -61,12 +68,15 @@ struct RiotProfile: Codable {
     let id: String
     let riotID: String
     let region: String
-    let observedAt: Double
+    var observedAt: Double
     var matches: [TrackedMatch]
-    let ranks: [Rank]
+    var ranks: [Rank]
     var source: String? = nil
     var checkedAt: Date? = nil
     var publishedPoints: [RankPoint]? = nil
+    var seasons: [SeasonRecord]? = nil
+    var currentSet: Int? = nil
+    var indexedGames: Int? = nil
     var sourceName: String { source ?? "Riot Games · historique local" }
 }
 struct RankPoint: Codable, Identifiable {
@@ -80,6 +90,7 @@ struct TrackerState: Codable {
     var selected: String?
     var region: String = "euw1"
     var riotID: String = ""
+    var archives: [String: [SeasonArchive]]? = nil
 }
 struct RiotIdentity {
     static let regions = [
@@ -130,8 +141,10 @@ struct MatchSummary {
     init(_ matches: [TrackedMatch]) {
         let valid = matches.filter { (1...8).contains($0.placement) }
         count = valid.count
+        guard Set(valid.map(\.queue)).count <= 1 else { average = nil; top4 = nil; wins = nil; return }
         average = valid.isEmpty ? nil : Double(valid.map(\.placement).reduce(0, +)) / Double(valid.count)
-        top4 = valid.isEmpty ? nil : Double(valid.filter { $0.placement <= 4 }.count) / Double(valid.count)
+        let threshold = valid.first?.queue == 1160 ? 2 : 4
+        top4 = valid.isEmpty ? nil : Double(valid.filter { $0.placement <= threshold }.count) / Double(valid.count)
         wins = valid.isEmpty ? nil : Double(valid.filter { $0.placement == 1 }.count) / Double(valid.count)
     }
 }
@@ -149,13 +162,14 @@ struct RankedReview {
     let carries: [Carry]
 
     init(matches: [TrackedMatch]) {
-        recent = Array(matches.filter { $0.queue == 1100 && (1...8).contains($0.placement) }
-            .sorted { $0.timestamp > $1.timestamp }.prefix(10))
+        let set = matches.filter { $0.queue == 1100 }.max { $0.timestamp < $1.timestamp }?.set
+        recent = Array(matches.filter { $0.queue == 1100 && $0.set == set && (1...8).contains($0.placement) }
+            .sorted { $0.timestamp > $1.timestamp }.prefix(30))
         bottomFourWithGold = recent.filter { $0.placement >= 5 && ($0.goldLeft ?? 0) >= 20 }
         var equipped: [String: [(TrackedMatch, TrackedMatch.Unit)]] = [:]
         for match in recent {
             var seen = Set<String>()
-            for unit in match.units where unit.items.count >= 2 && seen.insert(unit.key).inserted {
+            for unit in match.units where unit.completeItems.count >= 2 && seen.insert(unit.key).inserted {
                 equipped[unit.key, default: []].append((match, unit))
             }
         }
@@ -174,6 +188,8 @@ struct RankedReview {
     @Published private(set) var state = TrackerState()
     @Published private(set) var busy = false
     @Published private(set) var message: String?
+    @Published private(set) var archiveLoading: Set<Int> = []
+    @Published private(set) var archiveMessage: String?
     private let file: URL
     private var lastAttempt: Date?
     private var revision = 0
@@ -193,6 +209,15 @@ struct RankedReview {
     }
     var profile: RiotProfile? { state.profiles.first { $0.id + ":" + $0.region == state.selected } }
     var points: [RankPoint] { state.selected.flatMap { state.points[$0] } ?? [] }
+    var archives: [SeasonArchive] { state.selected.flatMap { state.archives?[$0] } ?? [] }
+    var knownSets: [Int] {
+        Set((profile?.currentSet.map { [$0] } ?? []) + (profile?.matches.compactMap(\.set) ?? []) + archives.map(\.set) +
+            (profile?.seasons ?? []).compactMap { Int($0.number) }).sorted(by: >)
+    }
+    func matches(set: Int) -> [TrackedMatch] {
+        let values = (profile?.matches.filter { $0.set == set } ?? []) + (archives.first { $0.set == set }?.matches ?? [])
+        return Dictionary(values.map { ($0.id,$0) }, uniquingKeysWith: { first,_ in first }).values.sorted { $0.timestamp > $1.timestamp }
+    }
 
     var identity: RiotIdentity? { RiotIdentity(state.riotID, region: state.region) }
 
@@ -216,8 +241,8 @@ struct RankedReview {
         message = nil
     }
     func autoRefresh() async {
-        guard lastAttempt.map({ Date().timeIntervalSince($0) >= 900 }) ??
-            (profile?.checkedAt.map { Date().timeIntervalSince($0) >= 900 } ?? true) else { return }
+        guard lastAttempt.map({ Date().timeIntervalSince($0) >= 180 }) ??
+            (profile?.checkedAt.map { Date().timeIntervalSince($0) >= 180 } ?? true) else { return }
         await refresh()
     }
     func refresh() async {
@@ -229,6 +254,13 @@ struct RankedReview {
             let incoming = try await OPGGTracker.fetch(identity)
             guard ticket == revision, !Task.isCancelled else { return }
             try ingest(incoming, for: identity)
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["HEXA_TRACKER_UI_FIXTURE"] != nil { return }
+            #endif
+            if let previous = incoming.seasons?.compactMap({ Int($0.number) }).max(),
+               !archives.contains(where: { $0.set == previous }) {
+                await loadArchive(set: previous)
+            }
         } catch {
             if ticket == revision, !Task.isCancelled {
                 message = (error as? DataIssue)?.localizedDescription ??
@@ -248,7 +280,11 @@ struct RankedReview {
         let key = incoming.id + ":" + incoming.region
         var next = state
         let previous = next.profiles.first { $0.id + ":" + $0.region == key }
-        guard previous.map({ $0.observedAt <= incoming.observedAt }) != false else { return }
+        // A stale profile publication must not discard newer completed matches.
+        if let previous, previous.observedAt > incoming.observedAt {
+            incoming.ranks = previous.ranks
+            incoming.observedAt = previous.observedAt
+        }
         let merged = Dictionary((incoming.matches + (previous?.matches ?? [])).map { ($0.id, $0) }, uniquingKeysWith: { fresh, _ in fresh })
         incoming.matches = merged.values.sorted { $0.timestamp > $1.timestamp }
         next.profiles.removeAll { $0.id + ":" + $0.region == key }
@@ -265,6 +301,42 @@ struct RankedReview {
                 next.points[key, default: []].append(RankPoint(date: date, rank: rank))
             }
         }
+        try persist(next)
+    }
+
+    func loadArchive(set: Int, force: Bool = false) async {
+        guard let identity, let account = state.selected, (1...99).contains(set), !archiveLoading.contains(set) else { return }
+        if !force, let saved = archives.first(where: { $0.set == set }), Date().timeIntervalSince(saved.checkedAt) < 86400 { return }
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HEXA_TRACKER_UI_FIXTURE"] != nil { return }
+        #endif
+        let ticket = revision
+        archiveLoading.insert(set); archiveMessage = nil
+        defer { archiveLoading.remove(set) }
+        do {
+            let archive = try await OPGGTracker.fetchArchive(identity, set: set)
+            guard !Task.isCancelled, revision == ticket, state.selected == account else { return }
+            try ingestArchive(archive)
+        } catch {
+            if !Task.isCancelled, revision == ticket { archiveMessage = "L’archive du set \(set) n’est pas disponible pour le moment. Les données enregistrées sont conservées." }
+        }
+    }
+
+    func ingestArchive(_ archive: SeasonArchive) throws {
+        guard let key = state.selected,
+              archive.matches.allSatisfy({ $0.set == archive.set && $0.queue == 1100 && (1...8).contains($0.placement) }) else {
+            throw DataIssue.invalid("Le mode ou le set de l’archive ne correspond pas.")
+        }
+        var next = state
+        var all = next.archives ?? [:]
+        var entries = all[key] ?? []
+        let previous = entries.first { $0.set == archive.set }
+        guard previous.map({ $0.checkedAt <= archive.checkedAt }) != false else { return }
+        let merged = Dictionary((archive.matches + (previous?.matches ?? [])).map { ($0.id,$0) }, uniquingKeysWith: { first,_ in first })
+        entries.removeAll { $0.set == archive.set }
+        entries.append(SeasonArchive(set: archive.set, matches: merged.values.sorted { $0.timestamp > $1.timestamp },
+                                     checkedAt: archive.checkedAt, indexedGames: archive.indexedGames, indexedTop4: archive.indexedTop4))
+        all[key] = entries.sorted { $0.set > $1.set }; next.archives = all
         try persist(next)
     }
 
@@ -441,7 +513,7 @@ struct TrackerDashboard: View {
     let points: [RankPoint]
     @State private var tab: Tab = .summary
     @State private var window = 20
-    @State private var mode: String?
+    @State private var mode: String? = "Classé"
     @State private var selectedSet: Int?
     @State private var selectedPatch: String?
     @State private var rankPeriod = 30
@@ -453,10 +525,11 @@ struct TrackerDashboard: View {
 
     private var recent: [TrackedMatch] {
         Array(profile.matches.filter {
-            (mode == nil || $0.modeName == mode) && (selectedSet == nil || $0.set == selectedSet) &&
+            $0.modeName == mode && $0.set == activeSet &&
             (selectedPatch == nil || $0.patch == selectedPatch)
         }.prefix(window))
     }
+    private var activeSet: Int? { selectedSet ?? profile.currentSet ?? profile.matches.first?.set }
 
     var body: some View {
         Section {
@@ -469,6 +542,9 @@ struct TrackerDashboard: View {
             filters
             performance
             rankedReview
+            Section {
+                NavigationLink { AnalystView() } label: { Label("Ouvrir mon analyste personnel", systemImage: "sparkle.magnifyingglass") }
+            }
             if !recent.isEmpty {
                 Section("Derniers résultats") {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -503,7 +579,7 @@ struct TrackerDashboard: View {
     }
 
     @ViewBuilder private var rankedReview: some View {
-        let review = RankedReview(matches: profile.matches)
+        let review = RankedReview(matches: recent)
         if review.recent.count >= 3 {
             Section {
                 Panel {
@@ -512,7 +588,7 @@ struct TrackerDashboard: View {
                         .font(.caption).foregroundStyle(.secondary)
                     if !review.bottomFourWithGold.isEmpty {
                         Text("Or gardé à l’élimination").font(.subheadline.bold()).foregroundStyle(hexaGold)
-                        Text("\(review.bottomFourWithGold.count) sorties hors du Top 4 avec au moins 20 PO restants. Quand tu risques de sortir au prochain combat, utilise ton or pour améliorer ton plateau.")
+                        Text("\(review.bottomFourWithGold.count) sorties hors du Top 4 avec au moins 20 PO restants. Revois la destination prévue de cette réserve. L’or final ne dit pas à quel moment une dépense était possible.")
                             .font(.subheadline)
                     }
                     ForEach(review.carries.prefix(4)) { unit in
@@ -531,7 +607,7 @@ struct TrackerDashboard: View {
                             }
                         }
                     }
-                    Text("Unités avec au moins 2 objets sur le plateau final. Plusieurs unités peuvent apparaître dans la même partie.")
+                    Text("Unités avec au moins 2 objets complets sur le plateau final. Plusieurs unités peuvent apparaître dans la même partie.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
@@ -571,18 +647,16 @@ struct TrackerDashboard: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Sélection").font(.subheadline.bold())
-                    Text(([mode ?? "Tous les modes", "\(window) parties max."] +
-                          [selectedSet.map { "Set \($0)" }, selectedPatch].compactMap { $0 }).joined(separator: " · "))
+                    Text(([mode ?? "Classé", "\(window) parties max."] +
+                          [activeSet.map { "Set \($0)" }, selectedPatch].compactMap { $0 }).joined(separator: " · "))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
                 Menu {
                     Picker("Mode", selection: $mode) {
-                        Text("Tous les modes").tag(nil as String?)
                         ForEach(Set(profile.matches.map(\.modeName)).sorted(), id: \.self) { Text($0).tag(Optional($0)) }
                     }
-                    Picker("Set", selection: $selectedSet) {
-                        Text("Tous les sets").tag(nil as Int?)
+                    Picker("Set", selection: Binding(get: { activeSet }, set: { selectedSet = $0 })) {
                         ForEach(Set(profile.matches.compactMap(\.set)).sorted(by: >), id: \.self) { Text("Set \($0)").tag(Optional($0)) }
                     }
                     Picker("Version du jeu", selection: $selectedPatch) {
@@ -610,7 +684,7 @@ struct TrackerDashboard: View {
                         HStack { performanceMetrics(average, top4, wins) }
                         VStack(alignment: .leading) { performanceMetrics(average, top4, wins) }
                     }
-                    Chart(1...8, id: \.self) { place in
+                    Chart(1...(recent.first?.queue == 1160 ? 4 : 8), id: \.self) { place in
                         BarMark(x: .value("Place", String(place)), y: .value("Parties", recent.filter { $0.placement == place }.count))
                             .foregroundStyle(place == 1 ? hexaGold.gradient : place <= 4 ? Color.mint.gradient : Color.orange.gradient)
                             .cornerRadius(4)
@@ -624,7 +698,7 @@ struct TrackerDashboard: View {
 
     @ViewBuilder private func performanceMetrics(_ average: Double, _ top4: Double, _ wins: Double) -> some View {
         DashboardMetric(title: "Moyenne", value: average.formatted(.number.precision(.fractionLength(2))))
-        DashboardMetric(title: "Top 4", value: top4.formatted(.percent.precision(.fractionLength(1))), accent: .mint)
+        DashboardMetric(title: recent.first?.queue == 1160 ? "Top 2" : "Top 4", value: top4.formatted(.percent.precision(.fractionLength(1))), accent: .mint)
         DashboardMetric(title: "Top 1", value: wins.formatted(.percent.precision(.fractionLength(1))))
     }
 
@@ -760,6 +834,7 @@ struct TrackerSettingsView: View {
 
 struct TrackedMatchView: View {
     @EnvironmentObject private var meta: MetaStore
+    @EnvironmentObject private var tracker: TrackerStore
     let match: TrackedMatch
     private var reference: ReferenceData? { meta.matchReference(match) }
     private func name(_ key: String, kind: String, fallback: String? = nil) -> String {
@@ -782,6 +857,9 @@ struct TrackedMatchView: View {
                 if let gold = match.goldLeft { LabeledContent("Or restant", value: gold.formatted()) }
                 if let damage = match.playerDamage { LabeledContent("Dégâts aux tacticiens", value: damage.formatted()) }
                 if let eliminated = match.playersEliminated { LabeledContent("Tacticiens éliminés", value: eliminated.formatted()) }
+            }
+            if match.queue == 1100 {
+                Section { NavigationLink { MatchAnalysisView(match: match, account: tracker.state.selected ?? "") } label: { Label("Comprendre cette partie", systemImage: "sparkle.magnifyingglass") } }
             }
             Section("Équipe finale") {
                 Text("Champions et objets en fin de partie · positionnement indisponible").font(.caption).foregroundStyle(.secondary)

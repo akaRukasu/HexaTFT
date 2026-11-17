@@ -695,7 +695,7 @@ struct MetaDetail: View {
            let profile = tracker.profile {
             let matches = Array(profile.matches.filter { match in
                 match.queue == 1100 && match.set.map(String.init) == set &&
-                match.patch == patch && match.units.contains { $0.key == carry && $0.items.count >= 2 }
+                match.patch == patch && match.units.contains { $0.key == carry && $0.completeItems.count >= 2 }
             }.prefix(10))
             if !matches.isEmpty {
                 Panel {

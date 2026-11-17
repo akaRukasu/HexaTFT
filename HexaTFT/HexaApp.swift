@@ -6,6 +6,7 @@ import BackgroundTasks
     @StateObject private var meta = MetaStore()
     @StateObject private var tracker = TrackerStore()
     @StateObject private var news = RiotNewsStore()
+    @StateObject private var analyst = AnalystStore()
     private static let refreshIdentifier = "com.example.HexaTFT.refresh"
     static func scheduleRefresh() {
         let request = BGAppRefreshTaskRequest(identifier: refreshIdentifier)
@@ -14,7 +15,7 @@ import BackgroundTasks
     }
     var body: some Scene {
         WindowGroup {
-            RootView().environmentObject(store).environmentObject(meta).environmentObject(tracker).environmentObject(news).preferredColorScheme(.dark).tint(hexaGold)
+            RootView().environmentObject(store).environmentObject(meta).environmentObject(tracker).environmentObject(news).environmentObject(analyst).preferredColorScheme(.dark).tint(hexaGold)
         }
         .backgroundTask(.appRefresh(Self.refreshIdentifier)) {
             Self.scheduleRefresh()
@@ -37,7 +38,7 @@ struct RootView: View {
         TabView {
             NavigationStack { MetaView() }.id(meta.selection).id(meta.reference?.version).tabItem { Label("Méta", systemImage: "square.stack.3d.up") }
             NavigationStack { CompanionView() }.tabItem { Label("Partie", systemImage: "play.rectangle") }
-            NavigationStack { PatchHubView() }.tabItem { Label("Patches", systemImage: "calendar") }
+            NavigationStack { AnalystView() }.tabItem { Label("Analyse", systemImage: "sparkle.magnifyingglass") }
             NavigationStack { TrackerView() }.tabItem { Label("Tracker", systemImage: "chart.xyaxis.line") }
             NavigationStack { UltimateLibraryView() }.tabItem { Label("Plus", systemImage: "ellipsis") }
         }

@@ -2,7 +2,18 @@ import Foundation
 
 enum OPGGTracker {
     static func fetch(_ identity: RiotIdentity) async throws -> RiotProfile {
-        guard let url = identity.opggProfile else { throw DataIssue.invalid("Ce serveur TFT n’est pas disponible sur OP.GG.") }
+        guard let url = profileURL(identity) else { throw DataIssue.invalid("Ce serveur TFT n’est pas disponible sur OP.GG.") }
+        return try await load(url, identity: identity)
+    }
+
+    static func profileURL(_ identity: RiotIdentity, set: Int? = nil) -> URL? {
+        guard let base = identity.opggProfile, var parts = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return nil }
+        parts.queryItems = [URLQueryItem(name: "queueType", value: "RANKED_TFT")]
+        if let set { parts.queryItems?.append(URLQueryItem(name: "set", value: String(set))) }
+        return parts.url
+    }
+
+    private static func load(_ url: URL, identity: RiotIdentity) async throws -> RiotProfile {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
         request.setValue("text/html", forHTTPHeaderField: "Accept")
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -46,7 +57,46 @@ enum OPGGTracker {
         }
         return RiotProfile(id: "opgg:" + identity.riotID.lowercased(), riotID: name + "#" + tag, region: identity.region,
                            observedAt: updated.timeIntervalSince1970, matches: matches, ranks: ranks,
-                           source: "OP.GG", checkedAt: checkedAt, publishedPoints: points)
+                           source: "OP.GG", checkedAt: checkedAt, publishedPoints: points,
+                           seasons: parseSeasons(data, page: page), currentSet: data["selectedSet"] as? Int,
+                           indexedGames: page.object(page.object(data["season"])?["summary"])?["games"] as? Int)
+    }
+
+    private static func parseSeasons(_ data: [String: Any], page: OPGGPublicPage) -> [SeasonRecord] {
+        guard let profile = page.object(data["profile"]) else { return [] }
+        let available = (page.resolve(data["seasons"]) as? [Any] ?? []).compactMap { page.object($0) }
+        return (page.resolve(profile["previousSeasons"]) as? [Any] ?? []).compactMap { value in
+            guard let row = page.object(value), let id = row["setName"] as? String,
+                  let number = available.first(where: { $0["setName"] as? String == id })?["set"] as? NSNumber else { return nil }
+            let ranks = (page.resolve(row["ranks"]) as? [Any] ?? []).compactMap { entry -> RiotProfile.Rank? in
+                guard let fields = page.object(entry), let queue = fields["queueType"] as? String,
+                      let tier = fields["tier"] as? String, let lp = fields["points"] as? Int,
+                      fields["pointsType"] as? String == "LP" else { return nil }
+                return RiotProfile.Rank(queue: queue, tier: tier, division: fields["division"] as? String ?? "", lp: lp,
+                                        wins: nil, losses: nil, games: fields["games"] as? Int, top4Count: fields["top4Count"] as? Int)
+            }
+            return SeasonRecord(id: id, number: number.stringValue, ranks: ranks)
+        }
+    }
+
+    static func fetchArchive(_ identity: RiotIdentity, set: Int) async throws -> SeasonArchive {
+        guard let url = profileURL(identity, set: set) else { throw DataIssue.invalid("Archive indisponible.") }
+        let data = try await DragonFeed.get(url, max: 8_000_000)
+        guard let html = String(data: data, encoding: .utf8) else { throw DataIssue.invalid("Archive illisible.") }
+        return try await Task.detached(priority: .utility) { try parseArchive(html, identity: identity, set: set) }.value
+    }
+
+    static func parseArchive(_ html: String, identity: RiotIdentity, set: Int, checkedAt: Date = .now) throws -> SeasonArchive {
+        let profile = try parse(html, identity: identity, checkedAt: checkedAt)
+        let page = OPGGPublicPage(html)
+        guard profile.currentSet == set, let data = page.payload(containing: ["profile", "selectedSet"]),
+              data["queueType"] as? String == "RANKED_TFT" else { throw DataIssue.invalid("Cette archive solo n’est pas fournie pour le set demandé.") }
+        let summary = page.object(page.object(data["season"])?["summary"])
+        let counts = page.resolve(summary?["placements"]) as? [Int]
+        let count = summary?["games"] as? Int
+        let valid = counts?.count == 8 && counts?.reduce(0,+) == count && counts?.allSatisfy({ $0 >= 0 }) == true
+        return SeasonArchive(set: set, matches: profile.matches.filter { $0.set == set && $0.queue == 1100 }, checkedAt: checkedAt,
+                             indexedGames: valid ? count : nil, indexedTop4: valid ? counts?.prefix(4).reduce(0,+) : nil)
     }
 
     private static func parseMatch(_ value: Any, page: OPGGPublicPage, platform: String) -> TrackedMatch? {
@@ -56,8 +106,17 @@ enum OPGGTracker {
               (1...8).contains(placement) else { return nil }
         let units = (page.resolve(fields["units"]) as? [Any] ?? []).compactMap { value -> TrackedMatch.Unit? in
             guard let unit = page.object(value), let key = unit["key"] as? String else { return nil }
-            let items = (page.resolve(unit["items"]) as? [Any] ?? []).compactMap { page.object($0)?["key"] as? String }
-            return TrackedMatch.Unit(key: key, stars: unit["star"] as? Int, items: items, name: unit["name"] as? String)
+            let equipment = (page.resolve(unit["items"]) as? [Any] ?? []).compactMap { value -> MatchItem? in
+                guard let item = page.object(value), let key = item["key"] as? String else { return nil }
+                return MatchItem(key: key, name: item["name"] as? String ?? key, category: item["category"] as? String,
+                                 imageURL: item["imageUrl"] as? String,
+                                 components: (page.resolve(item["componentItems"]) as? [Any])?.compactMap { page.object($0)?["name"] as? String },
+                                 effect: item["description"] as? String)
+            }
+            let stats = page.object(unit["combatStats"])
+            return TrackedMatch.Unit(key: key, stars: unit["star"] as? Int, items: equipment.map(\.key), name: unit["name"] as? String,
+                                     equipment: unit["items"] == nil ? nil : equipment, cost: unit["cost"] as? Int, range: stats?["range"] as? Double,
+                                     imageURL: unit["imageUrl"] as? String)
         }
         let traits = (page.resolve(fields["traits"]) as? [Any] ?? []).compactMap { value -> TrackedMatch.Trait? in
             guard let trait = page.object(value), let key = trait["key"] as? String, let count = trait["count"] as? Int else { return nil }
@@ -68,7 +127,7 @@ enum OPGGTracker {
                             level: fields["level"] as? Int, units: units, traits: traits, augments: [], lobby: [],
                             duration: fields["durationSeconds"] as? Double, lastRound: fields["lastRound"] as? Int,
                             goldLeft: fields["goldLeft"] as? Int, playerDamage: fields["damage"] as? Int,
-                            playersEliminated: fields["playersEliminated"] as? Int, source: "OP.GG")
+                            playersEliminated: fields["playersEliminated"] as? Int, source: "OP.GG", augmentsKnown: false)
     }
 
     private static func parsePoints(_ history: [String: Any]?, page: OPGGPublicPage, queue: String) -> [RankPoint] {

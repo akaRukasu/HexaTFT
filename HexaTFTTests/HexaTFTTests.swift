@@ -388,7 +388,7 @@ final class HexaTFTTests: XCTestCase {
     }
 
     func testRankedReviewUsesFinishedRankedGamesAndRepeatedEquippedUnits() {
-        let yi = TrackedMatch.Unit(key: "yi", stars: 2, items: ["one", "two"])
+        let yi = TrackedMatch.Unit(key: "yi", stars: 2, items: ["one", "two"], equipment: [MatchItem(key:"one",name:"one",category:"core"),MatchItem(key:"two",name:"two",category:"core")])
         let unbuilt = TrackedMatch.Unit(key: "ahri", stars: 1, items: ["one"])
         let matches = [(1, 8, 40, 1090), (2, 7, 41, 1100), (3, 5, 0, 1100), (4, 3, 40, 1100)]
             .map { index, place, gold, queue in

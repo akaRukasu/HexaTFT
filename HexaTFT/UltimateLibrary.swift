@@ -551,6 +551,7 @@ struct UltimateLibraryView: View {
         List {
             Section { HexaBrand() }
             Section("Explorer") {
+                NavigationLink { PatchHubView() } label: { Label("Patches", systemImage: "calendar") }.accessibilityIdentifier("library-patches")
                 NavigationLink { EsportView() } label: { Label("Esport", systemImage: "trophy") }
                 NavigationLink { CodexView() } label: { Label("Codex", systemImage: "books.vertical") }
                 NavigationLink { BoardView() } label: { Label("Plateau personnel", systemImage: "hexagon") }

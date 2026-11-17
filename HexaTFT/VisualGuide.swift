@@ -170,6 +170,7 @@ struct VisualCompositionGuide: View {
                             Button { advance(1) } label: { Label("Suivante", systemImage: "chevron.right") }.disabled(stage == Stage.allCases.last).accessibilityIdentifier("guide-next")
                         }.buttonStyle(.bordered)
                     }
+                    if !isTraitDraft { GuidePlaybook(comp: comp, stage: stage, board: board) }
                 }
             } else {
                 ContentUnavailableView("Aucun parcours compatible", systemImage: "hexagon", description: Text("Le plateau final reste disponible. Les étapes Hexa nécessitent un guide compatible avec cette version du set."))

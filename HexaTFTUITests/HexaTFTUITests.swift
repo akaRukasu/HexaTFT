@@ -87,7 +87,8 @@ final class HexaTFTUITests: XCTestCase {
         pbeCard.tap()
         XCTAssertTrue(app.segmentedControls["guide-mode"].waitForExistence(timeout: 8))
         snapshot("21-pbe-guide")
-        app.tabBars.buttons["Patches"].tap()
+        app.tabBars.buttons["Plus"].tap()
+        app.buttons["library-patches"].tap()
         XCTAssertTrue(app.navigationBars["Patches"].exists)
         XCTAssertTrue(app.staticTexts["Laboratoire PBE"].exists)
         snapshot("10-patches")
@@ -305,7 +306,8 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(recipe.exists)
         snapshot("24-radar-objets")
         app.buttons["Fermer"].tap()
-        app.tabBars.buttons["Patches"].tap()
+        app.tabBars.buttons["Plus"].tap()
+        app.buttons["library-patches"].tap()
         let notes = app.buttons["Notes du patch 18.6"]
         for _ in 0..<3 where !notes.isHittable { app.swipeUp() }
         XCTAssertTrue(notes.exists)
@@ -313,6 +315,8 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Patch 18.6"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "patch-category").firstMatch.exists)
         snapshot("18-release-notes")
+        app.navigationBars["Patch 18.6"].buttons.firstMatch.tap()
+        app.navigationBars["Patches"].buttons.firstMatch.tap()
         app.tabBars.buttons["Plus"].tap()
         app.buttons["Esport"].tap()
         let tabs = app.segmentedControls["esport-tabs"]
@@ -331,6 +335,83 @@ final class HexaTFTUITests: XCTestCase {
         players.buttons["Clubs FR"].tap()
         XCTAssertTrue(app.staticTexts["Gentle Mates"].waitForExistence(timeout: 8))
         snapshot("22-esport-clubs")
+    }
+    @MainActor func testAnalystFindingsTrainingCohortsAndDialogue() throws {
+        let app = try analystApp()
+        app.launch()
+        app.tabBars.buttons["Analyse"].tap()
+        let sections = app.segmentedControls["analyst-sections"]
+        XCTAssertTrue(sections.waitForExistence(timeout:10))
+        let finding = app.buttons["finding-stability"]
+        reveal(finding,in:app)
+        snapshot("34-analyse-bilan")
+        finding.tap()
+        XCTAssertTrue(app.staticTexts["Fait observé"].waitForExistence(timeout:8))
+        XCTAssertTrue(app.staticTexts["Piste à examiner"].exists)
+        snapshot("35-analyse-preuves")
+        let goal = app.buttons["analyst-start-goal"]
+        reveal(goal,in:app); goal.tap()
+        XCTAssertTrue(app.buttons["Objectif enregistré"].exists)
+        app.navigationBars["Les preuves"].buttons.firstMatch.tap()
+        reveal(sections,in:app,up:false)
+        sections.buttons["Porteurs"].tap()
+        let morgana = app.buttons["analysis-carry-DA_18_Morgana"]
+        reveal(morgana,in:app); morgana.tap()
+        XCTAssertTrue(app.staticTexts["1 étoile"].waitForExistence(timeout:8))
+        snapshot("36-analyse-porteurs")
+        app.navigationBars["Les étoiles et les résultats"].buttons.firstMatch.tap()
+        reveal(sections,in:app,up:false)
+        sections.buttons["Parcours"].tap()
+        let activeGoal = app.descendants(matching:.any).matching(identifier:"analyst-active-goal").firstMatch
+        reveal(activeGoal,in:app)
+        XCTAssertTrue(app.staticTexts["0/10 nouvelles parties reçues"].exists)
+        snapshot("37-analyse-parcours")
+        reveal(sections,in:app,up:false)
+        sections.buttons["Dialogue"].tap()
+        let question = app.buttons["Que montrent mes objets ?"]
+        reveal(question,in:app); question.tap()
+        let answer = app.descendants(matching:.any).matching(identifier:"analyst-answer").firstMatch
+        reveal(answer,in:app)
+        XCTAssertTrue(answer.exists)
+        snapshot("38-analyse-dialogue")
+    }
+    @MainActor func testAnalystMatchEquipmentAndPersonalNote() throws {
+        let app = try analystApp()
+        app.launch(); app.tabBars.buttons["Analyse"].tap()
+        let row = app.buttons["analysis-match-analysis-1"]
+        reveal(row,in:app); row.tap()
+        XCTAssertTrue(app.navigationBars["Analyse du match"].waitForExistence(timeout:8))
+        let equipment = app.staticTexts["1 ★ · 3 objets complets"]
+        reveal(equipment,in:app)
+        snapshot("39-analyse-equipement")
+        let note = app.descendants(matching:.any).matching(identifier:"analyst-match-note").firstMatch
+        reveal(note,in:app); note.tap(); note.typeText("Transition a revoir")
+        app.buttons["Enregistrer ma note"].tap()
+        XCTAssertEqual(note.value as? String,"Transition a revoir")
+    }
+    @MainActor private func reveal(_ element: XCUIElement, in app: XCUIApplication, up: Bool = true) {
+        for _ in 0..<12 {
+            if element.isHittable { break }
+            if up { app.swipeUp() } else { app.swipeDown() }
+        }
+        XCTAssertTrue(element.isHittable, "Élément introuvable : \(element.identifier)")
+    }
+    @MainActor private func analystApp() throws -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
+        let items: [[String:Any]] = [("DA_VoidStaff","Bâton du vide"),("DA_JeweledGauntlet","Gantelet précieux"),("DA_HextechGunblade","Pistolame Hextech")].map { ["key":$0.0,"name":$0.1,"category":"core"] }
+        let matches: [[String:Any]] = (1...3).map { index in
+            ["id":"analysis-\(index)","timestamp":Date.now.timeIntervalSince1970 - Double(index*3600),"patch":"18.6","set":18,"queue":1100,"placement":index == 2 ? 2 : 8,"level":8,"goldLeft":index == 2 ? 5 : 41,"source":"OP.GG","augmentsKnown":false,
+             "units":[["key":"DA_18_Morgana","name":"Morgana","stars":index == 2 ? 2 : 1,"items":items.map { $0["key"]! },"equipment":items,"cost":4,"range":1],
+                      ["key":"DA_18_Cassiopeia","name":"Cassiopeia","stars":2,"items":[],"equipment":[],"cost":3,"range":1]],
+             "traits":[],"augments":[],"lobby":[]]
+        }
+        let profile: [String:Any] = ["id":"opgg:fixture#euw","riotID":"Fixture#EUW","region":"euw1","source":"OP.GG","observedAt":Date.now.timeIntervalSince1970,"currentSet":18,"matches":matches,
+                                   "ranks":[["queue":"RANKED_TFT","tier":"SILVER","division":"II","lp":22,"games":14,"top4Count":6]],
+                                   "seasons":[["id":"TFTSet17","number":"17","ranks":[["queue":"RANKED_TFT","tier":"GOLD","division":"III","lp":45,"games":76,"top4Count":39]]]]]
+        let state: [String:Any] = ["region":"euw1","riotID":"Fixture#EUW","selected":"opgg:fixture#euw:euw1","points":[:],"profiles":[profile]]
+        app.launchEnvironment["HEXA_TRACKER_UI_FIXTURE"] = String(decoding:try JSONSerialization.data(withJSONObject:state),as:UTF8.self)
+        return app
     }
     @MainActor private func snapshot(_ name: String) {
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
