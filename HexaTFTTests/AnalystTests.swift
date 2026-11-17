@@ -2,6 +2,13 @@ import XCTest
 @testable import HexaTFT
 
 final class AnalystTests: XCTestCase {
+    func testPublicAccountWithNativeNetworking() async throws {
+        let identity = try XCTUnwrap(RiotIdentity("akarukasu#1703",region:"euw1"))
+        let profile = try await OPGGTracker.fetch(identity)
+        XCTAssertEqual(profile.riotID.lowercased(),identity.riotID.lowercased())
+        XCTAssertFalse(profile.matches.isEmpty)
+        XCTAssertNotNil(profile.ranks.first { $0.queue == "RANKED_TFT" })
+    }
     private func fixture<T: Decodable>(_ name: String, as type: T.Type) throws -> T {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: name, withExtension: "json"))
         return try JSONDecoder().decode(T.self, from: Data(contentsOf: url))
