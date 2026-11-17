@@ -265,11 +265,11 @@ struct RankedReview {
 
     // The visible request owns its network task. Cancelling a view must not leave
     // a failed attempt suppressing the next foreground refresh.
-    private func fetch(_ identity: RiotIdentity, preferredSource: String? = nil) async throws -> RiotProfile {
+    private func fetch(_ identity: RiotIdentity) async throws -> RiotProfile {
         let loader = self.loader
         let task = Task {
             if let loader { return try await loader(identity) }
-            return try await TrackerProfileSources.fetch(identity, preferred: preferredSource)
+            return try await TrackerProfileSources.fetch(identity)
         }
         request = task
         return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
@@ -282,8 +282,7 @@ struct RankedReview {
         busy = true; message = nil; syncInfo = nil
         defer { if ticket == revision { busy = false; request = nil } }
         do {
-            let preferred = self.identity == identity ? profile?.source : nil
-            let incoming = try await fetch(identity, preferredSource: preferred)
+            let incoming = try await fetch(identity)
             try Task.checkCancellation()
             guard ticket == revision else { throw CancellationError() }
             var next = state
@@ -321,7 +320,7 @@ struct RankedReview {
         defer { if ticket == revision { busy = false; request = nil } }
         do {
             let previousIDs = Set(profile?.matches.map(\.id) ?? [])
-            let incoming = try await fetch(identity, preferredSource: profile?.source)
+            let incoming = try await fetch(identity)
             try Task.checkCancellation()
             guard ticket == revision else { return }
             try ingest(incoming, for: identity)

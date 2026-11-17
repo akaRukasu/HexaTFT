@@ -311,6 +311,27 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(info.label.contains("Tactics.Tools"))
         snapshot("41-tracker-actualisation")
     }
+    @MainActor func testTrackerReadsFrenchOPGGWithoutUsingTheFallback() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(fr)", "-AppleLocale", "fr_FR"]
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
+        app.launchEnvironment["HEXA_TRACKER_UI_FIXTURE"] = #"{"profiles":[],"points":{},"region":"euw1","riotID":""}"#
+        app.launchEnvironment["HEXA_TACTICS_TRACKER_FIXTURE"] = "<html><title>Secours désactivé pour ce test</title></html>"
+        app.launch()
+        app.tabBars.buttons["Tracker"].tap()
+        app.buttons["tracker-edit-account"].tap()
+        let field = app.textFields["Pseudo#TAG"]
+        XCTAssertTrue(field.waitForExistence(timeout: 8))
+        field.tap()
+        field.typeText("akarukasu#1703")
+        app.buttons["tracker-save"].tap()
+        XCTAssertTrue(field.waitForNonExistence(timeout: 45), app.debugDescription)
+        let info = app.staticTexts["tracker-sync-result"]
+        XCTAssertTrue(info.waitForExistence(timeout: 8))
+        XCTAssertTrue(info.label.contains("OP.GG"))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Dernière partie reçue")).firstMatch.exists)
+        snapshot("44-tracker-opgg-francais")
+    }
     @MainActor func testTrackerConnectionErrorKeepsTheFormAndPreviousAccount() throws {
         let app = try analystApp()
         let tree: [Any] = ["$","$L2",NSNull(),["data":["profile":NSNull(),"selectedSet":18,"status":"not_found"]]]

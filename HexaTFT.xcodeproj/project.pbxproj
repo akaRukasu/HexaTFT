@@ -455,12 +455,23 @@
 			"isa" = "PBXBuildFile";
 			"fileRef" = "7D0B4AE3D10721AF2295F03F";
 		};
+		"BBF444782FEFB3830C9C9EE5" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "text.json";
+			"path" = "opgg-french-flight.json";
+			"sourceTree" = "<group>";
+		};
+		"8AC53C2DFDEFA7B8C01A7ADB" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "BBF444782FEFB3830C9C9EE5";
+		};
 		"17054545C5BC7D635BE3E9F4" = {
 			"isa" = "PBXGroup";
 			"children" = (
 				"9FDEADAD66D0962FC4F12F1A",
 				"D65B54C68839CD22C0DEA6D9",
 				"7D0B4AE3D10721AF2295F03F",
+				"BBF444782FEFB3830C9C9EE5",
 			);
 			"path" = "Fixtures";
 			"sourceTree" = "<group>";
@@ -588,6 +599,7 @@
 				"F05313C554675124D4402AE8",
 				"2E53002A317022794A2D9EAB",
 				"4DE42B4306968D9A3F46833A",
+				"8AC53C2DFDEFA7B8C01A7ADB",
 			);
 			"runOnlyForDeploymentPostprocessing" = "0";
 		};
@@ -640,8 +652,8 @@
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
 				"INFOPLIST_KEY_UISupportedInterfaceOrientations" = "UIInterfaceOrientationPortrait";
 				"TARGETED_DEVICE_FAMILY" = "1";
-				"MARKETING_VERSION" = "1.0.2";
-				"CURRENT_PROJECT_VERSION" = "17";
+				"MARKETING_VERSION" = "1.0.3";
+				"CURRENT_PROJECT_VERSION" = "18";
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";
@@ -664,8 +676,8 @@
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
 				"INFOPLIST_KEY_UISupportedInterfaceOrientations" = "UIInterfaceOrientationPortrait";
 				"TARGETED_DEVICE_FAMILY" = "1";
-				"MARKETING_VERSION" = "1.0.2";
-				"CURRENT_PROJECT_VERSION" = "17";
+				"MARKETING_VERSION" = "1.0.3";
+				"CURRENT_PROJECT_VERSION" = "18";
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"SWIFT_EMIT_LOC_STRINGS" = "YES";

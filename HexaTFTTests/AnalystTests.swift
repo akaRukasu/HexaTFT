@@ -68,10 +68,29 @@ final class AnalystTests: XCTestCase {
 
     func testPublicAccountWithNativeNetworking() async throws {
         let identity = try XCTUnwrap(RiotIdentity("akarukasu#1703",region:"euw1"))
-        let profile = try await OPGGTracker.fetch(identity)
+        let profile = try await OPGGTracker.fetchLocalized(identity, language: "fr")
         XCTAssertEqual(profile.riotID.lowercased(),identity.riotID.lowercased())
         XCTAssertFalse(profile.matches.isEmpty)
         XCTAssertNotNil(profile.ranks.first { $0.queue == "RANKED_TFT" })
+    }
+
+    func testOPGGFrenchTextFramePrecedingProfileUsesUTF8ByteLengths() throws {
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "opgg-french-flight", withExtension: "json"))
+        let payload = try JSONDecoder().decode([String].self, from: Data(contentsOf: url))
+        var scripts: [String] = []
+        for part in payload {
+            let array = String(decoding: try JSONSerialization.data(withJSONObject: [1, part]), as: UTF8.self)
+            scripts.append("<script nonce=\"fixture\">self.__next_f.push(\(array));\n</script>")
+        }
+        let identity = try XCTUnwrap(RiotIdentity("Fixture#EUW", region: "euw1"))
+        let profile = try OPGGTracker.parse(scripts.joined(), identity: identity)
+        XCTAssertEqual(profile.source, "OP.GG")
+        XCTAssertEqual(profile.ranks.first?.lp, 71)
+        XCTAssertEqual(profile.matches.count, 2)
+        XCTAssertEqual(profile.matches.first?.placement, 5)
+        XCTAssertNotNil(profile.matches.first?.goldLeft)
+        let items = profile.matches.first?.units.flatMap { $0.equipment ?? [] } ?? []
+        XCTAssertTrue(items.contains { $0.effect?.contains("Active") == true })
     }
     @MainActor func testConnectLoadsBeforeSavingAndReconnectsTheSameIdentityImmediately() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

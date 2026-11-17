@@ -3,18 +3,15 @@ import Foundation
 enum TrackerProfileSources {
     typealias Loader = (RiotIdentity) async throws -> RiotProfile
 
-    static func fetch(_ identity: RiotIdentity, preferred: String? = nil,
+    static func fetch(_ identity: RiotIdentity,
                       opgg: Loader = OPGGTracker.fetch, tactics: Loader = TacticsTracker.fetch) async throws -> RiotProfile {
-        let useTacticsFirst = preferred == TacticsTracker.source
-        let first = useTacticsFirst ? tactics : opgg
-        let second = useTacticsFirst ? opgg : tactics
         do {
-            return try await first(identity)
+            return try await opgg(identity)
         } catch {
             try Task.checkCancellation()
             if error is CancellationError { throw error }
             do {
-                return try await second(identity)
+                return try await tactics(identity)
             } catch {
                 try Task.checkCancellation()
                 if error is CancellationError { throw error }

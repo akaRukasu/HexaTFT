@@ -2,12 +2,13 @@ import Foundation
 
 enum OPGGTracker {
     enum ReadError: LocalizedError {
-        case missingProfile(String), unreadable(String), differentAccount(String)
+        case missingProfile(String), unreadable(String), differentAccount(String), historyUnavailable
         var errorDescription: String? {
             switch self {
             case .missingProfile(let server): return "OP.GG ne trouve pas ce compte sur \(server). Vérifie le Riot ID complet et le serveur sélectionné."
             case .unreadable(let server): return "La réponse OP.GG pour \(server) ne contient pas encore de fiche lisible. Réessaie la récupération ; les données enregistrées sont conservées."
             case .differentAccount(let server): return "La fiche reçue ne correspond pas au compte demandé sur \(server). Aucun autre compte n’a été importé."
+            case .historyUnavailable: return "OP.GG a fourni le profil, mais son historique des parties est indisponible pour le moment."
             }
         }
     }
@@ -15,20 +16,39 @@ enum OPGGTracker {
         #if DEBUG
         if let html = ProcessInfo.processInfo.environment["HEXA_OPGG_TRACKER_FIXTURE"] { return try parse(html,identity:identity) }
         #endif
-        guard let url = profileURL(identity) else { throw DataIssue.invalid("Ce serveur TFT n’est pas disponible sur OP.GG.") }
-        return try await load(url, identity: identity)
+        let locale = Locale.preferredLanguages.first?.lowercased().hasPrefix("fr") == true ? "fr" : "en"
+        return try await fetchLocalized(identity, language: locale)
     }
 
-    static func profileURL(_ identity: RiotIdentity, set: Int? = nil) -> URL? {
+    static func fetchLocalized(_ identity: RiotIdentity, language: String) async throws -> RiotProfile {
+        guard let url = profileURL(identity, language: language) else { throw DataIssue.invalid("Ce serveur TFT n’est pas disponible sur OP.GG.") }
+        do { return try await load(url, identity: identity, language: language) }
+        catch let error as ReadError {
+            switch error {
+            case .unreadable, .historyUnavailable:
+                try Task.checkCancellation()
+                let other = language == "fr" ? "en" : "fr"
+                guard let alternate = profileURL(identity, language: other) else { throw error }
+                return try await load(alternate, identity: identity, language: other)
+            default: throw error
+            }
+        }
+    }
+
+    static func profileURL(_ identity: RiotIdentity, set: Int? = nil, language: String? = nil) -> URL? {
         guard let base = identity.opggProfile, var parts = URLComponents(url: base, resolvingAgainstBaseURL: false) else { return nil }
+        if let language, ["fr", "en"].contains(language) {
+            parts.percentEncodedPath = "/" + language + parts.percentEncodedPath
+        }
         parts.queryItems = [URLQueryItem(name: "queueType", value: "RANKED_TFT")]
         if let set { parts.queryItems?.append(URLQueryItem(name: "set", value: String(set))) }
         return parts.url
     }
 
-    private static func load(_ url: URL, identity: RiotIdentity) async throws -> RiotProfile {
+    private static func load(_ url: URL, identity: RiotIdentity, language: String) async throws -> RiotProfile {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 12)
         request.setValue("text/html", forHTTPHeaderField: "Accept")
+        request.setValue(language == "fr" ? "fr-FR,fr;q=0.9" : "en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
         request.setValue("no-cache", forHTTPHeaderField:"Cache-Control")
         request.httpShouldHandleCookies = false
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -68,6 +88,7 @@ enum OPGGTracker {
                                     top4Count: fields["top4Count"] as? Int, rankPosition: fields["rankPosition"] as? Int)
         }
         let matchData = page.object(data["matches"])
+        if matchData?["status"] as? String == "unavailable" { throw ReadError.historyUnavailable }
         let rawMatches = page.resolve(matchData?["matches"]) as? [Any] ?? []
         let matches = rawMatches.compactMap { parseMatch($0, page: page, platform: region) }
         let points = data["queueType"].flatMap { $0 as? String }.map { queue in
@@ -135,7 +156,7 @@ enum OPGGTracker {
                 return MatchItem(key: key, name: item["name"] as? String ?? key, category: item["category"] as? String,
                                  imageURL: item["imageUrl"] as? String,
                                  components: (page.resolve(item["componentItems"]) as? [Any])?.compactMap { page.object($0)?["name"] as? String },
-                                 effect: item["description"] as? String)
+                                 effect: page.resolve(item["description"]) as? String)
             }
             let stats = page.object(unit["combatStats"])
             return TrackedMatch.Unit(key: key, stars: unit["star"] as? Int, items: equipment.map(\.key), name: unit["name"] as? String,
@@ -183,35 +204,68 @@ struct OPGGPublicPage {
     private let rows: [String: Any]
 
     init(_ html: String) {
-        let pattern = #"self\.__next_f\.push\((\[\s*1\s*,.*?)\)\s*</script>"#
+        let pattern = #"(?:self|window)\.__next_f\s*\.\s*push\s*\((\[\s*[13]\s*,.*?)\)\s*;?\s*</script\s*>"#
         let regex = try! NSRegularExpression(pattern: pattern, options:[.dotMatchesLineSeparators])
-        let chunks = regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap { match -> String? in
+        var stream = Data()
+        for match in regex.matches(in: html, range: NSRange(html.startIndex..., in: html)) {
             guard let range = Range(match.range(at: 1), in: html),
                   let array = try? JSONSerialization.jsonObject(with: Data(html[range].utf8)) as? [Any],
-                  array.count == 2 else { return nil }
-            return array[1] as? String
+                  array.count == 2, let kind = array[0] as? Int, let value = array[1] as? String else { continue }
+            if kind == 1 { stream.append(contentsOf: value.utf8) }
+            if kind == 3, let bytes = Data(base64Encoded: value) { stream.append(bytes) }
         }
+        self.rows = Self.decodeRows(Array(stream))
+    }
+
+    private static func decodeRows(_ stream: [UInt8]) -> [String: Any] {
+        // React Flight text and typed arrays are length-prefixed in UTF-8 bytes.
+        // Their bodies may contain newlines or end immediately before the next ID.
+        let sizedTags = Set("TAOoUSsLlGgMmV".utf8)
         var rows: [String: Any] = [:]
-        for line in chunks.joined().split(separator: "\n") {
-            guard let colon = line.firstIndex(of: ":") else { continue }
-            let key = String(line[..<colon])
-            let payload = line[line.index(after: colon)...]
-            guard Int(key, radix: 16) != nil,
-                  let value = try? JSONSerialization.jsonObject(with: Data(payload.utf8), options:[.fragmentsAllowed]) else { continue }
-            rows[key] = value
+        var cursor = stream.startIndex
+        func isHex(_ value: UInt8) -> Bool { (48...57).contains(value) || (97...102).contains(value) }
+        while cursor < stream.endIndex {
+            let start = cursor
+            while cursor < stream.endIndex, isHex(stream[cursor]) { cursor += 1 }
+            guard cursor > start, cursor - start <= 16, cursor < stream.endIndex, stream[cursor] == 58 else {
+                cursor = stream[cursor...].firstIndex(of: 10).map { $0 + 1 } ?? stream.endIndex
+                continue
+            }
+            let id = String(decoding: stream[start..<cursor], as: UTF8.self)
+            cursor += 1
+            guard cursor < stream.endIndex else { break }
+            let tag = stream[cursor]
+            if sizedTags.contains(tag) {
+                let lengthStart = cursor + 1
+                var end = lengthStart
+                while end < stream.endIndex, isHex(stream[end]) { end += 1 }
+                if end > lengthStart, end < stream.endIndex, stream[end] == 44,
+                   let length = Int(String(decoding: stream[lengthStart..<end], as: UTF8.self), radix: 16),
+                   length <= stream.endIndex - end - 1 {
+                    cursor = end + 1 + length
+                    if tag == 84 { rows[id] = String(decoding: stream[(end + 1)..<cursor], as: UTF8.self) }
+                    continue
+                }
+            }
+            let end = stream[cursor...].firstIndex(of: 10) ?? stream.endIndex
+            if let model = try? JSONSerialization.jsonObject(with: Data(stream[cursor..<end]), options: [.fragmentsAllowed]) {
+                rows[id] = model
+            }
+            cursor = end < stream.endIndex ? end + 1 : end
         }
-        self.rows = rows
+        return rows
     }
 
     func payload(containing keys: [String]) -> [String: Any]? {
         func find(_ value: Any, depth: Int) -> [String: Any]? {
             guard depth > 0 else { return nil }
             if let object = value as? [String: Any] {
+                if keys.allSatisfy({ object[$0] != nil }) { return object }
                 if let data = self.object(object["data"]), keys.allSatisfy({ data[$0] != nil }) { return data }
                 if let children = object["children"] { return find(children, depth: depth - 1) }
             }
             if let view = value as? [Any], view.count == 4, view.first as? String == "$" {
-                return find(view[3], depth: depth - 1)
+                return self.resolve(view[3]).flatMap { find($0, depth: depth - 1) }
             }
             return nil
         }
@@ -232,6 +286,8 @@ struct OPGGPublicPage {
         let key = id.first == "@" || id.first == "L" ? String(id.dropFirst()) : String(id)
         guard var result = rows[key] else { return nil }
         for key in path.dropFirst() {
+            guard let resolved = resolve(result, depth: depth + 1) else { return nil }
+            result = resolved
             if let object = result as? [String: Any], let next = object[String(key)] { result = next }
             else if let array = result as? [Any], let index = key == "props" ? 3 : Int(key), array.indices.contains(index) { result = array[index] }
             else { return nil }
