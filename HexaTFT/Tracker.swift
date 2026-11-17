@@ -282,7 +282,7 @@ struct RankedReview {
         } catch {
             if ticket == revision {
                 lastAttempt = nil
-                if !(error is CancellationError) { message = error.localizedDescription }
+                if !Task.isCancelled, !(error is CancellationError) { message = error.localizedDescription }
             }
             throw error
         }
@@ -911,7 +911,7 @@ struct TrackerSettingsView: View {
                 guard !Task.isCancelled else { return }
                 dismiss()
             } catch is CancellationError { }
-            catch { self.error = error.localizedDescription }
+            catch { if !Task.isCancelled { self.error = error.localizedDescription } }
         }
     }
 }
