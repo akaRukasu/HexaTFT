@@ -36,7 +36,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     var body: some View {
         TabView {
-            NavigationStack { MetaView() }.id(meta.selection).id(meta.reference?.version).tabItem { Label("Méta", systemImage: "square.stack.3d.up") }
+            MetaNavigationRoot().tabItem { Label("Méta", systemImage: "square.stack.3d.up") }
             NavigationStack { CompanionView() }.tabItem { Label("Partie", systemImage: "play.rectangle") }
             NavigationStack { AnalystView() }.tabItem { Label("Analyse", systemImage: "sparkle.magnifyingglass") }
             NavigationStack { TrackerView() }.tabItem { Label("Tracker", systemImage: "chart.xyaxis.line") }
@@ -66,6 +66,15 @@ struct RootView: View {
             get: { store.error != nil }, set: { if !$0 { store.error = nil } }
         )) { Button("Compris", role: .cancel) { store.error = nil } }
         message: { Text(store.error ?? "") }
+    }
+}
+
+// Reset the meta navigation inside its tab. A new data context must not recreate
+// sibling tabs and discard their selected tracker page or current analysis.
+private struct MetaNavigationRoot: View {
+    @EnvironmentObject private var meta: MetaStore
+    var body: some View {
+        NavigationStack { MetaView() }.id(meta.selection).id(meta.reference?.version)
     }
 }
 
