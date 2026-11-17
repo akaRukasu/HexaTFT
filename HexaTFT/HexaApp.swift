@@ -54,11 +54,18 @@ struct RootView: View {
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
+            await tracker.autoRefresh(returningToApp: true)
             while !Task.isCancelled {
-                async let trackerSync: Void = tracker.autoRefresh()
+                try? await Task.sleep(for: .seconds(30))
+                if !Task.isCancelled { await tracker.autoRefresh() }
+            }
+        }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
                 async let pbeSync: Void = meta.autoRefreshPBE()
                 async let newsSync: Void = news.refresh()
-                _ = await (trackerSync, pbeSync, newsSync)
+                _ = await (pbeSync, newsSync)
                 try? await Task.sleep(for: .seconds(60))
             }
         }

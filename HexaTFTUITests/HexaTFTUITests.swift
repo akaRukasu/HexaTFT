@@ -97,12 +97,13 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Laboratoire PBE"].exists)
         snapshot("10-patches")
         app.tabBars.buttons["Tracker"].tap()
-        app.buttons["Ajouter mon compte"].tap()
+        app.buttons["tracker-edit-account"].tap()
         let id = app.textFields["Pseudo#TAG"]
         XCTAssertTrue(id.waitForExistence(timeout: 8))
         XCTAssertFalse(app.textFields["Adresse HTTPS"].exists)
         XCTAssertFalse(app.secureTextFields.firstMatch.exists)
         snapshot("11-tracker")
+        if app.buttons["Effacer le Riot ID"].exists { app.buttons["Effacer le Riot ID"].tap() }
         id.tap()
         id.typeText("Tactikk#EUW")
         XCTAssertEqual(id.value as? String, "Tactikk#EUW")
@@ -110,7 +111,7 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(save.isEnabled)
         save.tap()
         let profileTabs = app.segmentedControls["tracker-profile-tabs"]
-        XCTAssertTrue(profileTabs.waitForExistence(timeout: 8))
+        XCTAssertTrue(profileTabs.waitForExistence(timeout: 45))
         XCTAssertTrue(profileTabs.buttons["Vue d’ensemble"].isSelected)
         profileTabs.buttons["Tactics.Tools"].tap()
         let publicProfile = app.webViews.firstMatch
@@ -283,6 +284,47 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Partie terminée"].waitForExistence(timeout: 8))
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "OP.GG")).firstMatch.exists)
         snapshot("26-tracker-partie")
+    }
+    @MainActor func testTrackerConnectsTheRequestedPublicAccountAndRefreshesNativeData() {
+        let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
+        app.launchEnvironment["HEXA_TRACKER_UI_FIXTURE"] = #"{"profiles":[],"points":{},"region":"euw1","riotID":""}"#
+        app.launch()
+        app.tabBars.buttons["Tracker"].tap()
+        app.buttons["tracker-edit-account"].tap()
+        let field = app.textFields["Pseudo#TAG"]
+        XCTAssertTrue(field.waitForExistence(timeout:8))
+        field.tap(); field.typeText("akarukasu#1703")
+        app.buttons["tracker-save"].tap()
+        XCTAssertTrue(app.segmentedControls["tracker-native-tabs"].waitForExistence(timeout:45),app.debugDescription)
+        XCTAssertFalse(field.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format:"label CONTAINS[c] %@","akarukasu#1703")).firstMatch.exists)
+        snapshot("40-tracker-compte-reel")
+        let refresh = app.buttons["tracker-refresh-now"]
+        XCTAssertTrue(refresh.waitForExistence(timeout:8)); refresh.tap()
+        let info = app.staticTexts["tracker-sync-result"]
+        let complete = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label CONTAINS[c] 'Vérification terminée' OR label CONTAINS[c] 'nouvelle'"),object:info)
+        XCTAssertEqual(XCTWaiter.wait(for:[complete],timeout:45),.completed)
+        snapshot("41-tracker-actualisation")
+    }
+    @MainActor func testTrackerConnectionErrorKeepsTheFormAndPreviousAccount() throws {
+        let app = try analystApp()
+        let tree: [Any] = ["$","$L2",NSNull(),["data":["profile":NSNull(),"selectedSet":18,"status":"not_found"]]]
+        let line = "1:" + String(decoding:try JSONSerialization.data(withJSONObject:tree),as:UTF8.self) + "\n"
+        let chunk = String(decoding:try JSONSerialization.data(withJSONObject:[1,line]),as:UTF8.self)
+        app.launchEnvironment["HEXA_OPGG_TRACKER_FIXTURE"] = "<script>self.__next_f.push(\(chunk))</script>"
+        app.launch(); app.tabBars.buttons["Tracker"].tap()
+        app.buttons["tracker-edit-account"].tap()
+        let field = app.textFields["Pseudo#TAG"]
+        XCTAssertTrue(field.waitForExistence(timeout:8))
+        app.buttons["Effacer le Riot ID"].tap()
+        field.tap(); field.typeText("Unknown#EUW")
+        app.buttons["tracker-save"].tap()
+        XCTAssertTrue(app.staticTexts["tracker-connection-error"].waitForExistence(timeout:10))
+        XCTAssertTrue(field.exists); XCTAssertTrue(app.buttons["tracker-save"].isEnabled)
+        snapshot("42-tracker-erreur-reessayable")
+        app.buttons["Fermer"].tap()
+        XCTAssertTrue(app.staticTexts["Fixture#EUW"].waitForExistence(timeout:8))
     }
     @MainActor func testRadarPatchDetailsAndEsport() {
         let app = XCUIApplication()

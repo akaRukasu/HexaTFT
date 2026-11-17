@@ -1,9 +1,27 @@
 import Foundation
 
 enum OPGGTracker {
+    enum ReadError: LocalizedError {
+        case missingProfile(String), unreadable(String), differentAccount(String)
+        var errorDescription: String? {
+            switch self {
+            case .missingProfile(let server): return "OP.GG ne trouve pas ce compte sur \(server). Vérifie le Riot ID complet et le serveur sélectionné."
+            case .unreadable(let server): return "La réponse OP.GG pour \(server) ne contient pas encore de fiche lisible. Réessaie la récupération ; les données enregistrées sont conservées."
+            case .differentAccount(let server): return "La fiche reçue ne correspond pas au compte demandé sur \(server). Aucun autre compte n’a été importé."
+            }
+        }
+    }
     static func fetch(_ identity: RiotIdentity) async throws -> RiotProfile {
+        #if DEBUG
+        if let html = ProcessInfo.processInfo.environment["HEXA_OPGG_TRACKER_FIXTURE"] { return try parse(html,identity:identity) }
+        #endif
         guard let url = profileURL(identity) else { throw DataIssue.invalid("Ce serveur TFT n’est pas disponible sur OP.GG.") }
-        return try await load(url, identity: identity)
+        do { return try await load(url, identity: identity) }
+        catch ReadError.unreadable(_) {
+            try Task.checkCancellation()
+            try await Task.sleep(for:.milliseconds(500))
+            return try await load(url,identity:identity)
+        }
     }
 
     static func profileURL(_ identity: RiotIdentity, set: Int? = nil) -> URL? {
@@ -16,6 +34,8 @@ enum OPGGTracker {
     private static func load(_ url: URL, identity: RiotIdentity) async throws -> RiotProfile {
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
         request.setValue("text/html", forHTTPHeaderField: "Accept")
+        request.setValue("no-cache", forHTTPHeaderField:"Cache-Control")
+        request.httpShouldHandleCookies = false
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse, http.url?.host == "op.gg" else {
             throw DataIssue.invalid("La fiche publique OP.GG est indisponible.")
@@ -30,15 +50,21 @@ enum OPGGTracker {
 
     static func parse(_ html: String, identity: RiotIdentity, checkedAt: Date = .now) throws -> RiotProfile {
         let page = OPGGPublicPage(html)
-        guard let data = page.payload(containing: ["profile", "selectedSet"]), let profile = page.object(data["profile"]),
-              let name = profile["gameName"] as? String, let tag = profile["tagLine"] as? String,
-              let region = profile["region"] as? String,
-              region == identity.opggProfile?.pathComponents.dropLast().last,
-              (name + "#" + tag).caseInsensitiveCompare(identity.riotID) == .orderedSame,
-              let timestamp = profile["updatedAt"] as? String, let updated = timestampDate(timestamp) else {
-            throw DataIssue.invalid("La fiche OP.GG n’a pas pu être lue. Vérifie le Riot ID et le serveur.")
+        guard let data = page.payload(containing: ["profile", "selectedSet"]) else { throw ReadError.unreadable(identity.regionName) }
+        guard let profile = page.object(data["profile"]) else {
+            if ["not_found", "not-found", "notFound", "missing"].contains(data["status"] as? String ?? "") { throw ReadError.missingProfile(identity.regionName) }
+            throw ReadError.unreadable(identity.regionName)
         }
-        let ranks = (profile["ranks"] as? [Any] ?? []).compactMap { entry -> RiotProfile.Rank? in
+        guard let name = page.resolve(profile["gameName"]) as? String,
+              let tag = page.resolve(profile["tagLine"]) as? String,
+              let rawRegion = page.resolve(profile["region"]) as? String,
+              let region = RiotIdentity.regions.first(where: { $0.0 == rawRegion.lowercased() || $0.2 == rawRegion.lowercased() })?.2,
+              let timestamp = page.resolve(profile["updatedAt"]) as? String, let updated = timestampDate(timestamp) else {
+            throw ReadError.unreadable(identity.regionName)
+        }
+        guard region == identity.opggProfile?.pathComponents.dropLast().last,
+              (name + "#" + tag).caseInsensitiveCompare(identity.riotID) == .orderedSame else { throw ReadError.differentAccount(identity.regionName) }
+        let ranks = (page.resolve(profile["ranks"]) as? [Any] ?? []).compactMap { entry -> RiotProfile.Rank? in
             guard let fields = page.object(entry), let queue = fields["queueType"] as? String,
                   let tier = fields["tier"] as? String, let points = fields["points"] as? Int,
                   fields["pointsType"] as? String == "LP" else { return nil }
@@ -101,7 +127,9 @@ enum OPGGTracker {
 
     private static func parseMatch(_ value: Any, page: OPGGPublicPage, platform: String) -> TrackedMatch? {
         guard let fields = page.object(value), let id = fields["id"] as? String,
-              fields["region"] as? String == platform, let time = fields["playedAt"] as? Double, time > 0,
+              let rawRegion = fields["region"] as? String,
+              RiotIdentity.regions.first(where: { $0.0 == rawRegion.lowercased() || $0.2 == rawRegion.lowercased() })?.2 == platform,
+              let time = fields["playedAt"] as? Double, time > 0,
               let placement = (fields["displayPlacement"] ?? fields["placement"]) as? Int,
               (1...8).contains(placement) else { return nil }
         let units = (page.resolve(fields["units"]) as? [Any] ?? []).compactMap { value -> TrackedMatch.Unit? in
@@ -160,8 +188,8 @@ struct OPGGPublicPage {
     private let rows: [String: Any]
 
     init(_ html: String) {
-        let pattern = #"self\.__next_f\.push\((\[1,.*?)\)</script>"#
-        let regex = try! NSRegularExpression(pattern: pattern)
+        let pattern = #"self\.__next_f\.push\((\[\s*1\s*,.*?)\)\s*</script>"#
+        let regex = try! NSRegularExpression(pattern: pattern, options:[.dotMatchesLineSeparators])
         let chunks = regex.matches(in: html, range: NSRange(html.startIndex..., in: html)).compactMap { match -> String? in
             guard let range = Range(match.range(at: 1), in: html),
                   let array = try? JSONSerialization.jsonObject(with: Data(html[range].utf8)) as? [Any],
@@ -173,8 +201,8 @@ struct OPGGPublicPage {
             guard let colon = line.firstIndex(of: ":") else { continue }
             let key = String(line[..<colon])
             let payload = line[line.index(after: colon)...]
-            guard Int(key, radix: 16) != nil, payload.first == "[" || payload.first == "{",
-                  let value = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) else { continue }
+            guard Int(key, radix: 16) != nil,
+                  let value = try? JSONSerialization.jsonObject(with: Data(payload.utf8), options:[.fragmentsAllowed]) else { continue }
             rows[key] = value
         }
         self.rows = rows
@@ -202,8 +230,12 @@ struct OPGGPublicPage {
 
     func resolve(_ value: Any?, depth: Int = 0) -> Any? {
         guard let reference = value as? String, reference.hasPrefix("$") else { return value }
+        if reference.hasPrefix("$D") { return String(reference.dropFirst(2)) }
+        if reference.hasPrefix("$$") { return String(reference.dropFirst()) }
         let path = reference.dropFirst().split(separator: ":")
-        guard depth < 8, let id = path.first, var result = rows[String(id)] else { return nil }
+        guard depth < 16, let id = path.first else { return nil }
+        let key = id.first == "@" || id.first == "L" ? String(id.dropFirst()) : String(id)
+        guard var result = rows[key] else { return nil }
         for key in path.dropFirst() {
             if let object = result as? [String: Any], let next = object[String(key)] { result = next }
             else if let array = result as? [Any], let index = key == "props" ? 3 : Int(key), array.indices.contains(index) { result = array[index] }

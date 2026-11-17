@@ -9,6 +9,77 @@ final class AnalystTests: XCTestCase {
         XCTAssertFalse(profile.matches.isEmpty)
         XCTAssertNotNil(profile.ranks.first { $0.queue == "RANKED_TFT" })
     }
+    @MainActor func testConnectLoadsBeforeSavingAndReconnectsTheSameIdentityImmediately() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:dir) }
+        let identity = try XCTUnwrap(RiotIdentity("Fixture#EUW",region:"euw1"))
+        let source = try sample()
+        var calls = 0
+        let tracker = TrackerStore(directory:dir,loader: { _ in
+            calls += 1
+            return RiotProfile(id:"fixture",riotID:identity.riotID,region:identity.region,observedAt:Date.now.timeIntervalSince1970,
+                               matches:Array(source.prefix(calls)),ranks:[],source:"OP.GG",checkedAt:.now)
+        })
+        try await tracker.connect(identity)
+        XCTAssertEqual(tracker.profile?.matches.count,1)
+        try await tracker.connect(identity)
+        XCTAssertEqual(calls,2)
+        XCTAssertEqual(tracker.profile?.matches.count,2)
+        XCTAssertFalse(tracker.busy)
+        XCTAssertEqual(TrackerStore(directory:dir).profile?.riotID,identity.riotID)
+    }
+    @MainActor func testFailedConnectionKeepsThePreviousAccountAndItsData() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:dir) }
+        let old = try XCTUnwrap(RiotIdentity("Old#EUW",region:"euw1"))
+        let next = try XCTUnwrap(RiotIdentity("New#EUW",region:"euw1"))
+        let tracker = TrackerStore(directory:dir,loader: { _ in throw DataIssue.invalid("Source indisponible") })
+        try tracker.saveProfile(old)
+        try tracker.ingest(RiotProfile(id:"old",riotID:old.riotID,region:old.region,observedAt:100,matches:[],ranks:[]),for:old)
+        do { try await tracker.connect(next); XCTFail("La source devait échouer") } catch { }
+        XCTAssertEqual(tracker.identity,old)
+        XCTAssertEqual(tracker.profile?.id,"old")
+        XCTAssertEqual(TrackerStore(directory:dir).profile?.id,"old")
+        XCTAssertFalse(tracker.busy)
+    }
+    @MainActor func testCancelledRefreshDoesNotPreventImmediateForegroundRetry() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:dir) }
+        let identity = try XCTUnwrap(RiotIdentity("Fixture#EUW",region:"euw1"))
+        var calls = 0
+        let tracker = TrackerStore(directory:dir,loader: { _ in
+            calls += 1
+            if calls == 1 { try await Task.sleep(for:.seconds(60)) }
+            return RiotProfile(id:"fixture",riotID:identity.riotID,region:identity.region,observedAt:100,matches:[],ranks:[],checkedAt:.now)
+        })
+        try tracker.saveProfile(identity)
+        let first = Task { await tracker.refresh(force:true) }
+        for _ in 0..<1000 { if calls > 0 { break }; await Task.yield() }
+        XCTAssertEqual(calls,1)
+        first.cancel(); await first.value
+        XCTAssertFalse(tracker.busy)
+        await tracker.autoRefresh(returningToApp:true)
+        XCTAssertEqual(calls,2)
+        XCTAssertNotNil(tracker.profile)
+    }
+    func testPublicProfileAcceptsReferencedFieldsPromisesAndSerializedDates() throws {
+        let data: [String:Any] = ["profile":"$@2","selectedSet":18,"queueType":"RANKED_TFT"]
+        let tree: [Any] = ["$","$L9",NSNull(),["data":data]]
+        let profile: [String:Any] = ["gameName":"$3","tagLine":"1703","region":"EUW1","updatedAt":"$D2026-11-17T01:38:43.540Z","ranks":"$4"]
+        let rank: [String:Any] = ["queueType":"RANKED_TFT","tier":"SILVER","division":"IV","points":71,"pointsType":"LP"]
+        let values: [(String,Any)] = [("1",tree),("2",profile),("3","akaRukasu"),("4",[rank])]
+        var line = ""
+        for (key,value) in values {
+            line += key + ":" + String(decoding:try JSONSerialization.data(withJSONObject:value,options:[.fragmentsAllowed]),as:UTF8.self) + "\n"
+        }
+        let chunk = String(decoding:try JSONSerialization.data(withJSONObject:[1,line]),as:UTF8.self)
+        let identity = try XCTUnwrap(RiotIdentity("akarukasu#1703",region:"euw1"))
+        let result = try OPGGTracker.parse("<script>self.__next_f.push(\(chunk))</script>",identity:identity)
+        XCTAssertEqual(result.riotID,"akaRukasu#1703")
+        XCTAssertEqual(result.ranks.first?.lp,71)
+        XCTAssertEqual(result.observedAt,try XCTUnwrap(OPGGTracker.timestampDate("2026-11-17T01:38:43.540Z")).timeIntervalSince1970)
+        XCTAssertThrowsError(try OPGGTracker.parse("<script>self.__next_f.push(\(chunk))</script>",identity:try XCTUnwrap(RiotIdentity("Other#1703",region:"euw1"))))
+    }
     private func fixture<T: Decodable>(_ name: String, as type: T.Type) throws -> T {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: name, withExtension: "json"))
         return try JSONDecoder().decode(T.self, from: Data(contentsOf: url))

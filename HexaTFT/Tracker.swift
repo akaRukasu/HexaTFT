@@ -92,7 +92,7 @@ struct TrackerState: Codable {
     var riotID: String = ""
     var archives: [String: [SeasonArchive]]? = nil
 }
-struct RiotIdentity {
+struct RiotIdentity: Equatable {
     static let regions = [
         ("euw1", "Europe Ouest", "euw"), ("eun1", "Europe Nord et Est", "eune"),
         ("na1", "Amérique du Nord", "na"), ("kr", "Corée", "kr"), ("jp1", "Japon", "jp"),
@@ -185,15 +185,20 @@ struct RankedReview {
 }
 
 @MainActor final class TrackerStore: ObservableObject {
+    typealias ProfileLoader = (RiotIdentity) async throws -> RiotProfile
     @Published private(set) var state = TrackerState()
     @Published private(set) var busy = false
     @Published private(set) var message: String?
     @Published private(set) var archiveLoading: Set<Int> = []
     @Published private(set) var archiveMessage: String?
+    @Published private(set) var syncInfo: String?
     private let file: URL
+    private let loader: ProfileLoader
+    private var request: Task<RiotProfile, Error>?
     private var lastAttempt: Date?
     private var revision = 0
-    init(directory: URL? = nil) {
+    init(directory: URL? = nil, loader: @escaping ProfileLoader = OPGGTracker.fetch) {
+        self.loader = loader
         file = (directory ?? URL.applicationSupportDirectory.appendingPathComponent("HexaTFT")).appendingPathComponent("riot-tracker.json")
         #if DEBUG
         if let fixture = ProcessInfo.processInfo.environment["HEXA_TRACKER_UI_FIXTURE"],
@@ -235,42 +240,89 @@ struct RankedReview {
         }
         next.selected = (matching.first { $0.source == "OP.GG" } ?? matching.first).map { $0.id + ":" + $0.region }
         try persist(next)
+        request?.cancel(); request = nil
         revision += 1
         busy = false
         lastAttempt = nil
         message = nil
+        syncInfo = nil
     }
-    func autoRefresh() async {
-        guard lastAttempt.map({ Date().timeIntervalSince($0) >= 180 }) ??
-            (profile?.checkedAt.map { Date().timeIntervalSince($0) >= 180 } ?? true) else { return }
+    func autoRefresh(returningToApp: Bool = false) async {
+        let interval: TimeInterval = returningToApp ? 10 : 60
+        guard lastAttempt.map({ Date().timeIntervalSince($0) >= interval }) ??
+            (profile?.checkedAt.map { Date().timeIntervalSince($0) >= interval } ?? true) else { return }
         await refresh()
     }
+
+    // The visible request owns its network task. Cancelling a view must not leave
+    // a failed attempt suppressing the next foreground refresh.
+    private func fetch(_ identity: RiotIdentity) async throws -> RiotProfile {
+        let loader = self.loader
+        let task = Task { try await loader(identity) }
+        request = task
+        return try await withTaskCancellationHandler(operation: { try await task.value }, onCancel: { task.cancel() })
+    }
+
+    func connect(_ identity: RiotIdentity) async throws {
+        request?.cancel()
+        revision += 1
+        let ticket = revision
+        busy = true; message = nil; syncInfo = nil
+        defer { if ticket == revision { busy = false; request = nil } }
+        do {
+            let incoming = try await fetch(identity)
+            try Task.checkCancellation()
+            guard ticket == revision else { throw CancellationError() }
+            var next = state
+            next.region = identity.region; next.riotID = identity.riotID
+            try persist(merging(incoming, for: identity, into: next))
+            lastAttempt = .now
+            syncInfo = "Compte chargé · \(incoming.matches.count) parties détaillées reçues de \(incoming.sourceName)."
+            preparePreviousSeason(incoming)
+        } catch {
+            if ticket == revision {
+                lastAttempt = nil
+                if !(error is CancellationError) { message = error.localizedDescription }
+            }
+            throw error
+        }
+    }
     func refresh(force: Bool = false) async {
-        guard !busy, let identity, force || (lastAttempt.map({ Date().timeIntervalSince($0) >= 60 }) ?? true) else { return }
+        guard !busy, let identity, force || (lastAttempt.map({ Date().timeIntervalSince($0) >= 10 }) ?? true) else { return }
         busy = true; lastAttempt = Date(); message = nil
         let ticket = revision
-        defer { if ticket == revision { busy = false } }
+        defer { if ticket == revision { busy = false; request = nil } }
         do {
-            let incoming = try await OPGGTracker.fetch(identity)
-            guard ticket == revision, !Task.isCancelled else { return }
+            let previousIDs = Set(profile?.matches.map(\.id) ?? [])
+            let incoming = try await fetch(identity)
+            try Task.checkCancellation()
+            guard ticket == revision else { return }
             try ingest(incoming, for: identity)
-            #if DEBUG
-            if ProcessInfo.processInfo.environment["HEXA_TRACKER_UI_FIXTURE"] != nil { return }
-            #endif
-            if let previous = incoming.seasons?.compactMap({ Int($0.number) }).max(),
-               !archives.contains(where: { $0.set == previous }) {
-                await loadArchive(set: previous)
-            }
+            let added = incoming.matches.filter { !previousIDs.contains($0.id) }.count
+            syncInfo = added > 0 ? "\(added) nouvelle(s) partie(s) importée(s)." : "Vérification terminée · aucune nouvelle partie publiée par OP.GG."
+            preparePreviousSeason(incoming)
         } catch {
+            if ticket == revision, Task.isCancelled || error is CancellationError { lastAttempt = nil; return }
             if ticket == revision, !Task.isCancelled {
-                message = (error as? DataIssue)?.localizedDescription ??
+                message = (error as? OPGGTracker.ReadError)?.localizedDescription ?? (error as? DataIssue)?.localizedDescription ??
                     "OP.GG est momentanément indisponible. La dernière synchronisation reste consultable."
             }
         }
     }
+    private func preparePreviousSeason(_ incoming: RiotProfile) {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HEXA_TRACKER_UI_FIXTURE"] != nil { return }
+        #endif
+        if let previous = incoming.seasons?.compactMap({ Int($0.number) }).max(), !archives.contains(where: { $0.set == previous }) {
+            Task { await loadArchive(set: previous) }
+        }
+    }
     func ingest(_ profile: RiotProfile, for identity: RiotIdentity) throws {
-        guard let saved = self.identity, saved.region == identity.region,
-              saved.riotID == identity.riotID, profile.region == identity.region,
+        try persist(merging(profile, for: identity, into: state))
+    }
+    private func merging(_ profile: RiotProfile, for identity: RiotIdentity, into initial: TrackerState) throws -> TrackerState {
+        guard let saved = RiotIdentity(initial.riotID, region: initial.region), saved.region == identity.region,
+              saved.riotID.caseInsensitiveCompare(identity.riotID) == .orderedSame, profile.region == identity.region,
               profile.riotID.caseInsensitiveCompare(identity.riotID) == .orderedSame,
               !profile.id.isEmpty, profile.observedAt.isFinite, profile.observedAt > 0,
               profile.matches.allSatisfy({ (1...8).contains($0.placement) && $0.timestamp.isFinite }) else {
@@ -278,7 +330,7 @@ struct RankedReview {
         }
         var incoming = profile
         let key = incoming.id + ":" + incoming.region
-        var next = state
+        var next = initial
         let previous = next.profiles.first { $0.id + ":" + $0.region == key }
         // A stale profile publication must not discard newer completed matches.
         if let previous, previous.observedAt > incoming.observedAt {
@@ -301,7 +353,7 @@ struct RankedReview {
                 next.points[key, default: []].append(RankPoint(date: date, rank: rank))
             }
         }
-        try persist(next)
+        return next
     }
 
     func loadArchive(set: Int, force: Bool = false) async {
@@ -343,10 +395,12 @@ struct RankedReview {
     func erase() {
         do {
             try persist(TrackerState())
+            request?.cancel(); request = nil
             revision += 1
             busy = false
             lastAttempt = nil
             message = nil
+            syncInfo = nil
         } catch { message = error.localizedDescription }
     }
 }
@@ -397,7 +451,12 @@ struct TrackerView: View {
             Button("Effacer", role: .destructive) { tracker.erase(); selectedPage = .hexa }
         }
         .toolbar {
+            Button { settings = true } label: { Image(systemName: tracker.identity == nil ? "person.badge.plus" : "person.crop.circle.badge.pencil") }
+                .accessibilityLabel(tracker.identity == nil ? "Saisir mon compte TFT" : "Modifier mon compte").accessibilityIdentifier("tracker-edit-account")
             if tracker.identity != nil {
+                Button { Task { await tracker.refresh(force: true) } } label: {
+                    if tracker.busy { ProgressView() } else { Image(systemName:"arrow.clockwise") }
+                }.disabled(tracker.busy).accessibilityLabel("Actualiser les données du Tracker").accessibilityIdentifier("tracker-refresh-now")
                 Menu {
                     Button("Modifier le profil", systemImage: "pencil") { settings = true }
                     Button(role: .destructive) { confirming = true } label: {
@@ -421,6 +480,16 @@ struct TrackerView: View {
                                   detail: "Ton rang, tes parties et ta progression au même endroit.", icon: "chart.xyaxis.line", accent: .mint)
                 }
             }.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+            if tracker.busy {
+                Section { ProgressView("Récupération du compte et des parties…") }
+            } else if let message = tracker.message {
+                Section {
+                    Text(message).font(.subheadline).foregroundStyle(.orange)
+                    Button("Réessayer la récupération") { Task { await tracker.refresh(force: true) } }
+                }
+            } else if let info = tracker.syncInfo {
+                Section { Text(info).font(.caption).foregroundStyle(.mint).accessibilityIdentifier("tracker-sync-result") }
+            }
             if tracker.identity == nil {
                 Section {
                     Button { settings = true } label: {
@@ -448,8 +517,6 @@ struct TrackerView: View {
                     }
                 }.listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             }
-            if tracker.busy { ProgressView("Synchronisation OP.GG") }
-            if let message = tracker.message { Text(message).font(.caption).foregroundStyle(.orange) }
             Section {
                 if let url = tracker.identity?.opggProfile {
                     Link(destination: url) { Label("Fiche source OP.GG", systemImage: "arrow.up.right.square") }
@@ -797,38 +864,55 @@ struct TrackerSettingsView: View {
     @State private var riotID = ""
     @State private var region = "euw1"
     @State private var error: String?
+    @State private var saving = false
+    @State private var connection: Task<Void, Never>?
     private var identity: RiotIdentity? { RiotIdentity(riotID, region: region) }
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Pseudo#TAG", text: $riotID)
-                        .autocorrectionDisabled().textInputAutocapitalization(.never)
-                        .submitLabel(.done).onSubmit(save)
+                    HStack {
+                        TextField("Pseudo#TAG", text: $riotID)
+                            .autocorrectionDisabled().textInputAutocapitalization(.never)
+                            .submitLabel(.go).onSubmit(save).disabled(saving)
+                        if !riotID.isEmpty {
+                            Button { riotID = "" } label: { Image(systemName:"xmark.circle.fill").foregroundStyle(.secondary) }
+                                .accessibilityLabel("Effacer le Riot ID").disabled(saving)
+                        }
+                    }
                     Picker("Région", selection: $region) {
                         ForEach(RiotIdentity.regions, id: \.0) { entry in Text(entry.1).tag(entry.0) }
-                    }
+                    }.disabled(saving)
                 } footer: {
-                    Text("Dans le client Riot, ton Riot ID est le nom suivi de # et de ton tag.")
+                    Text("Riot ID complet, puis serveur du compte. Exemple : Pseudo#TAG sur Europe Ouest. Hexa vérifie la fiche publique et charge les données avant de fermer cet écran. Aucune clé API nécessaire.")
                 }
-                if let error { Text(error).foregroundStyle(.orange) }
+                if saving { Section { ProgressView("Vérification sur OP.GG et import des parties…") } }
+                if let error { Text(error).foregroundStyle(.orange).accessibilityIdentifier("tracker-connection-error") }
             }.navigationTitle("Compte Riot")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button(saving ? "Annuler" : "Fermer") { connection?.cancel(); dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Enregistrer", action: save).disabled(identity == nil)
+                    Button(saving ? "Chargement…" : "Connecter", action: save).disabled(identity == nil || saving)
                         .accessibilityIdentifier("tracker-save")
                 }
             }
             .onAppear { riotID = tracker.state.riotID; region = tracker.state.region }
+            .onDisappear { connection?.cancel() }
         }
     }
     private func save() {
         guard let identity else { return }
-        do {
-            try tracker.saveProfile(identity)
-            dismiss()
-        } catch { self.error = error.localizedDescription }
+        guard !saving else { return }
+        saving = true; error = nil
+        connection = Task {
+            defer { saving = false }
+            do {
+                try await tracker.connect(identity)
+                guard !Task.isCancelled else { return }
+                dismiss()
+            } catch is CancellationError { }
+            catch { self.error = error.localizedDescription }
+        }
     }
 }
 
