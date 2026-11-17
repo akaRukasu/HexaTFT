@@ -451,7 +451,7 @@ struct TrackerView: View {
             Button("Effacer", role: .destructive) { tracker.erase(); selectedPage = .hexa }
         }
         .toolbar {
-            Button { settings = true } label: { Image(systemName: tracker.identity == nil ? "person.badge.plus" : "person.crop.circle.badge.pencil") }
+            Button { settings = true } label: { Image(systemName: tracker.identity == nil ? "person.badge.plus" : "person.crop.circle") }
                 .accessibilityLabel(tracker.identity == nil ? "Saisir mon compte TFT" : "Modifier mon compte").accessibilityIdentifier("tracker-edit-account")
             if tracker.identity != nil {
                 Button { Task { await tracker.refresh(force: true) } } label: {
