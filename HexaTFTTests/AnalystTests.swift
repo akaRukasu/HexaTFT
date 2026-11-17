@@ -85,6 +85,13 @@ final class AnalystTests: XCTestCase {
         raw["queueType"] = "ALL"
         XCTAssertThrowsError(try OPGGTracker.parseArchive(html(raw),identity:identity,set:18))
         XCTAssertTrue(try XCTUnwrap(OPGGTracker.profileURL(identity,set:17)?.absoluteString).contains("queueType=RANKED_TFT"))
+        var container = try XCTUnwrap(raw["matches"] as? [String:Any])
+        var rawMatches = try XCTUnwrap(container["matches"] as? [[String:Any]])
+        var units = try XCTUnwrap(rawMatches[0]["units"] as? [[String:Any]])
+        units[0]["items"] = NSNull(); rawMatches[0]["units"] = units
+        container["matches"] = rawMatches; raw["matches"] = container
+        let incomplete = try OPGGTracker.parse(html(raw),identity:identity)
+        XCTAssertNil(incomplete.matches.first?.units.first?.equipment)
     }
     @MainActor func testTrackerMergesNewMatchesDespiteOlderProfilePublicationAndArchivesPersist() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

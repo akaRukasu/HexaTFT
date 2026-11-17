@@ -227,6 +227,9 @@ final class HexaTFTUITests: XCTestCase {
         app.tabBars.buttons["Partie"].tap()
         XCTAssertTrue(app.staticTexts["guide-stage-level"].waitForExistence(timeout: 8))
         XCTAssertEqual(app.staticTexts["guide-stage-level"].label, "Stade 2-1 · niveau 4")
+        let freeze = app.buttons["session-freeze-guide"]
+        reveal(freeze,in:app,up:false); freeze.tap()
+        XCTAssertTrue(app.staticTexts["Guide figé pour cette session"].exists)
         app.buttons["guide-stage-3-2"].tap()
         XCTAssertEqual(app.staticTexts["guide-stage-level"].label, "Stade 3-2 · niveau 6")
         snapshot("33-opgg-partie")

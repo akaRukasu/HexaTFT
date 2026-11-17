@@ -106,7 +106,8 @@ enum OPGGTracker {
               (1...8).contains(placement) else { return nil }
         let units = (page.resolve(fields["units"]) as? [Any] ?? []).compactMap { value -> TrackedMatch.Unit? in
             guard let unit = page.object(value), let key = unit["key"] as? String else { return nil }
-            let equipment = (page.resolve(unit["items"]) as? [Any] ?? []).compactMap { value -> MatchItem? in
+            let rawEquipment = page.resolve(unit["items"]) as? [Any]
+            let equipment = (rawEquipment ?? []).compactMap { value -> MatchItem? in
                 guard let item = page.object(value), let key = item["key"] as? String else { return nil }
                 return MatchItem(key: key, name: item["name"] as? String ?? key, category: item["category"] as? String,
                                  imageURL: item["imageUrl"] as? String,
@@ -115,7 +116,7 @@ enum OPGGTracker {
             }
             let stats = page.object(unit["combatStats"])
             return TrackedMatch.Unit(key: key, stars: unit["star"] as? Int, items: equipment.map(\.key), name: unit["name"] as? String,
-                                     equipment: unit["items"] == nil ? nil : equipment, cost: unit["cost"] as? Int, range: stats?["range"] as? Double,
+                                     equipment: rawEquipment == nil ? nil : equipment, cost: unit["cost"] as? Int, range: stats?["range"] as? Double,
                                      imageURL: unit["imageUrl"] as? String)
         }
         let traits = (page.resolve(fields["traits"]) as? [Any] ?? []).compactMap { value -> TrackedMatch.Trait? in

@@ -183,7 +183,7 @@ struct FindingDetailView: View {
                     Label("Exercice de la prochaine session", systemImage: "target").font(.headline)
                     Text(finding.exercise)
                     Button(saved ? "Objectif enregistré" : "Travailler ce point sur 10 parties") { coach.start(finding.category, account: account, report: report); saved = coach.error == nil }
-                        .buttonStyle(.borderedProminent).accessibilityIdentifier("analyst-start-goal")
+                        .buttonStyle(.borderedProminent).foregroundStyle(hexaNavy).accessibilityIdentifier("analyst-start-goal")
                         .disabled(report.set != (tracker.profile?.currentSet ?? tracker.profile?.matches.first?.set))
                 }
                 Text("Les matchs qui soutiennent ce constat").font(.title2.bold())
@@ -261,7 +261,11 @@ struct MatchEquipmentCard: View {
         Panel {
             HStack(spacing: 12) {
                 MatchUnitPortrait(unit: unit, match: match, size: 48)
-                VStack(alignment: .leading, spacing: 4) { Text(unit.displayName).font(.headline); Text("\(unit.stars.map(String.init) ?? "?") ★ · \(unit.completeItems.count) objets complets").font(.caption).foregroundStyle(hexaGold) }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(unit.displayName).font(.headline)
+                    Text("\(unit.stars.map(String.init) ?? "?") ★ · " + (unit.equipment == nil ? "Équipement non documenté" : "\(unit.completeItems.count) objets complets")).font(.caption).foregroundStyle(hexaGold)
+                    if unit.unknownEquipment > 0 { Text("\(unit.unknownEquipment) objet(s) de type inconnu").font(.caption2).foregroundStyle(.secondary) }
+                }
             }
             if let equipment = unit.equipment, !equipment.isEmpty {
                 ForEach(Array(equipment.enumerated()), id: \.offset) { _, item in
@@ -276,7 +280,9 @@ struct MatchEquipmentCard: View {
                         }
                     }
                 }
-            } else { Text(unit.items.isEmpty ? "Aucun objet reçu dans le relevé final." : "Ancien relevé : catégories d’objets inconnues. La prochaine synchronisation peut les compléter.").font(.caption).foregroundStyle(.secondary) }
+            } else {
+                Text(unit.equipment != nil ? "Aucun objet reçu dans le relevé final." : "L’équipement n’est pas documenté dans ce relevé. Une synchronisation peut le compléter.").font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 }
