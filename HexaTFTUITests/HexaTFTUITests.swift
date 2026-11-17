@@ -400,11 +400,18 @@ final class HexaTFTUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         let items: [[String:Any]] = [("DA_VoidStaff","Bâton du vide"),("DA_JeweledGauntlet","Gantelet précieux"),("DA_HextechGunblade","Pistolame Hextech")].map { ["key":$0.0,"name":$0.1,"category":"core"] }
-        let matches: [[String:Any]] = (1...3).map { index in
-            ["id":"analysis-\(index)","timestamp":Date.now.timeIntervalSince1970 - Double(index*3600),"patch":"18.6","set":18,"queue":1100,"placement":index == 2 ? 2 : 8,"level":8,"goldLeft":index == 2 ? 5 : 41,"source":"OP.GG","augmentsKnown":false,
-             "units":[["key":"DA_18_Morgana","name":"Morgana","stars":index == 2 ? 2 : 1,"items":items.map { $0["key"]! },"equipment":items,"cost":4,"range":1],
-                      ["key":"DA_18_Cassiopeia","name":"Cassiopeia","stars":2,"items":[],"equipment":[],"cost":3,"range":1]],
-             "traits":[],"augments":[],"lobby":[]]
+        var matches: [[String:Any]] = []
+        let itemKeys = items.compactMap { $0["key"] as? String }
+        for index in 1...3 {
+            let carry: [String:Any] = ["key":"DA_18_Morgana","name":"Morgana","stars":index == 2 ? 2 : 1,"items":itemKeys,"equipment":items,"cost":4,"range":1]
+            let frontline: [String:Any] = ["key":"DA_18_Cassiopeia","name":"Cassiopeia","stars":2,"items":[String](),"equipment":[[String:Any]](),"cost":3,"range":1]
+            var match: [String:Any] = ["id":"analysis-\(index)","patch":"18.6","set":18,"queue":1100,"level":8,"source":"OP.GG","augmentsKnown":false]
+            match["timestamp"] = Date.now.timeIntervalSince1970 - Double(index*3600)
+            match["placement"] = index == 2 ? 2 : 8
+            match["goldLeft"] = index == 2 ? 5 : 41
+            match["units"] = [carry,frontline]
+            match["traits"] = [String](); match["augments"] = [String](); match["lobby"] = [String]()
+            matches.append(match)
         }
         let profile: [String:Any] = ["id":"opgg:fixture#euw","riotID":"Fixture#EUW","region":"euw1","source":"OP.GG","observedAt":Date.now.timeIntervalSince1970,"currentSet":18,"matches":matches,
                                    "ranks":[["queue":"RANKED_TFT","tier":"SILVER","division":"II","lp":22,"games":14,"top4Count":6]],
