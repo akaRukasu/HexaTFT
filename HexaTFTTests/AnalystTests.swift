@@ -36,6 +36,8 @@ final class AnalystTests: XCTestCase {
         let report = MatchAnalyst(matches:try sample(),set:18)
         let morgana = try XCTUnwrap(report.cohorts.first { $0.id == "DA_18_Morgana" })
         XCTAssertEqual(morgana.improved.count,4)
+        XCTAssertEqual(morgana.twoStar.count,4)
+        XCTAssertTrue(morgana.threeStar.isEmpty)
         XCTAssertEqual(AnalysisSummary(matches:morgana.improved).average,3.25,accuracy:0.00001)
         XCTAssertEqual(AnalysisSummary(matches:morgana.improved).top4,4)
         XCTAssertEqual(morgana.oneStar.count,4)
@@ -141,5 +143,16 @@ final class AnalystTests: XCTestCase {
         XCTAssertEqual(result.map(\.id),Array(set18.dropFirst().prefix(10)).map(\.id))
         XCTAssertEqual(result.count,10)
         XCTAssertTrue(result.allSatisfy { $0.set == 18 && $0.queue == 1100 })
+    }
+    @MainActor func testGuideDoesNotCallASecondCarryTheTank() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:dir) }
+        let meta = MetaStore(directory:dir)
+        let guide = try XCTUnwrap(LiveGuideCatalogue.guides.first { $0.comp_id == "hexa-ahri-zyra" })
+        let brief = GuideBrief(comp:guide,reference:meta.live?.reference,stage:.transition)
+        XCTAssertEqual(brief.primary,"DA_18_Ahri")
+        XCTAssertNotEqual(brief.tank,"DA_18_Zyra")
+        XCTAssertEqual(brief.checkpoints.count,3)
+        XCTAssertTrue(brief.checkpoints.joined().contains("4-2"))
     }
 }

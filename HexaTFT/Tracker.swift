@@ -245,8 +245,8 @@ struct RankedReview {
             (profile?.checkedAt.map { Date().timeIntervalSince($0) >= 180 } ?? true) else { return }
         await refresh()
     }
-    func refresh() async {
-        guard !busy, let identity, lastAttempt.map({ Date().timeIntervalSince($0) >= 60 }) ?? true else { return }
+    func refresh(force: Bool = false) async {
+        guard !busy, let identity, force || (lastAttempt.map({ Date().timeIntervalSince($0) >= 60 }) ?? true) else { return }
         busy = true; lastAttempt = Date(); message = nil
         let ticket = revision
         defer { if ticket == revision { busy = false } }
@@ -456,7 +456,7 @@ struct TrackerView: View {
                 }
                 NavigationLink("Journal manuel") { JournalView() }
             }
-        }.scrollContentBackground(.hidden).refreshable { await tracker.refresh() }
+        }.scrollContentBackground(.hidden).refreshable { await tracker.refresh(force: true) }
     }
 
 }

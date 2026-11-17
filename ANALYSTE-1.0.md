@@ -7,7 +7,7 @@ Cette livraison met en œuvre le premier socle fonctionnel du cahier des charges
 - Bilan personnel par set, patch et fenêtre de matchs : moyenne, top 4, places 7–8, distribution et export texte.
 - Constats reliés aux matchs : porteurs 1 étoile équipés, or à l’élimination, répartition de l’équipement. Chaque constat sépare faits, hypothèse, exercice et données manquantes.
 - Rapport de chaque match, portraits, étoiles, objets complets, composants, recettes et effets lorsqu’ils sont publiés ; note personnelle locale.
-- Comparaison des porteurs 1 étoile / 2 étoiles ou plus, effectif, petit échantillon et intervalle de Wilson. Un composant ou un objet inconnu ne devient jamais un objet complet.
+- Comparaison des porteurs 1 étoile / 2 étoiles / 3 étoiles ou plus, effectif, petit échantillon et intervalle de Wilson. Un composant ou un objet inconnu ne devient jamais un objet complet.
 - Objectif de travail enregistré, référence initiale et suivi des dix premières nouvelles parties du même set. Un rappel préparé apparaît dans Partie.
 - Dialogue local sur les résultats, objets, étoiles et dépenses. Les réponses reposent sur des règles explicites, sans abonnement ni clé. Les preuves, le périmètre et la date de chaque réponse sont conservés.
 - Passeport des anciens sets et import de leurs parties classées publiques. La requête OP.GG utilise `queueType=RANKED_TFT` ; le Double Up reste séparé. Les relevés détaillés reçus s’accumulent localement. Un résumé de saison et un rang publiés avec des volumes différents restent distincts.

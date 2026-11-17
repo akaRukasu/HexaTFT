@@ -94,6 +94,8 @@ struct CarryCohort: Identifiable {
     let matches: [TrackedMatch]
     let oneStar: [TrackedMatch]
     let improved: [TrackedMatch]
+    var twoStar: [TrackedMatch] { matches.filter { match in match.units.contains { $0.key == id && $0.stars == 2 && $0.completeItems.count >= 2 } } }
+    var threeStar: [TrackedMatch] { matches.filter { match in match.units.contains { $0.key == id && ($0.stars ?? 0) >= 3 && $0.completeItems.count >= 2 } } }
 }
 
 struct MatchAnalyst {

@@ -19,6 +19,7 @@ struct AnalystView: View {
                 if let profile = tracker.profile {
                     intro(profile)
                     selection
+                    if let error = coach.error { Text(error).font(.caption).foregroundStyle(.orange) }
                     Picker("Rubrique de l’analyste", selection: $section) {
                         ForEach(["Bilan", "Porteurs", "Parcours", "Dialogue"], id: \.self) { Text($0).tag($0) }
                     }.pickerStyle(.segmented).accessibilityIdentifier("analyst-sections")
@@ -44,7 +45,7 @@ struct AnalystView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { Task { await tracker.refresh() } } label: { Image(systemName: "arrow.clockwise") }
+                    Button { Task { await tracker.refresh(force: true) } } label: { Image(systemName: "arrow.clockwise") }
                         .disabled(tracker.busy).accessibilityLabel("Actualiser les parties")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -291,7 +292,7 @@ struct CarryAnalysisView: View {
                     Panel {
                         let s = AnalysisSummary(matches: group.matches)
                         HStack { Text(group.name).font(.headline); Spacer(); Text("\(s.top4)/\(s.count) top 4").foregroundStyle(.mint) }
-                        Text("Moyenne \(String(format:"%.2f",s.average)) · \(group.oneStar.count) à 1★ · \(group.improved.count) à 2★ ou plus").font(.caption).foregroundStyle(.secondary)
+                        Text("Moyenne \(String(format:"%.2f",s.average)) · \(group.oneStar.count) à 1★ · \(group.twoStar.count) à 2★ · \(group.threeStar.count) à 3★").font(.caption).foregroundStyle(.secondary)
                         if s.count < 10 { Badge(text: "Petit échantillon", color: hexaGold) }
                     }
                 }.buttonStyle(.plain).accessibilityIdentifier("analysis-carry-" + group.id)
@@ -309,7 +310,8 @@ struct CarryEvidenceView: View {
             VStack(alignment: .leading, spacing: 18) {
                 Text(group.name).font(.largeTitle.bold())
                 cohort("1 étoile", group.oneStar)
-                cohort("2 étoiles ou plus", group.improved)
+                cohort("2 étoiles", group.twoStar)
+                cohort("3 étoiles ou plus", group.threeStar)
                 Text("Comparaison descriptive. Les objets, soutiens et circonstances peuvent expliquer une partie de l’écart. Ces groupes ne prédisent pas la prochaine place.").font(.caption).foregroundStyle(.secondary)
                 ForEach(group.matches) { match in NavigationLink { MatchAnalysisView(match: match, account: tracker.state.selected ?? "") } label: { AnalysisMatchRow(match: match) }.buttonStyle(.plain) }
             }.padding()
