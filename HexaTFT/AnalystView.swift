@@ -351,7 +351,7 @@ struct SeasonJourneyView: View {
                 }
             }
             Text("Le passeport de tes sets").font(.title2.bold())
-            Text("Rangs publiés par OP.GG. Le nombre de matchs détaillés reçus peut différer du volume déclaré. Solo et Double Up restent séparés.").font(.caption).foregroundStyle(.secondary)
+            Text("Rangs des sources publiques du Tracker. Le nombre de matchs détaillés reçus peut différer du volume déclaré. Solo et Double Up restent séparés.").font(.caption).foregroundStyle(.secondary)
             ForEach(tracker.profile?.seasons ?? []) { season in
                 Panel {
                     Text("SET " + season.number).font(.headline).foregroundStyle(hexaGold)

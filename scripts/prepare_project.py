@@ -21,7 +21,7 @@ def openstep(value, depth=0):
         return '(\n' + ''.join('\t'*(depth+1)+openstep(v,depth+1)+',\n' for v in value) + '\t'*depth+')'
     return json.dumps(str(value), ensure_ascii=False)
 
-files = ['Domain.swift', 'Store.swift', 'HexaApp.swift', 'GuidesView.swift', 'ToolsView.swift', 'Meta.swift', 'MetaView.swift', 'SourcesView.swift', 'GuidePresentation.swift', 'VisualGuide.swift', 'PatchContext.swift', 'PatchViews.swift', 'DragonFeed.swift', 'UltimateLibrary.swift', 'Tracker.swift', 'PBEGuides.swift', 'MetaObservations.swift', 'UltimatePanels.swift', 'EsportSchedule.swift', 'OPGGTracker.swift', 'OPGGMeta.swift', 'OPGGProgression.swift', 'MatchEvidence.swift', 'AnalystStore.swift', 'AnalystView.swift', 'GuidePlaybook.swift']
+files = ['Domain.swift', 'Store.swift', 'HexaApp.swift', 'GuidesView.swift', 'ToolsView.swift', 'Meta.swift', 'MetaView.swift', 'SourcesView.swift', 'GuidePresentation.swift', 'VisualGuide.swift', 'PatchContext.swift', 'PatchViews.swift', 'DragonFeed.swift', 'UltimateLibrary.swift', 'Tracker.swift', 'PBEGuides.swift', 'MetaObservations.swift', 'UltimatePanels.swift', 'EsportSchedule.swift', 'OPGGTracker.swift', 'TacticsTracker.swift', 'OPGGMeta.swift', 'OPGGProgression.swift', 'MatchEvidence.swift', 'AnalystStore.swift', 'AnalystView.swift', 'GuidePlaybook.swift']
 source_refs=[];source_builds=[];resource_refs=[];resource_builds=[]
 for filename in files:
     ref=obj(filename,isa='PBXFileReference',lastKnownFileType='sourcecode.swift',path=filename,sourceTree='<group>')
@@ -38,7 +38,7 @@ test_build=obj('test_build',isa='PBXBuildFile',fileRef=test_ref)
 analyst_test_ref=obj('analyst_test_ref',isa='PBXFileReference',lastKnownFileType='sourcecode.swift',path='AnalystTests.swift',sourceTree='<group>')
 analyst_test_build=obj('analyst_test_build',isa='PBXBuildFile',fileRef=analyst_test_ref)
 fixture_refs=[];fixture_builds=[]
-for filename in ['analysis-sample.json','opgg-evidence.json']:
+for filename in ['analysis-sample.json','opgg-evidence.json','tactics-profile.json']:
     ref=obj('fixture_'+filename,isa='PBXFileReference',lastKnownFileType='text.json',path=filename,sourceTree='<group>')
     fixture_refs.append(ref);fixture_builds.append(obj('fixture_build_'+filename,isa='PBXBuildFile',fileRef=ref))
 fixtures=obj('fixtures',isa='PBXGroup',children=fixture_refs,path='Fixtures',sourceTree='<group>')
@@ -61,7 +61,7 @@ def configs(label,settings):
     return obj(label+'configs',isa='XCConfigurationList',buildConfigurations=refs,defaultConfigurationIsVisible=0,defaultConfigurationName='Release')
 common={'SDKROOT':'iphoneos','IPHONEOS_DEPLOYMENT_TARGET':'17.0','SWIFT_VERSION':'5.0','CLANG_ENABLE_MODULES':'YES','CLANG_ENABLE_OBJC_ARC':'YES'}
 project_configs=configs('project',common)
-app_configs=configs('app',{'PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUNDLE_IDENTIFIER':'com.example.HexaTFT','GENERATE_INFOPLIST_FILE':'YES','INFOPLIST_FILE':'HexaTFT/BackgroundInfo.plist','INFOPLIST_KEY_CFBundleDisplayName':'Hexa','INFOPLIST_KEY_LSApplicationCategoryType':'public.app-category.reference','INFOPLIST_KEY_UILaunchScreen_Generation':'YES','INFOPLIST_KEY_UIApplicationSceneManifest_Generation':'YES','INFOPLIST_KEY_UISupportedInterfaceOrientations':'UIInterfaceOrientationPortrait','TARGETED_DEVICE_FAMILY':'1','MARKETING_VERSION':'1.0.1','CURRENT_PROJECT_VERSION':'16','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','CODE_SIGN_STYLE':'Automatic','SWIFT_EMIT_LOC_STRINGS':'YES'})
+app_configs=configs('app',{'PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUNDLE_IDENTIFIER':'com.example.HexaTFT','GENERATE_INFOPLIST_FILE':'YES','INFOPLIST_FILE':'HexaTFT/BackgroundInfo.plist','INFOPLIST_KEY_CFBundleDisplayName':'Hexa','INFOPLIST_KEY_LSApplicationCategoryType':'public.app-category.reference','INFOPLIST_KEY_UILaunchScreen_Generation':'YES','INFOPLIST_KEY_UIApplicationSceneManifest_Generation':'YES','INFOPLIST_KEY_UISupportedInterfaceOrientations':'UIInterfaceOrientationPortrait','TARGETED_DEVICE_FAMILY':'1','MARKETING_VERSION':'1.0.2','CURRENT_PROJECT_VERSION':'17','ASSETCATALOG_COMPILER_APPICON_NAME':'AppIcon','CODE_SIGN_STYLE':'Automatic','SWIFT_EMIT_LOC_STRINGS':'YES'})
 test_configs=configs('tests',{'PRODUCT_NAME':'$(TARGET_NAME)','PRODUCT_BUNDLE_IDENTIFIER':'com.example.HexaTFTTests','GENERATE_INFOPLIST_FILE':'YES','TARGETED_DEVICE_FAMILY':'1','TEST_HOST':'$(BUILT_PRODUCTS_DIR)/HexaTFT.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/HexaTFT','BUNDLE_LOADER':'$(TEST_HOST)','CODE_SIGN_STYLE':'Automatic'})
 app=obj('app',isa='PBXNativeTarget',buildConfigurationList=app_configs,buildPhases=app_phases,buildRules=[],dependencies=[],name='HexaTFT',productName='HexaTFT',productReference=app_product,productType='com.apple.product-type.application')
 proxy=obj('proxy',isa='PBXContainerItemProxy',containerPortal=uid('project'),proxyType=1,remoteGlobalIDString=app,remoteInfo='HexaTFT')

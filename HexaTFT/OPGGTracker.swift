@@ -16,12 +16,7 @@ enum OPGGTracker {
         if let html = ProcessInfo.processInfo.environment["HEXA_OPGG_TRACKER_FIXTURE"] { return try parse(html,identity:identity) }
         #endif
         guard let url = profileURL(identity) else { throw DataIssue.invalid("Ce serveur TFT n’est pas disponible sur OP.GG.") }
-        do { return try await load(url, identity: identity) }
-        catch ReadError.unreadable(_) {
-            try Task.checkCancellation()
-            try await Task.sleep(for:.milliseconds(500))
-            return try await load(url,identity:identity)
-        }
+        return try await load(url, identity: identity)
     }
 
     static func profileURL(_ identity: RiotIdentity, set: Int? = nil) -> URL? {
@@ -32,7 +27,7 @@ enum OPGGTracker {
     }
 
     private static func load(_ url: URL, identity: RiotIdentity) async throws -> RiotProfile {
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 30)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 12)
         request.setValue("text/html", forHTTPHeaderField: "Accept")
         request.setValue("no-cache", forHTTPHeaderField:"Cache-Control")
         request.httpShouldHandleCookies = false
@@ -81,7 +76,7 @@ enum OPGGTracker {
         guard rawMatches.isEmpty || !matches.isEmpty else {
             throw DataIssue.invalid("Le format de l’historique OP.GG a changé. La dernière synchronisation est conservée.")
         }
-        return RiotProfile(id: "opgg:" + identity.riotID.lowercased(), riotID: name + "#" + tag, region: identity.region,
+        return RiotProfile(id: identity.trackerID, riotID: name + "#" + tag, region: identity.region,
                            observedAt: updated.timeIntervalSince1970, matches: matches, ranks: ranks,
                            source: "OP.GG", checkedAt: checkedAt, publishedPoints: points,
                            seasons: parseSeasons(data, page: page), currentSet: data["selectedSet"] as? Int,

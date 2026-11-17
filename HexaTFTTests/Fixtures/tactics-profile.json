@@ -1,0 +1,485 @@
+{
+  "props": {
+    "pageProps": {
+      "initialData": {
+        "playerInfo": {
+          "region": "euw1",
+          "localRank": [
+            562452,
+            0.7502310908957524
+          ],
+          "rankedLeague": [
+            "SILVER IV",
+            71
+          ],
+          "setsRanks": [
+            {
+              "set": 180,
+              "ranked": [
+                1794875454,
+                "SILVER IV",
+                71,
+                77
+              ],
+              "played": true
+            },
+            {
+              "set": 170,
+              "ranked": [
+                1787527784,
+                "GOLD III",
+                45,
+                76
+              ],
+              "duo": [
+                1782426312,
+                "GOLD I",
+                32,
+                60
+              ],
+              "played": true
+            },
+            {
+              "set": 160,
+              "ranked": [
+                1774054154,
+                "GOLD II",
+                13,
+                173
+              ],
+              "duo": [
+                1775053537,
+                "EMERALD IV",
+                16,
+                65
+              ],
+              "played": true
+            },
+            {
+              "set": 150,
+              "ranked": [
+                1760900970,
+                "SILVER III",
+                20,
+                46
+              ],
+              "played": true
+            },
+            {
+              "set": 140,
+              "ranked": [
+                1753810003,
+                "GOLD IV",
+                0,
+                161
+              ],
+              "hr": [
+                1747052047,
+                "GREEN",
+                1470,
+                17
+              ],
+              "played": true
+            },
+            {
+              "set": 130,
+              "ranked": [
+                1736340685,
+                "SILVER I",
+                40,
+                51
+              ],
+              "hr": [
+                1737462902,
+                "GREEN",
+                2492,
+                71
+              ],
+              "duo": [
+                1734309954,
+                "SILVER III",
+                69,
+                38
+              ],
+              "played": true
+            },
+            {
+              "set": 120,
+              "ranked": [
+                1731543020,
+                "GOLD IV",
+                16,
+                47
+              ],
+              "hr": [
+                1732070989,
+                "BLUE",
+                2922,
+                118
+              ],
+              "duo": [
+                1732068362,
+                "PLATINUM IV",
+                36,
+                50
+              ],
+              "played": true
+            },
+            {
+              "set": 110,
+              "ranked": [
+                1722376145,
+                "SILVER II",
+                0,
+                88
+              ],
+              "hr": [
+                1719228744,
+                "BLUE",
+                2704,
+                217
+              ],
+              "duo": [
+                1718106357,
+                "GOLD II",
+                92,
+                48
+              ],
+              "played": true
+            },
+            {
+              "set": 100,
+              "hr": [
+                1710896585,
+                "GREEN",
+                1850,
+                23
+              ],
+              "played": true
+            },
+            {
+              "set": 95,
+              "played": false
+            },
+            {
+              "set": 90,
+              "ranked": [
+                1687524701,
+                "GOLD IV",
+                38,
+                53
+              ],
+              "played": true
+            },
+            {
+              "set": 85,
+              "ranked": [
+                1680627052,
+                "SILVER II",
+                8,
+                62
+              ],
+              "played": true
+            },
+            {
+              "set": 80,
+              "ranked": [
+                1679416787,
+                "SILVER II",
+                0,
+                79
+              ],
+              "played": true
+            },
+            {
+              "set": 75,
+              "ranked": [
+                1670339535,
+                "SILVER II",
+                23,
+                159
+              ],
+              "played": true
+            },
+            {
+              "set": 70,
+              "ranked": [
+                1662553931,
+                "SILVER II",
+                77,
+                104
+              ],
+              "played": true
+            },
+            {
+              "set": 65,
+              "ranked": [
+                1654563616,
+                "SILVER II",
+                75,
+                80
+              ],
+              "played": false
+            },
+            {
+              "set": 60,
+              "ranked": [
+                1643876706,
+                "GOLD IV",
+                0,
+                181
+              ],
+              "played": false
+            },
+            {
+              "set": 55,
+              "ranked": [
+                1635345949,
+                "SILVER IV",
+                61,
+                161
+              ],
+              "played": false
+            },
+            {
+              "set": 50,
+              "ranked": [
+                1626729992,
+                "SILVER II",
+                48,
+                22
+              ],
+              "played": false
+            },
+            {
+              "set": 45,
+              "ranked": [
+                1619526077,
+                "GOLD III",
+                28,
+                124
+              ],
+              "played": false
+            },
+            {
+              "set": 40,
+              "ranked": [
+                1611153685,
+                "SILVER III",
+                45,
+                113
+              ],
+              "played": false
+            },
+            {
+              "set": 35,
+              "played": false
+            },
+            {
+              "set": 30,
+              "played": false
+            }
+          ],
+          "name": "Fixture",
+          "tag": "EUW"
+        },
+        "matches": [
+          {
+            "id": "EUW1_fixture_0",
+            "dateTime": 1794875431576,
+            "duration": 2276.8486,
+            "patch": 16220,
+            "queueId": 1100,
+            "info": {
+              "lastRound": 33,
+              "level": 8,
+              "placement": 5,
+              "units": [
+                {
+                  "id": "DA_18_MasterYi_AD",
+                  "items": [],
+                  "items2": [
+                    "DA_EdgeOfNight",
+                    "DA_TitansResolve",
+                    "DA_GuinsoosRageblade"
+                  ],
+                  "rarity": 2,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_18_Yorick",
+                  "items": [],
+                  "items2": [],
+                  "rarity": 0,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_Vi18",
+                  "items": [],
+                  "items2": [
+                    "DA_SpiritVisage_Radiant",
+                    "DA_GargoyleStoneplate",
+                    "DA_WarmogsArmor"
+                  ],
+                  "rarity": 2,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_Nidalee18_AP",
+                  "items": [],
+                  "items2": [
+                    "DA_SpearOfShojin",
+                    "DA_JeweledGauntlet",
+                    "DA_RabadonsDeathcap"
+                  ],
+                  "rarity": 3,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_Krug18",
+                  "items": [],
+                  "items2": [
+                    "DA_GargoyleStoneplate",
+                    "DA_SpiritVisage",
+                    "DA_ProtectorsVow"
+                  ],
+                  "rarity": 2,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_KogMaw18_AD",
+                  "items": [],
+                  "items2": [],
+                  "rarity": 2,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_18_Rengar",
+                  "items": [],
+                  "items2": [],
+                  "rarity": 2,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_18_Sett",
+                  "items": [],
+                  "items2": [],
+                  "rarity": 3,
+                  "tier": 1
+                }
+              ],
+              "name": "Fixture",
+              "tag": "EUW"
+            }
+          },
+          {
+            "id": "EUW1_fixture_1",
+            "dateTime": 1794873354871,
+            "duration": 2249.147,
+            "patch": 16220,
+            "queueId": 1100,
+            "info": {
+              "lastRound": 33,
+              "level": 8,
+              "placement": 3,
+              "units": [
+                {
+                  "id": "DA_18_Yorick",
+                  "items": [],
+                  "items2": [],
+                  "rarity": 0,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_Vi18",
+                  "items": [],
+                  "items2": [
+                    "DA_SpiritVisage_Radiant",
+                    "DA_WarmogsArmorRadiant",
+                    "DA_GargoyleStoneplate"
+                  ],
+                  "rarity": 2,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_18_Sett",
+                  "items": [],
+                  "items2": [
+                    "DA_WarmogsArmor"
+                  ],
+                  "rarity": 3,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_Krug18",
+                  "items": [],
+                  "items2": [],
+                  "rarity": 2,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_Nidalee18_AP",
+                  "items": [],
+                  "items2": [
+                    "DA_SpearOfShojin",
+                    "DA_Component_SparringGloves",
+                    "DA_GuinsoosRageblade"
+                  ],
+                  "rarity": 3,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_KogMaw18_AD",
+                  "items": [],
+                  "items2": [],
+                  "rarity": 2,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_18_MasterYi_AD",
+                  "items": [],
+                  "items2": [
+                    "DA_TitansResolve",
+                    "DA_EdgeOfNight",
+                    "DA_GuinsoosRageblade"
+                  ],
+                  "rarity": 2,
+                  "tier": 2
+                },
+                {
+                  "id": "DA_18_Rengar",
+                  "items": [],
+                  "items2": [],
+                  "rarity": 2,
+                  "tier": 2
+                }
+              ],
+              "name": "Fixture",
+              "tag": "EUW"
+            }
+          }
+        ],
+        "rankHistory": [
+          [
+            1794875454,
+            "SILVER IV",
+            71,
+            77
+          ],
+          [
+            1794874259,
+            "SILVER IV",
+            81,
+            76
+          ]
+        ],
+        "queueSeasonStats": {
+          "1100": {
+            "games": 77,
+            "top4": 29
+          }
+        }
+      }
+    }
+  }
+}

@@ -2,6 +2,70 @@ import XCTest
 @testable import HexaTFT
 
 final class AnalystTests: XCTestCase {
+    func testTacticsFallbackImportsVerifiedRankAndMatchDetails() async throws {
+        let identity = try XCTUnwrap(RiotIdentity("Fixture#EUW", region: "euw1"))
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "tactics-profile", withExtension: "json"))
+        let payload = try String(contentsOf: url, encoding: .utf8)
+        let html = "<script type='application/json' id='__NEXT_DATA__'>\n" + payload + "\n</script>"
+        let profile = try await TrackerProfileSources.fetch(identity, opgg: { _ in
+            throw OPGGTracker.ReadError.unreadable("Europe Ouest")
+        }, tactics: { try TacticsTracker.parse(html, identity: $0) })
+        XCTAssertEqual(profile.id, identity.trackerID)
+        XCTAssertEqual(profile.source, TacticsTracker.source)
+        XCTAssertEqual(profile.ranks.first?.lp, 71)
+        XCTAssertEqual(profile.currentSet, 18)
+        XCTAssertEqual(profile.matches.map(\.placement), [5, 3])
+        XCTAssertEqual(profile.matches.first?.patch, "18.6")
+        XCTAssertEqual(profile.matches.first?.units.first?.completeItems.count, 3)
+        XCTAssertNil(profile.matches.first?.goldLeft)
+        let wrong = try XCTUnwrap(RiotIdentity("Other#EUW", region: "euw1"))
+        XCTAssertThrowsError(try TacticsTracker.parse(html, identity: wrong))
+    }
+
+    @MainActor func testTrackerRemembersFailedFirstConnectionAndRetriesAfterRestart() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let identity = try XCTUnwrap(RiotIdentity("Fixture#EUW", region: "euw1"))
+        let first = TrackerStore(directory: dir, loader: { _ in throw DataIssue.invalid("Source indisponible") })
+        do { try await first.connect(identity); XCTFail("La source devait échouer") } catch { }
+        XCTAssertNil(first.identity)
+        XCTAssertEqual(first.pendingIdentity, identity)
+
+        let restarted = TrackerStore(directory: dir, loader: { identity in
+            RiotProfile(id: identity.trackerID, riotID: identity.riotID, region: identity.region,
+                        observedAt: 100, matches: [], ranks: [], source: TacticsTracker.source)
+        })
+        XCTAssertEqual(restarted.pendingIdentity, identity)
+        await restarted.retryConnection()
+        XCTAssertEqual(restarted.identity, identity)
+        XCTAssertNil(restarted.pendingIdentity)
+    }
+
+    @MainActor func testFallbackRetainsExistingDetailedMatchWhenSourcesOverlap() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let tracker = TrackerStore(directory: dir)
+        let identity = try XCTUnwrap(RiotIdentity("Fixture#EUW", region: "euw1"))
+        let sample = try XCTUnwrap(sample().first)
+        var detailed = sample
+        detailed.source = "OP.GG"
+        detailed.goldLeft = 23
+        var fallback = sample
+        fallback.source = TacticsTracker.source
+        fallback.goldLeft = nil
+        try tracker.saveProfile(identity)
+        var first = RiotProfile(id: identity.trackerID, riotID: identity.riotID, region: identity.region,
+                                observedAt: 200, matches: [detailed], ranks: [], source: "OP.GG", currentSet: 18)
+        try tracker.ingest(first, for: identity)
+        first.source = TacticsTracker.source
+        first.observedAt = 100
+        first.matches = [fallback]
+        try tracker.ingest(first, for: identity)
+        XCTAssertEqual(tracker.profile?.source, TacticsTracker.source)
+        XCTAssertEqual(tracker.profile?.matches.first?.source, "OP.GG")
+        XCTAssertEqual(tracker.profile?.matches.first?.goldLeft, 23)
+    }
+
     func testPublicAccountWithNativeNetworking() async throws {
         let identity = try XCTUnwrap(RiotIdentity("akarukasu#1703",region:"euw1"))
         let profile = try await OPGGTracker.fetch(identity)

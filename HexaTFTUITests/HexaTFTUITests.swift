@@ -290,6 +290,7 @@ final class HexaTFTUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launchEnvironment["HEXA_TRACKER_UI_FIXTURE"] = #"{"profiles":[],"points":{},"region":"euw1","riotID":""}"#
+        app.launchEnvironment["HEXA_OPGG_TRACKER_FIXTURE"] = "<html><title>OP.GG</title></html>"
         app.launch()
         app.tabBars.buttons["Tracker"].tap()
         app.buttons["tracker-edit-account"].tap()
@@ -300,12 +301,14 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(field.waitForNonExistence(timeout:45),app.debugDescription)
         XCTAssertTrue(app.segmentedControls["tracker-native-tabs"].waitForExistence(timeout:8),app.debugDescription)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format:"label CONTAINS[c] %@","akarukasu#1703")).firstMatch.exists)
-        snapshot("40-tracker-compte-reel")
+        XCTAssertTrue(app.staticTexts["tracker-sync-result"].label.contains("Tactics.Tools"))
+        snapshot("43-tracker-tactics-secours")
         let refresh = app.buttons["tracker-refresh-now"]
         XCTAssertTrue(refresh.waitForExistence(timeout:8)); refresh.tap()
         let info = app.staticTexts["tracker-sync-result"]
         let complete = XCTNSPredicateExpectation(predicate:NSPredicate(format:"label CONTAINS[c] 'Vérification terminée' OR label CONTAINS[c] 'nouvelle'"),object:info)
         XCTAssertEqual(XCTWaiter.wait(for:[complete],timeout:45),.completed)
+        XCTAssertTrue(info.label.contains("Tactics.Tools"))
         snapshot("41-tracker-actualisation")
     }
     @MainActor func testTrackerConnectionErrorKeepsTheFormAndPreviousAccount() throws {
@@ -314,6 +317,7 @@ final class HexaTFTUITests: XCTestCase {
         let line = "1:" + String(decoding:try JSONSerialization.data(withJSONObject:tree),as:UTF8.self) + "\n"
         let chunk = String(decoding:try JSONSerialization.data(withJSONObject:[1,line]),as:UTF8.self)
         app.launchEnvironment["HEXA_OPGG_TRACKER_FIXTURE"] = "<script>self.__next_f.push(\(chunk))</script>"
+        app.launchEnvironment["HEXA_TACTICS_TRACKER_FIXTURE"] = "<html><title>Indisponible</title></html>"
         app.launch(); app.tabBars.buttons["Tracker"].tap()
         app.buttons["tracker-edit-account"].tap()
         let field = app.textFields["Pseudo#TAG"]

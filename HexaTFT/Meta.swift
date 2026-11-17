@@ -482,7 +482,7 @@ struct MetaPack: Codable {
         }
     }
 
-    static func patchNumber(for branch: String, set: String?) -> String? {
+    nonisolated static func patchNumber(for branch: String, set: String?) -> String? {
         // During set 18, TFT 18.1–18.7 map to client branches 16.17–16.23.
         guard set == "18", branch.hasPrefix("16."),
               let minor = Int(branch.dropFirst(3)), (17...23).contains(minor) else { return nil }
