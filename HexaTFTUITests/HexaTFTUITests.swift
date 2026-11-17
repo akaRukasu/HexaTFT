@@ -3,6 +3,7 @@ import XCTest
 final class HexaTFTUITests: XCTestCase {
     @MainActor func testBrowsePinAndSources() {
         let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launch()
         XCTAssertTrue(app.buttons["Archives"].waitForExistence(timeout: 15))
         app.buttons["Archives"].tap()
@@ -35,6 +36,7 @@ final class HexaTFTUITests: XCTestCase {
     }
     @MainActor func testCodexOpensFromLibrary() {
         let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launch()
         app.tabBars.buttons["Plus"].tap()
         let codex = app.buttons["Codex"]
@@ -45,6 +47,7 @@ final class HexaTFTUITests: XCTestCase {
     }
     @MainActor func testVisualStagesAndChampionRecipes() {
         let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launch()
         app.buttons["Archives"].tap()
         let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "meta-card-")).firstMatch
@@ -79,6 +82,7 @@ final class HexaTFTUITests: XCTestCase {
     }
     @MainActor func testUltimatePBEAndTrackerNavigation() {
         let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launch()
         app.buttons["PBE"].tap()
         let pbeCard = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "meta-card-pbe-")).firstMatch
@@ -156,6 +160,7 @@ final class HexaTFTUITests: XCTestCase {
     }
     @MainActor func testCurrentMetaShowsPublishedRosterAndConditions() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         let json = """
         ["$","$L2",null,{"data":{
             "status":"ready","generation":{"set":18,"patch":"18.6"},
@@ -252,6 +257,7 @@ final class HexaTFTUITests: XCTestCase {
     }
     @MainActor func testTrackerNativeOverviewOpensAnOPGGMatch() {
         let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
         app.launchEnvironment["HEXA_TRACKER_UI_FIXTURE"] = """
         {"region":"euw1","riotID":"Fixture#EUW","selected":"opgg:fixture#euw:euw1","points":{},
          "profiles":[{"id":"opgg:fixture#euw","region":"euw1","riotID":"Fixture#EUW","source":"OP.GG","observedAt":1794271042,

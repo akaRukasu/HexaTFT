@@ -162,4 +162,16 @@ final class AnalystTests: XCTestCase {
         XCTAssertEqual(brief.checkpoints.count,3)
         XCTAssertTrue(brief.checkpoints.joined().contains("4-2"))
     }
+    @MainActor func testArchiveDefaultsToAUsableCatalogueEvenAfterAnEmptyBuildWasCached() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:dir) }
+        try FileManager.default.createDirectory(at:dir,withIntermediateDirectories:true)
+        let empty = PatchSnapshot(pack:MetaPack(data:[],retrievedAt:Date.now.ISO8601Format(),set:"18",patch:"18.7"),reference:nil)
+        try JSONEncoder().encode([empty]).write(to:dir.appendingPathComponent("patch-archives.json"))
+        let meta = MetaStore(directory:dir)
+        meta.select(.archives)
+        XCTAssertFalse(try XCTUnwrap(meta.pack).data.isEmpty)
+        meta.select(.archives,archiveID:empty.id)
+        XCTAssertEqual(meta.archive?.id,empty.id)
+    }
 }

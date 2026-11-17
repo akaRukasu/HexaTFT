@@ -241,9 +241,22 @@ struct MetaPack: Codable {
             experimentalHistory.append(previous)
         }
         if let saved: PatchSelection = read("patch-selection.json") { selection = saved }
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1" {
+            live = livePack.map { PatchSnapshot(pack:$0,reference:Self.bundle("live-reference"),provider:"Riot · CommunityDragon") }
+            archives = Self.loadBundledSnapshot(packName:"meta",referenceName:"reference").map { [$0] } ?? []
+            experimental = Self.bundle("pbe-reference")
+            experimentalHistory = []
+            selection = PatchSelection(); publicMeta = nil; publicMetaAudience = .global
+        }
+        #endif
     }
 
-    var archive: PatchSnapshot? { archives.first { $0.id == selection.archiveID } ?? archives.first }
+    var archive: PatchSnapshot? {
+        archives.first { $0.id == selection.archiveID } ??
+            archives.first { !$0.pack.data.isEmpty } ??
+            archives.first { $0.pack.patch == "18.6" && $0.reference?.version.hasPrefix("16.22.") == true } ?? archives.first
+    }
     var pack: MetaPack? {
         switch selection.channel {
         case .live: return live?.pack
@@ -386,6 +399,18 @@ struct MetaPack: Codable {
 
     func refresh(reference _: ReferenceData?) async {
         guard !refreshing else { return }
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1" {
+            lastAttempt = .now
+            if ProcessInfo.processInfo.environment["HEXA_OPGG_META_FIXTURE"] != nil,
+               let version = live?.reference?.version {
+                let audience = publicMetaAudience
+                let page = await OPGGMetaSnapshot.fetch(audience: audience)
+                updatePublicMeta(page, branch: version.split(separator:".").prefix(2).joined(separator:"."), audience: audience)
+            }
+            return
+        }
+        #endif
         let previousAttempt = lastAttempt
         let audience = publicMetaAudience
         refreshing = true; message = nil; lastAttempt = Date()
@@ -538,6 +563,9 @@ struct MetaPack: Codable {
     }
 
     func autoRefreshPBE() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1" { return }
+        #endif
         guard !pbeBusy, lastPBEAttempt.map({ Date().timeIntervalSince($0) >= 600 }) ?? true else { return }
         pbeBusy = true; lastPBEAttempt = Date()
         defer { pbeBusy = false }
