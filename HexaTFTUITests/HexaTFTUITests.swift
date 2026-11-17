@@ -110,8 +110,9 @@ final class HexaTFTUITests: XCTestCase {
         let save = app.buttons["tracker-save"]
         XCTAssertTrue(save.isEnabled)
         save.tap()
+        XCTAssertTrue(id.waitForNonExistence(timeout: 45))
         let profileTabs = app.segmentedControls["tracker-profile-tabs"]
-        XCTAssertTrue(profileTabs.waitForExistence(timeout: 45))
+        XCTAssertTrue(profileTabs.waitForExistence(timeout: 8))
         XCTAssertTrue(profileTabs.buttons["Vue d’ensemble"].isSelected)
         profileTabs.buttons["Tactics.Tools"].tap()
         let publicProfile = app.webViews.firstMatch
@@ -296,8 +297,8 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout:8))
         field.tap(); field.typeText("akarukasu#1703")
         app.buttons["tracker-save"].tap()
-        XCTAssertTrue(app.segmentedControls["tracker-native-tabs"].waitForExistence(timeout:45),app.debugDescription)
-        XCTAssertFalse(field.exists)
+        XCTAssertTrue(field.waitForNonExistence(timeout:45),app.debugDescription)
+        XCTAssertTrue(app.segmentedControls["tracker-native-tabs"].waitForExistence(timeout:8),app.debugDescription)
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format:"label CONTAINS[c] %@","akarukasu#1703")).firstMatch.exists)
         snapshot("40-tracker-compte-reel")
         let refresh = app.buttons["tracker-refresh-now"]
