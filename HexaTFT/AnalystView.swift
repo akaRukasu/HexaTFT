@@ -9,7 +9,7 @@ struct AnalystView: View {
     @State private var window = 30
     @State private var section = "Bilan"
     @State private var eraseMemory = false
-    private var activeSet: Int? { set ?? tracker.profile?.currentSet ?? tracker.profile?.matches.first?.set }
+    private var activeSet: Int? { self.set ?? tracker.profile?.currentSet ?? tracker.profile?.matches.first?.set }
     private var account: String { tracker.state.selected ?? "" }
     private var all: [TrackedMatch] { activeSet.map { tracker.matches(set: $0) } ?? [] }
     private var report: MatchAnalyst { MatchAnalyst(matches: all, set: activeSet, patch: patch, limit: window) }

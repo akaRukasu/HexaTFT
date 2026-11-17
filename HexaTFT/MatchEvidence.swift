@@ -38,7 +38,7 @@ struct SeasonArchive: Codable, Identifiable {
     let checkedAt: Date
     let indexedGames: Int?
     let indexedTop4: Int?
-    var id: Int { set }
+    var id: Int { self.set }
 }
 
 struct AnalysisSummary {
