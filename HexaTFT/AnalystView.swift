@@ -35,7 +35,9 @@ struct AnalystView: View {
                 }
             }.padding()
         }.background(hexaNavy).navigationTitle("Analyse")
-            .task(id: activeSet) { if let activeSet { await tracker.loadArchive(set: activeSet) } }
+            .task(id: activeSet) {
+                if let activeSet, activeSet != (tracker.profile?.currentSet ?? tracker.profile?.matches.first?.set) { await tracker.loadArchive(set: activeSet) }
+            }
             .onChange(of: set) { _, _ in patch = nil }
             .confirmationDialog("Effacer les objectifs, les notes et le dialogue de ce compte ?", isPresented: $eraseMemory, titleVisibility: .visible) {
                 Button("Effacer ma mémoire d’analyse", role: .destructive) { coach.erase(account: account) }
@@ -361,7 +363,7 @@ struct SeasonJourneyView: View {
         }
     }
     private func goalPanel(_ goal: TrainingGoal) -> some View {
-        let added = Array(tracker.matches(set: goal.set).filter { $0.timestamp > goal.startedAt.timeIntervalSince1970 }.sorted { $0.timestamp < $1.timestamp }.prefix(10))
+        let added = goal.followUp(in: tracker.matches(set: goal.set))
         return Panel {
             Label("Mon objectif · Set \(goal.set)", systemImage: "target").font(.headline).foregroundStyle(.mint)
             Text(goal.topic.title).font(.title3.bold()); Text(goal.topic.practice).font(.subheadline)

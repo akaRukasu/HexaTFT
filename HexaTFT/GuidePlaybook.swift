@@ -6,7 +6,14 @@ struct GuideBrief {
     let reference: ReferenceData?
     let stage: Stage
     var primary: String? { comp.publishedPlan?.primaryUnit ?? comp.carry_units?.first }
-    var tank: String? { comp.publishedPlan?.frontline ?? comp.carry_units?.dropFirst().first }
+    var tank: String? {
+        if let frontline = comp.publishedPlan?.frontline { return frontline }
+        return comp.units.first { unit in
+            unit.name != primary && !(unit.items ?? []).isEmpty &&
+            (reference?.champion(key: unit.name)?.balance?["range"] ?? 99) <= 1 &&
+            comp.units_positions?.contains { $0.unit_api_name == unit.name && $0.board_position < 7 } == true
+        }?.name
+    }
     var reroll: Bool { (comp.strategy?.type ?? "").contains("roll_") }
     func name(_ key: String?) -> String { key.flatMap { reference?.champion(key: $0)?.name } ?? "le porteur du guide" }
     var checkpoints: [String] {

@@ -6,6 +6,12 @@ struct TrainingGoal: Codable {
     let startedAt: Date
     let set: Int
     let baseline: [TrackedMatch]
+    func followUp(in matches: [TrackedMatch]) -> [TrackedMatch] {
+        let baselineIDs = Set(baseline.map(\.id))
+        return Array(MatchAnalyst(matches: matches, set: self.set, limit: Int.max).matches
+            .filter { $0.timestamp > startedAt.timeIntervalSince1970 && !baselineIDs.contains($0.id) }
+            .sorted { $0.timestamp < $1.timestamp }.prefix(10))
+    }
 }
 struct AnalystMessage: Codable, Identifiable {
     var id = UUID()

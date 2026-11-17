@@ -132,4 +132,14 @@ final class AnalystTests: XCTestCase {
         let unit = try JSONDecoder().decode(TrackedMatch.Unit.self,from:Data(#"{"key":"old","stars":2,"items":["one","two"]}"#.utf8))
         XCTAssertNil(unit.equipment); XCTAssertTrue(unit.completeItems.isEmpty)
     }
+    func testTrainingFollowUpUsesFirstTenNewSoloMatchesInTheSameSet() throws {
+        let matches = try sample()
+        let set18 = matches.filter { $0.set == 18 }.sorted { $0.timestamp < $1.timestamp }
+        let first = try XCTUnwrap(set18.first)
+        let goal = TrainingGoal(topic:.stability,startedAt:first.date,set:18,baseline:[first])
+        let result = goal.followUp(in:matches + matches)
+        XCTAssertEqual(result.map(\.id),Array(set18.dropFirst().prefix(10)).map(\.id))
+        XCTAssertEqual(result.count,10)
+        XCTAssertTrue(result.allSatisfy { $0.set == 18 && $0.queue == 1100 })
+    }
 }

@@ -686,7 +686,7 @@ struct TrackerDashboard: View {
                     }
                     Chart(1...(recent.first?.queue == 1160 ? 4 : 8), id: \.self) { place in
                         BarMark(x: .value("Place", String(place)), y: .value("Parties", recent.filter { $0.placement == place }.count))
-                            .foregroundStyle(place == 1 ? hexaGold.gradient : place <= 4 ? Color.mint.gradient : Color.orange.gradient)
+                            .foregroundStyle(place == 1 ? hexaGold.gradient : place <= (recent.first?.queue == 1160 ? 2 : 4) ? Color.mint.gradient : Color.orange.gradient)
                             .cornerRadius(4)
                     }.frame(height: 148).accessibilityLabel("Distribution des placements")
                 } else {
@@ -708,7 +708,7 @@ struct TrackerDashboard: View {
             ForEach(recent) { match in
                 NavigationLink { TrackedMatchView(match: match) } label: {
                     HStack(spacing: 12) {
-                        Badge(text: "#\(match.placement)", color: match.placement <= 4 ? .mint : .orange)
+                        Badge(text: "#\(match.placement)", color: match.placement <= (match.queue == 1160 ? 2 : 4) ? .mint : .orange)
                         VStack(alignment: .leading, spacing: 5) {
                             Text(match.modeName).font(.headline)
                             Text(match.date.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
@@ -765,19 +765,19 @@ struct TrackerDashboard: View {
     }
 
     private var setHistory: some View {
-        let groups = Dictionary(grouping: profile.matches) { $0.set }
+        let groups = Dictionary(grouping: profile.matches.filter { $0.modeName == mode }) { $0.set }
         return Section("Bilan par set") {
             ForEach(groups.keys.sorted { ($0 ?? 0) > ($1 ?? 0) }, id: \.self) { set in
                 let summary = MatchSummary(groups[set] ?? [])
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(set.map { "Set \($0)" } ?? "Set non renseigné").font(.headline)
+                    Text((set.map { "Set \($0)" } ?? "Set non renseigné") + " · " + (mode ?? "Mode inconnu")).font(.headline)
                     HStack {
                         DashboardMetric(title: "Parties", value: summary.count.formatted())
                         if let average = summary.average {
                             DashboardMetric(title: "Moyenne", value: average.formatted(.number.precision(.fractionLength(2))))
                         }
                         if let top4 = summary.top4 {
-                            DashboardMetric(title: "Top 4", value: top4.formatted(.percent.precision(.fractionLength(1))), accent: .mint)
+                            DashboardMetric(title: mode == "Double Up" ? "Top 2" : "Top 4", value: top4.formatted(.percent.precision(.fractionLength(1))), accent: .mint)
                         }
                     }
                 }
@@ -844,7 +844,7 @@ struct TrackedMatchView: View {
         List {
             Section {
                 FeatureBanner(eyebrow: match.modeName.uppercased(), title: "Top " + String(match.placement),
-                              detail: match.date.formatted(), icon: "flag.checkered", accent: match.placement <= 4 ? .mint : .orange)
+                              detail: match.date.formatted(), icon: "flag.checkered", accent: match.placement <= (match.queue == 1160 ? 2 : 4) ? .mint : .orange)
                     .listRowBackground(Color.clear)
                 if let set = match.set { LabeledContent("Set", value: String(set)) }
                 if let patch = match.patch { LabeledContent("Version", value: patch) }
