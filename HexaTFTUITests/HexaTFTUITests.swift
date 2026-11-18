@@ -262,6 +262,30 @@ final class HexaTFTUITests: XCTestCase {
         XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["Recharger la page"].exists)
     }
+    @MainActor func testMetaNewPatchImportsStatsWhileReferenceBuildIsUnavailable() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"
+        app.launchEnvironment["HEXA_EUW_BUILD_FIXTURE"] = "16.23.1"
+        let champion: [String: Any] = ["key": "DA_18_Morgana", "name": "Morgana", "cost": 4,
+            "combatStats": ["range": 1], "items": [["key": "DA_WarmogsArmor"]], "role": "carry"]
+        let payload: [String: Any] = ["status": "ready", "generation": ["set": 18, "patch": "18.7"],
+            "metadata": ["currentPatch": "18.7", "updatedAt": Date.now.ISO8601Format(), "sliceApplied": true],
+            "filters": ["region": "global", "tier": "PLATINUM+", "window": 72],
+            "champions": [champion], "items": [["key": "DA_WarmogsArmor", "name": "Armure de Warmog"]],
+            "comps": [["id": "patch-rollover", "name": "Morgana 18.7", "units": [champion], "strategyLevel": 8,
+                "stats": ["avgPlacement": 4.1, "winRate": 0.1, "top4Rate": 0.55, "count": 1234, "pickRate": 0.02]]]]
+        let tree: [Any] = ["$", "$L2", NSNull(), ["data": payload]]
+        let line = "1:" + String(decoding: try JSONSerialization.data(withJSONObject: tree), as: UTF8.self) + "\n"
+        let chunk = String(decoding: try JSONSerialization.data(withJSONObject: [1, line]), as: UTF8.self)
+        app.launchEnvironment["HEXA_OPGG_META_FIXTURE"] = "<script>self.__next_f.push(\(chunk))</script>"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["PATCH 18.7"].waitForExistence(timeout: 15))
+        let card = app.buttons["meta-opgg-patch-rollover"]
+        reveal(card, in: app)
+        snapshot("45-meta-nouveau-patch")
+        card.tap()
+        XCTAssertTrue(app.navigationBars["Composition"].waitForExistence(timeout: 8))
+    }
     @MainActor func testTrackerNativeOverviewOpensAnOPGGMatch() {
         let app = XCUIApplication()
         app.launchEnvironment["HEXA_META_OFFLINE_TEST"] = "1"

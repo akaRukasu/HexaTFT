@@ -60,6 +60,42 @@ struct OPGGMetaSnapshot: Codable {
             self.data = data
         }
 
+        var publishedPatch: String? { page.object(data["generation"])?["patch"] as? String }
+        var setNumber: String? { (page.object(data["generation"])?["set"] as? Int).map(String.init) }
+        var isAnalyzing: Bool { page.object(data["metadata"])?["newPatchAnalyzing"] as? Bool == true }
+
+        // OP.GG supplies a patch-specific roster as well as statistics. This can
+        // complete the live catalogue while CommunityDragon publishes its build.
+        func reference(branch: String, patch: String) -> ReferenceData? {
+            guard publishedPatch == patch, let set = setNumber,
+                  MetaStore.patchNumber(for: branch, set: set) == patch,
+                  let metadata = page.object(data["metadata"]),
+                  metadata["currentPatch"] as? String == patch, !isAnalyzing,
+                  let timestamp = metadata["updatedAt"] as? String,
+                  let date = OPGGTracker.timestampDate(timestamp), date <= .now.addingTimeInterval(300) else { return nil }
+            var entries: [String: ReferenceEntry] = [:]
+            for (field, kind) in [("champions", "champion"), ("items", "item"), ("traits", "trait")] {
+                for value in page.resolve(data[field]) as? [Any] ?? [] {
+                    guard let row = page.object(value), let key = row["key"] as? String,
+                          let name = row["name"] as? String, !key.isEmpty, !name.isEmpty else { continue }
+                    let ability = page.object(row["ability"])
+                    let detail = (page.resolve(ability?["description"] ?? row["description"]) as? String ?? "")
+                        .replacingOccurrences(of: #"<[^>]+>"#, with: "", options: .regularExpression)
+                    let components = (page.resolve(row["componentItems"]) as? [Any])?.compactMap { page.object($0)?["key"] as? String }
+                    let traits = (page.resolve(row["traits"]) as? [Any])?.compactMap { page.object($0)?["name"] as? String }
+                    let stats = page.object(row["combatStats"])?.compactMapValues { $0 as? Double }
+                    let id = kind + ":" + key
+                    entries[id] = ReferenceEntry(id: id, name: name, kind: kind, set: set, cost: row["cost"] as? Int ?? 0,
+                        description: detail, imageURL: row["imageUrl"] as? String ?? "", components: components,
+                        itemTags: (row["category"] as? String).map { [$0] }, balance: stats, traitNames: traits)
+                }
+            }
+            guard entries.values.contains(where: { $0.kind == "champion" }),
+                  entries.values.contains(where: { $0.kind == "item" }) else { return nil }
+            return ReferenceData(version: branch + ".opgg", source: OPGGMetaSnapshot.source.absoluteString,
+                                 retrievedAt: timestamp, entries: entries.values.sorted { $0.id < $1.id })
+        }
+
         func snapshot(reference: ReferenceData, branch: String, patch: String?, audience: Audience = .global) -> OPGGMetaSnapshot? {
             guard let generation = page.object(data["generation"]),
                   let set = generation["set"] as? Int, reference.entries.first?.set == String(set),

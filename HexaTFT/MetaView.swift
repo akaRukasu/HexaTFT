@@ -68,7 +68,7 @@ struct MetaView: View {
                         if let revision = meta.experimental?.version { Badge(text: "BUILD " + revision, color: .mint) }
                     } else {
                         Badge(text: "SET " + (meta.pack?.set ?? "—"), color: hexaGold)
-                        Badge(text: "PATCH " + (meta.pack?.patch ?? meta.euwVersion ?? "—"), color: hexaGold)
+                        Badge(text: "PATCH " + ((meta.selection.channel == .live ? meta.detectedPatch : meta.pack?.patch) ?? "—"), color: hexaGold)
                         Spacer()
                         Text("\(meta.comps.count + meta.editorialComps.count) guides").font(.caption).foregroundStyle(.secondary)
                     }
@@ -161,14 +161,17 @@ struct MetaView: View {
                 liveComps(published)
             } else {
                 if meta.refreshing { ProgressView("Vérification de la méta OP.GG") }
-                else if meta.publicMetaIsFromOlderBuild {
-                    Text("Nouveau build EUW détecté. En attente des statistiques du patch.")
+                else if meta.publicMetaIsFromOlderBuild || meta.hasPendingLiveBuild {
+                    Text(meta.publicMetaError ?? "Publication du nouveau patch EUW en cours.")
                         .font(.caption).foregroundStyle(.orange)
                 } else {
                     Text(meta.publicMetaError ?? "En attente d’un relevé OP.GG vérifié.").font(.caption).foregroundStyle(.secondary)
                 }
             }
             if published == nil {
+                if let previous = meta.latestArchivedPublicMeta {
+                    archivedPublicComps(previous.snapshot, catalogue: previous.catalogue)
+                }
                 legacyReadings(snapshot, readings: readings, catalogue: catalogue, compatible: compatible, includesArchives: includesArchives)
             }
         }
@@ -177,6 +180,27 @@ struct MetaView: View {
     private func changeAudience(_ audience: OPGGMetaSnapshot.Audience) async {
         meta.selectPublicMetaAudience(audience)
         await meta.autoRefresh()
+    }
+
+    private func archivedPublicComps(_ feed: OPGGMetaSnapshot, catalogue: PatchSnapshot) -> some View {
+        let rows = sort.guides(feed.pack.data.filter { comp in
+            query.isEmpty || comp.title(catalogue.reference).localizedStandardContains(query)
+        }) { comp in
+            guard let stats = comp.stats else { return -.infinity }
+            return sort.score(average: stats.avg_placement, top4: stats.top_4_percent, top1: stats.top_1_percent)
+        }
+        return DisclosureGroup {
+            ForEach(rows) { comp in
+                NavigationLink { MetaDetail(comp: comp, snapshot: PatchSnapshot(pack: feed.pack, reference: catalogue.reference, provider: "OP.GG")) } label: {
+                    archiveCard(comp, snapshot: PatchSnapshot(pack: feed.pack, reference: catalogue.reference, provider: "OP.GG"))
+                }.buttonStyle(.plain)
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                Label("Dernières compos OP.GG · patch \(feed.pack.patch ?? "archivé")", systemImage: "archivebox")
+                Text("Relevé antérieur au build EUW · " + feed.publishedAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(.secondary)
+            }
+        }.accessibilityIdentifier("meta-previous-opgg")
     }
 
     private func liveComps(_ feed: OPGGMetaSnapshot) -> some View {

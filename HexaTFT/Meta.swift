@@ -167,6 +167,23 @@ struct MetaPack: Codable {
     }
 }
 @MainActor final class MetaStore: ObservableObject {
+    struct RefreshServices {
+        var liveEUW: () async throws -> String = {
+            #if DEBUG
+            if let build = ProcessInfo.processInfo.environment["HEXA_EUW_BUILD_FIXTURE"] { return build }
+            #endif
+            return try await DragonFeed.liveEUW()
+        }
+        var reference: (String) async throws -> ReferenceData = { branch in
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["HEXA_EUW_BUILD_FIXTURE"] != nil { throw DataIssue.invalid("Référentiel en publication") }
+            #endif
+            let revision = try await DragonFeed.build(at: branch)
+            return try await DragonFeed.reference(branch: branch, revision: revision, set: nil)
+        }
+        var publicMeta: (OPGGMetaSnapshot.Audience) async -> OPGGMetaSnapshot.Page? = { await OPGGMetaSnapshot.fetch(audience: $0) }
+    }
+    private let refreshServices: RefreshServices
     @Published private(set) var live: PatchSnapshot?
     @Published private(set) var archives: [PatchSnapshot] = []
     @Published private(set) var selection = PatchSelection()
@@ -196,7 +213,8 @@ struct MetaPack: Codable {
     private let directory: URL
     private var lastAttempt: Date?
 
-    init(directory: URL? = nil) {
+    init(directory: URL? = nil, refreshServices: RefreshServices = RefreshServices()) {
+        self.refreshServices = refreshServices
         self.directory = directory ?? URL.applicationSupportDirectory.appendingPathComponent("HexaTFT")
         experimental = Self.bundle("pbe-reference")
         context = Self.bundle("ultimate-context")
@@ -343,6 +361,27 @@ struct MetaPack: Codable {
         return publicMeta
     }
 
+    var detectedPatch: String? {
+        guard let euwVersion else { return live?.pack.patch }
+        let branch = euwVersion.split(separator: ".").prefix(2).joined(separator: ".")
+        return Self.patchNumber(for: branch, set: live?.pack.set) ?? live?.pack.patch
+    }
+
+    var hasPendingLiveBuild: Bool {
+        guard let euwVersion else { return false }
+        let branch = euwVersion.split(separator: ".").prefix(2).joined(separator: ".")
+        return live?.reference?.version.hasPrefix(branch + ".") != true
+    }
+
+    var latestArchivedPublicMeta: (snapshot: OPGGMetaSnapshot, catalogue: PatchSnapshot)? {
+        guard currentPublicMeta == nil, let publicMeta, (publicMeta.audience ?? .global) == publicMetaAudience,
+              let catalogue = ([live].compactMap { $0 } + archives).first(where: {
+                  $0.pack.set == publicMeta.pack.set && $0.pack.patch == publicMeta.pack.patch &&
+                  $0.reference?.version.hasPrefix(publicMeta.build + ".") == true
+              }) else { return nil }
+        return (publicMeta, catalogue)
+    }
+
     func selectPublicMetaAudience(_ audience: OPGGMetaSnapshot.Audience) {
         guard audience != publicMetaAudience else { return }
         publicMetaAudience = audience
@@ -400,7 +439,8 @@ struct MetaPack: Codable {
     func refresh(reference _: ReferenceData?) async {
         guard !refreshing else { return }
         #if DEBUG
-        if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1" {
+        if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1",
+           ProcessInfo.processInfo.environment["HEXA_EUW_BUILD_FIXTURE"] == nil {
             lastAttempt = .now
             if ProcessInfo.processInfo.environment["HEXA_OPGG_META_FIXTURE"] != nil,
                let version = live?.reference?.version {
@@ -418,9 +458,9 @@ struct MetaPack: Codable {
             if Task.isCancelled, publicMetaAudience == audience { lastAttempt = previousAttempt }
             refreshing = false
         }
-        async let publicResult = OPGGMetaSnapshot.fetch(audience: audience)
+        async let publicResult = refreshServices.publicMeta(audience)
         do {
-            let euw = try await DragonFeed.liveEUW()
+            let euw = try await refreshServices.liveEUW()
             try Task.checkCancellation()
             euwVersion = euw
             let branch = euw.split(separator: ".").prefix(2).joined(separator: ".")
@@ -429,15 +469,23 @@ struct MetaPack: Codable {
             }
             let current = live
             let currentBranch = current?.reference?.version.split(separator: ".").prefix(2).joined(separator: ".")
-            if currentBranch != branch {
-                let revision = try await DragonFeed.build(at: branch)
-                let reference = try await DragonFeed.reference(branch: branch, revision: revision, set: nil)
-                try Task.checkCancellation()
-                let patch = Self.patchNumber(for: branch, set: reference.entries.first?.set)
-                let pack = MetaPack(data: [], retrievedAt: Date().ISO8601Format(), set: reference.entries.first?.set, patch: patch)
-                try install(PatchSnapshot(pack: pack, reference: reference, provider: "Riot · CommunityDragon"))
+            if currentBranch != branch || current?.reference?.version.hasSuffix(".opgg") == true {
+                do {
+                    let reference = try await refreshServices.reference(branch)
+                    try Task.checkCancellation()
+                    let patch = Self.patchNumber(for: branch, set: reference.entries.first?.set)
+                    let pack = MetaPack(data: [], retrievedAt: Date().ISO8601Format(), set: reference.entries.first?.set, patch: patch)
+                    try install(PatchSnapshot(pack: pack, reference: reference, provider: "Riot · CommunityDragon"))
+                } catch {
+                    try Task.checkCancellation()
+                    message = "Le référentiel du nouveau build EUW est en cours de publication."
+                }
             }
             let result = await publicResult
+            if hasPendingLiveBuild, let patch = detectedPatch, let reference = result?.reference(branch: branch, patch: patch) {
+                let pack = MetaPack(data: [], retrievedAt: reference.retrievedAt, set: reference.entries.first?.set, patch: patch)
+                try install(PatchSnapshot(pack: pack, reference: reference, provider: "OP.GG"))
+            }
             if audience == publicMetaAudience { updatePublicMeta(result, branch: branch, audience: audience) }
             guard !Task.isCancelled else { return }
             guard let feedURL else { return }
@@ -455,7 +503,7 @@ struct MetaPack: Codable {
             }
             if let offered = feed.live {
                 let validated = try MetaPack.decode(JSONEncoder().encode(offered.pack))
-                guard let reference = live?.reference, let source = offered.provider, !source.isEmpty,
+                guard let reference = live?.reference, reference.version.hasPrefix(branch + "."), let source = offered.provider, !source.isEmpty,
                       validated.set == reference.entries.first?.set, validated.patch?.isEmpty == false,
                       validated.data.allSatisfy({ $0.display_patch == branch }) else {
                     throw DataIssue.invalid("Le catalogue partenaire ne correspond pas au build EUW.")
@@ -492,8 +540,20 @@ struct MetaPack: Codable {
     private func updatePublicMeta(_ result: OPGGMetaSnapshot.Page?, branch: String, audience: OPGGMetaSnapshot.Audience) {
         guard !Task.isCancelled, let reference = live?.reference else { return }
         publicMetaCheckedAt = .now
-        guard let result,
-              let snapshot = result.snapshot(reference: reference, branch: branch, patch: live?.pack.patch, audience: audience),
+        guard let result else {
+            publicMetaError = "La lecture du relevé OP.GG n’a pas abouti. Réessaie l’actualisation."
+            return
+        }
+        if hasPendingLiveBuild || result.publishedPatch != detectedPatch || result.isAnalyzing {
+            let target = detectedPatch ?? branch
+            if let old = result.publishedPatch, old != target {
+                publicMetaError = "Patch EUW \(target) détecté · OP.GG publie encore le patch \(old)."
+            } else {
+                publicMetaError = "Patch EUW \(target) détecté · publication des nouvelles statistiques en cours."
+            }
+            return
+        }
+        guard let snapshot = result.snapshot(reference: reference, branch: branch, patch: live?.pack.patch, audience: audience),
               acceptsPublicMeta(snapshot) else {
             publicMetaError = "OP.GG ne fournit pas de relevé compatible pour le moment."
             return
@@ -513,6 +573,7 @@ struct MetaPack: Codable {
             try save(snapshot, to: "opgg-meta.json")
             publicMeta = snapshot
             publicMetaError = nil
+            message = nil
         } catch {
             publicMetaError = "Impossible d’enregistrer le relevé OP.GG."
         }

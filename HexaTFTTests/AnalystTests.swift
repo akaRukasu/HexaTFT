@@ -2,6 +2,59 @@ import XCTest
 @testable import HexaTFT
 
 final class AnalystTests: XCTestCase {
+    private func rolloverPage(patch: String) throws -> OPGGMetaSnapshot.Page {
+        let unit: [String: Any] = ["key": "DA_18_Morgana", "name": "Morgana", "cost": 4,
+            "combatStats": ["range": 1, "health": 1100], "role": "carry", "traits": [],
+            "items": [["key": "DA_WarmogsArmor"]]]
+        let item: [String: Any] = ["key": "DA_WarmogsArmor", "name": "Armure de Warmog", "category": "core", "description": "PV bonus"]
+        let payload: [String: Any] = ["status": "ready", "generation": ["set": 18, "patch": patch],
+            "metadata": ["currentPatch": patch, "updatedAt": Date.now.ISO8601Format(), "sliceApplied": true],
+            "filters": ["region": "global", "tier": "PLATINUM+", "window": 72],
+            "champions": [unit], "items": [item], "comps": [["id": "rollover", "name": "Morgana", "units": [unit],
+                "strategyLevel": 8, "stats": ["avgPlacement": 4.1, "winRate": 0.1, "top4Rate": 0.55, "count": 1234, "pickRate": 0.02]]]]
+        return try XCTUnwrap(OPGGMetaSnapshot.Page(html(payload)))
+    }
+
+    @MainActor func testPatchStatsRefreshSurvivesMissingCommunityDragonBuild() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let page = try rolloverPage(patch: "18.7")
+        let services = MetaStore.RefreshServices(liveEUW: { "16.23.1" }, reference: { _ in
+            throw DataIssue.invalid("404")
+        }, publicMeta: { _ in page })
+        let meta = MetaStore(directory: dir, refreshServices: services)
+        await meta.refresh(reference: nil)
+        XCTAssertEqual(meta.detectedPatch, "18.7")
+        XCTAssertEqual(meta.live?.pack.patch, "18.7")
+        XCTAssertEqual(meta.reference?.version, "16.23.opgg")
+        XCTAssertEqual(meta.currentPublicMeta?.pack.data.count, 1)
+        XCTAssertNil(meta.publicMetaError)
+        XCTAssertFalse(meta.hasPendingLiveBuild)
+        XCTAssertEqual(MetaStore(directory: dir).currentPublicMeta?.pack.patch, "18.7")
+    }
+
+    @MainActor func testNewBuildKeepsPreviousStatsAccessibleWithTheirOriginalPatch() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let bundled = try XCTUnwrap(MetaStore(directory: dir).reference)
+        let old = try XCTUnwrap(rolloverPage(patch: "18.6").snapshot(reference: bundled, branch: "16.22", patch: "18.6"))
+        try JSONEncoder().encode(old).write(to: dir.appendingPathComponent("opgg-meta.json"))
+        let page = try rolloverPage(patch: "18.6")
+        let services = MetaStore.RefreshServices(liveEUW: { "16.23.1" }, reference: { _ in
+            throw DataIssue.invalid("404")
+        }, publicMeta: { _ in page })
+        let meta = MetaStore(directory: dir, refreshServices: services)
+        await meta.refresh(reference: nil)
+        XCTAssertEqual(meta.detectedPatch, "18.7")
+        XCTAssertNil(meta.currentPublicMeta)
+        XCTAssertTrue(meta.hasPendingLiveBuild)
+        XCTAssertEqual(meta.latestArchivedPublicMeta?.snapshot.pack.patch, "18.6")
+        XCTAssertNotNil(meta.publicMetaCheckedAt)
+        XCTAssertTrue(meta.publicMetaError?.contains("OP.GG publie encore le patch 18.6") == true)
+        XCTAssertNil(page.reference(branch: "16.23", patch: "18.7"))
+    }
+
     func testTacticsFallbackImportsVerifiedRankAndMatchDetails() async throws {
         let identity = try XCTUnwrap(RiotIdentity("Fixture#EUW", region: "euw1"))
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "tactics-profile", withExtension: "json"))
