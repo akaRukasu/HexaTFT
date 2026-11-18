@@ -547,6 +547,7 @@ struct MetaPack: Codable {
         if hasPendingLiveBuild || result.publishedPatch != detectedPatch || result.isAnalyzing {
             let target = detectedPatch ?? branch
             if let old = result.publishedPatch, old != target {
+                cachePreviousPublicMeta(result, patch: old, audience: audience)
                 publicMetaError = "Patch EUW \(target) détecté · OP.GG publie encore le patch \(old)."
             } else {
                 publicMetaError = "Patch EUW \(target) détecté · publication des nouvelles statistiques en cours."
@@ -576,6 +577,23 @@ struct MetaPack: Codable {
             message = nil
         } catch {
             publicMetaError = "Impossible d’enregistrer le relevé OP.GG."
+        }
+    }
+
+    private func cachePreviousPublicMeta(_ result: OPGGMetaSnapshot.Page, patch: String, audience: OPGGMetaSnapshot.Audience) {
+        guard let catalogue = ([live].compactMap { $0 } + archives).first(where: {
+            $0.pack.patch == patch && $0.pack.set == result.setNumber
+        }), let reference = catalogue.reference else { return }
+        let branch = reference.version.split(separator: ".").prefix(2).joined(separator: ".")
+        guard let snapshot = result.snapshot(reference: reference, branch: branch, patch: patch, audience: audience),
+              acceptsPublicMeta(snapshot) else { return }
+        if let existing = publicMeta, existing.pack.patch == patch,
+           (existing.audience ?? .global) == audience, existing.publishedAt >= snapshot.publishedAt { return }
+        do {
+            try save(snapshot, to: "opgg-meta.json")
+            publicMeta = snapshot
+        } catch {
+            message = "Le dernier relevé OP.GG n’a pas pu être enregistré."
         }
     }
 

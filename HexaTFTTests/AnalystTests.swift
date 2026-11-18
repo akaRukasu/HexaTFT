@@ -50,9 +50,25 @@ final class AnalystTests: XCTestCase {
         XCTAssertNil(meta.currentPublicMeta)
         XCTAssertTrue(meta.hasPendingLiveBuild)
         XCTAssertEqual(meta.latestArchivedPublicMeta?.snapshot.pack.patch, "18.6")
+        XCTAssertTrue(meta.latestArchivedPublicMeta?.snapshot.pack.data.isEmpty == false)
         XCTAssertNotNil(meta.publicMetaCheckedAt)
         XCTAssertTrue(meta.publicMetaError?.contains("OP.GG publie encore le patch 18.6") == true)
         XCTAssertNil(page.reference(branch: "16.23", patch: "18.7"))
+    }
+
+    @MainActor func testNewBuildCanImportLatestPreviousPatchStatsWithoutAnExistingStatsCache() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let page = try rolloverPage(patch: "18.6")
+        let services = MetaStore.RefreshServices(liveEUW: { "16.23.1" }, reference: { _ in
+            throw DataIssue.invalid("404")
+        }, publicMeta: { _ in page })
+        let meta = MetaStore(directory: dir, refreshServices: services)
+        await meta.refresh(reference: nil)
+        XCTAssertNil(meta.currentPublicMeta)
+        XCTAssertEqual(meta.detectedPatch, "18.7")
+        XCTAssertEqual(meta.latestArchivedPublicMeta?.snapshot.pack.data.count, 1)
+        XCTAssertEqual(meta.latestArchivedPublicMeta?.snapshot.pack.patch, "18.6")
     }
 
     func testTacticsFallbackImportsVerifiedRankAndMatchDetails() async throws {
