@@ -1,0 +1,54 @@
+name: Package tested iOS source
+on:
+  push:
+    paths: ['.github/workflows/ios-package.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  package:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      SOURCE_SHA: 7a95eb20cf31ea63030906483ae07ecb283d7a83
+    steps:
+      - name: Verify native data tests passed for this source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/${{ github.repository }}/actions/runs/44206145029 > /tmp/hexa-source-run.json
+          gh api repos/${{ github.repository }}/actions/runs/44206145029/jobs > /tmp/hexa-source-jobs.json
+          python3 - <<'PY'
+          import json, os
+          run = json.load(open('/tmp/hexa-source-run.json'))
+          jobs = json.load(open('/tmp/hexa-source-jobs.json'))['jobs']
+          assert run['head_sha'] == os.environ['SOURCE_SHA']
+          assert any(step['name'] == 'Run analysis and data unit tests' and step['conclusion'] == 'success'
+                     for job in jobs for step in job['steps'])
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Build unsigned device application
+        env:
+          HEXA_META_SERVICE: ${{ vars.HEXA_META_SERVICE }}
+        run: |
+          xcodebuild -project HexaTFT.xcodeproj -scheme HexaTFT -configuration Release -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO HEXA_META_SERVICE="$HEXA_META_SERVICE"
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/HexaTFT.app Payload/
+          zip -qry HexaTFT-unsigned.ipa Payload
+      - name: Save unsigned application
+        id: save-ipa
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: HexaTFT-unsigned
+          path: HexaTFT-unsigned.ipa
+      - name: Save build to a private draft release if artifact storage fails
+        if: steps.save-ipa.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="ios-build-$GITHUB_RUN_ID"
+          gh release create "$tag" --draft --target "$SOURCE_SHA" --title "HexaTFT 1.0.4 · data tests passed" --notes "Unsigned iOS build from $SOURCE_SHA. Interface tests continue in run 44206145029."
+          gh release upload "$tag" HexaTFT-unsigned.ipa
