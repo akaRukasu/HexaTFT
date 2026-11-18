@@ -68,7 +68,11 @@ struct MetaView: View {
                         if let revision = meta.experimental?.version { Badge(text: "BUILD " + revision, color: .mint) }
                     } else {
                         Badge(text: "SET " + (meta.pack?.set ?? "—"), color: hexaGold)
-                        Badge(text: "PATCH " + ((meta.selection.channel == .live ? meta.detectedPatch : meta.pack?.patch) ?? "—"), color: hexaGold)
+                        if meta.selection.channel == .live, meta.detectedPatch == nil, let build = meta.euwVersion {
+                            Badge(text: "BUILD " + build, color: hexaGold)
+                        } else {
+                            Badge(text: "PATCH " + ((meta.selection.channel == .live ? meta.detectedPatch : meta.pack?.patch) ?? "—"), color: hexaGold)
+                        }
                         Spacer()
                         Text("\(meta.comps.count + meta.editorialComps.count) guides").font(.caption).foregroundStyle(.secondary)
                     }
@@ -135,6 +139,12 @@ struct MetaView: View {
                 .disabled(meta.refreshing)
                 .accessibilityIdentifier("meta-refresh-now")
             }
+            VStack(alignment: .leading, spacing: 3) {
+                Label("Vérification automatique · 30 s dans l’app", systemImage: "arrow.triangle.2.circlepath")
+                if let checked = meta.publicMetaCheckedAt {
+                    Text("Dernier contrôle : " + checked.formatted(date: .abbreviated, time: .standard))
+                }
+            }.font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("meta-refresh-status")
             if let localAudience {
                 Picker("Population", selection: Binding(get: { meta.publicMetaAudience }, set: { audience in
                     Task { await changeAudience(audience) }

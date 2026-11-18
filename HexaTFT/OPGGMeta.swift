@@ -135,8 +135,9 @@ struct OPGGMetaSnapshot: Codable {
             let resolved = roster.compactMap { page.object($0) }
             let units = resolved.compactMap { unit -> MetaUnit? in
                 guard let key = unit["key"] as? String, champions.contains(key) else { return nil }
-                let items = (page.resolve(unit["items"]) as? [Any] ?? []).compactMap { page.object($0)?["key"] as? String }
-                    .filter { ids.contains("item:" + $0) }
+                let rawItems = page.resolve(unit["items"]) as? [Any] ?? []
+                let items = rawItems.compactMap { page.object($0)?["key"] as? String }
+                guard items.count == rawItems.count, items.allSatisfy({ ids.contains("item:" + $0) }) else { return nil }
                 return MetaUnit(name: key, items: items, star_level: unit["observedStar"] as? Double)
             }
             guard units.count == roster.count, Set(units.map(\.name)).count == units.count else { return nil }

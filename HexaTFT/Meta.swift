@@ -212,6 +212,7 @@ struct MetaPack: Codable {
     let context: UltimateContext?
     private let directory: URL
     private var lastAttempt: Date?
+    private var lastReferenceAttempt: (branch: String, date: Date)?
 
     init(directory: URL? = nil, refreshServices: RefreshServices = RefreshServices()) {
         self.refreshServices = refreshServices
@@ -364,7 +365,8 @@ struct MetaPack: Codable {
     var detectedPatch: String? {
         guard let euwVersion else { return live?.pack.patch }
         let branch = euwVersion.split(separator: ".").prefix(2).joined(separator: ".")
-        return Self.patchNumber(for: branch, set: live?.pack.set) ?? live?.pack.patch
+        if live?.reference?.version.hasPrefix(branch + ".") == true, let patch = live?.pack.patch { return patch }
+        return Self.patchNumber(for: branch, set: live?.pack.set)
     }
 
     var hasPendingLiveBuild: Bool {
@@ -431,12 +433,12 @@ struct MetaPack: Codable {
     }
 
     func autoRefresh(returningToApp: Bool = false) async {
-        let interval: TimeInterval = returningToApp ? 60 : 300
+        let interval: TimeInterval = returningToApp ? 5 : 30
         guard lastAttempt.map({ Date().timeIntervalSince($0) >= interval }) ?? true else { return }
-        await refresh(reference: live?.reference)
+        await refresh(reference: live?.reference, retryReference: false)
     }
 
-    func refresh(reference _: ReferenceData?) async {
+    func refresh(reference _: ReferenceData?, retryReference: Bool = true) async {
         guard !refreshing else { return }
         #if DEBUG
         if ProcessInfo.processInfo.environment["HEXA_META_OFFLINE_TEST"] == "1",
@@ -469,10 +471,18 @@ struct MetaPack: Codable {
             }
             let current = live
             let currentBranch = current?.reference?.version.split(separator: ".").prefix(2).joined(separator: ".")
-            if currentBranch != branch || current?.reference?.version.hasSuffix(".opgg") == true {
+            let needsReference = currentBranch != branch || current?.reference?.version.hasSuffix(".opgg") == true
+            let mayRetryReference = retryReference || lastReferenceAttempt?.branch != branch ||
+                lastReferenceAttempt.map({ Date().timeIntervalSince($0.date) >= 300 }) == true
+            if needsReference && mayRetryReference {
+                lastReferenceAttempt = (branch, .now)
                 do {
                     let reference = try await refreshServices.reference(branch)
                     try Task.checkCancellation()
+                    guard reference.version.hasPrefix(branch + "."), let set = reference.entries.first?.set,
+                          !set.isEmpty, reference.entries.allSatisfy({ $0.set == set }) else {
+                        throw DataIssue.invalid("Le référentiel ne correspond pas au build EUW.")
+                    }
                     let patch = Self.patchNumber(for: branch, set: reference.entries.first?.set)
                     let pack = MetaPack(data: [], retrievedAt: Date().ISO8601Format(), set: reference.entries.first?.set, patch: patch)
                     try install(PatchSnapshot(pack: pack, reference: reference, provider: "Riot · CommunityDragon"))
@@ -544,7 +554,8 @@ struct MetaPack: Codable {
             publicMetaError = "La lecture du relevé OP.GG n’a pas abouti. Réessaie l’actualisation."
             return
         }
-        if hasPendingLiveBuild || result.publishedPatch != detectedPatch || result.isAnalyzing {
+        let mismatchedPatch = detectedPatch.map { result.publishedPatch != $0 } ?? false
+        if hasPendingLiveBuild || mismatchedPatch || result.isAnalyzing {
             let target = detectedPatch ?? branch
             if let old = result.publishedPatch, old != target {
                 cachePreviousPublicMeta(result, patch: old, audience: audience)
@@ -598,9 +609,18 @@ struct MetaPack: Codable {
     }
 
     private func acceptsPublicMeta(_ incoming: OPGGMetaSnapshot) -> Bool {
-        guard let previous = publicMeta, previous.build != incoming.build, previous.pack.set == incoming.pack.set,
-              let oldPatch = previous.pack.patch, let newPatch = incoming.pack.patch else { return true }
-        return newPatch.compare(oldPatch, options: .numeric) == .orderedDescending
+        guard let newPatch = incoming.pack.patch else { return false }
+        // A fresh client catalogue must not relabel statistics still published for
+        // the previous patch, including builds absent from the bundled patch map.
+        let previousPatches = archives.compactMap { snapshot -> String? in
+            guard snapshot.pack.set == incoming.pack.set,
+                  snapshot.reference?.version.hasPrefix(incoming.build + ".") == false else { return nil }
+            return snapshot.pack.patch
+        } + [publicMeta].compactMap { previous -> String? in
+            guard let previous, previous.build != incoming.build, previous.pack.set == incoming.pack.set else { return nil }
+            return previous.pack.patch
+        }
+        return previousPatches.allSatisfy { newPatch.compare($0, options: .numeric) == .orderedDescending }
     }
 
     func loadNextRadarPage() async {
@@ -632,7 +652,7 @@ struct MetaPack: Codable {
     }
 
     private func install(_ updated: PatchSnapshot) throws {
-        if let current = live, current.id != updated.id, (!current.pack.data.isEmpty || current.pack.patch == "18.6") {
+        if let current = live, current.id != updated.id, (!current.pack.data.isEmpty || current.pack.patch != nil) {
             let next = [current] + archives.filter { $0.id != current.id && $0.id != updated.id }
             try save(next, to: "patch-archives.json")
             archives = next

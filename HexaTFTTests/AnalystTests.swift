@@ -2,12 +2,12 @@ import XCTest
 @testable import HexaTFT
 
 final class AnalystTests: XCTestCase {
-    private func rolloverPage(patch: String) throws -> OPGGMetaSnapshot.Page {
-        let unit: [String: Any] = ["key": "DA_18_Morgana", "name": "Morgana", "cost": 4,
+    private func rolloverPage(patch: String, set: Int = 18, itemKey: String = "DA_WarmogsArmor") throws -> OPGGMetaSnapshot.Page {
+        let unit: [String: Any] = ["key": set == 18 ? "DA_18_Morgana" : "TFT\(set)_Carry", "name": "Morgana", "cost": 4,
             "combatStats": ["range": 1, "health": 1100], "role": "carry", "traits": [],
-            "items": [["key": "DA_WarmogsArmor"]]]
+            "items": [["key": itemKey]]]
         let item: [String: Any] = ["key": "DA_WarmogsArmor", "name": "Armure de Warmog", "category": "core", "description": "PV bonus"]
-        let payload: [String: Any] = ["status": "ready", "generation": ["set": 18, "patch": patch],
+        let payload: [String: Any] = ["status": "ready", "generation": ["set": set, "patch": patch],
             "metadata": ["currentPatch": patch, "updatedAt": Date.now.ISO8601Format(), "sliceApplied": true],
             "filters": ["region": "global", "tier": "PLATINUM+", "window": 72],
             "champions": [unit], "items": [item], "comps": [["id": "rollover", "name": "Morgana", "units": [unit],
@@ -69,6 +69,87 @@ final class AnalystTests: XCTestCase {
         XCTAssertEqual(meta.detectedPatch, "18.7")
         XCTAssertEqual(meta.latestArchivedPublicMeta?.snapshot.pack.data.count, 1)
         XCTAssertEqual(meta.latestArchivedPublicMeta?.snapshot.pack.patch, "18.6")
+    }
+
+    @MainActor func testFuturePatchOutsideBundledMapWaitsForMatchingPublicationThenUpdatesOnRefresh() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let bundled = try XCTUnwrap(MetaStore(directory: dir).reference)
+        let reference = ReferenceData(version: "16.24.123", source: bundled.source,
+                                      retrievedAt: Date.now.ISO8601Format(), entries: bundled.entries)
+        var page = try rolloverPage(patch: "18.6")
+        var checks = 0
+        let services = MetaStore.RefreshServices(liveEUW: { checks += 1; return "16.24.1" },
+            reference: { _ in reference }, publicMeta: { _ in page })
+        let meta = MetaStore(directory: dir, refreshServices: services)
+        await meta.refresh(reference: nil)
+        XCTAssertNil(MetaStore.patchNumber(for: "16.24", set: "18"))
+        XCTAssertNil(meta.detectedPatch)
+        XCTAssertNil(meta.currentPublicMeta, "The previous patch must not be relabeled with the new client build")
+        page = try rolloverPage(patch: "18.8")
+        await meta.refresh(reference: nil)
+        XCTAssertEqual(checks, 2, "Every manual refresh must check the current EUW build")
+        XCTAssertEqual(meta.detectedPatch, "18.8")
+        XCTAssertEqual(meta.currentPublicMeta?.build, "16.24")
+        XCTAssertEqual(meta.currentPublicMeta?.pack.patch, "18.8")
+        XCTAssertNil(meta.publicMetaError)
+        XCTAssertEqual(MetaStore(directory: dir).currentPublicMeta?.pack.patch, "18.8")
+    }
+
+    @MainActor func testFutureSetRequiresMatchingRosterBeforeAcceptingPublishedStats() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let reference = ReferenceData(version: "17.1.123", source: "https://raw.communitydragon.org/17.1/",
+            retrievedAt: Date.now.ISO8601Format(), entries: [
+                ReferenceEntry(id: "champion:TFT19_Carry", name: "Carry", kind: "champion", set: "19", cost: 4, description: "", imageURL: ""),
+                ReferenceEntry(id: "item:DA_WarmogsArmor", name: "Warmog", kind: "item", set: "19", cost: 0, description: "", imageURL: "")])
+        var page = try rolloverPage(patch: "18.7")
+        let services = MetaStore.RefreshServices(liveEUW: { "17.1.1" }, reference: { _ in reference }, publicMeta: { _ in page })
+        let meta = MetaStore(directory: dir, refreshServices: services)
+        await meta.refresh(reference: nil)
+        XCTAssertNil(meta.currentPublicMeta)
+        page = try rolloverPage(patch: "19.1", set: 19)
+        await meta.refresh(reference: nil)
+        XCTAssertEqual(meta.detectedPatch, "19.1")
+        XCTAssertEqual(meta.currentPublicMeta?.pack.set, "19")
+        XCTAssertEqual(meta.currentPublicMeta?.pack.data.first?.units.first?.name, "TFT19_Carry")
+    }
+
+    @MainActor func testUnknownBuildWithoutMatchingReferenceDoesNotReusePreviousPatchLabel() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let page = try rolloverPage(patch: "18.6")
+        let meta = MetaStore(directory: dir, refreshServices: .init(liveEUW: { "16.24.1" }, reference: { _ in
+            throw DataIssue.invalid("404")
+        }, publicMeta: { _ in page }))
+        await meta.refresh(reference: nil)
+        XCTAssertNil(meta.detectedPatch)
+        XCTAssertTrue(meta.hasPendingLiveBuild)
+        XCTAssertNil(meta.currentPublicMeta)
+        XCTAssertEqual(meta.latestArchivedPublicMeta?.snapshot.pack.patch, "18.6")
+    }
+
+    @MainActor func testManualRefreshRetriesUnavailableReferenceAndAcceptsNewStats() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var page = try rolloverPage(patch: "18.6")
+        var referenceChecks = 0
+        let meta = MetaStore(directory: dir, refreshServices: .init(liveEUW: { "16.23.1" }, reference: { _ in
+            referenceChecks += 1
+            throw DataIssue.invalid("404")
+        }, publicMeta: { _ in page }))
+        await meta.refresh(reference: nil)
+        XCTAssertNil(meta.currentPublicMeta)
+        page = try rolloverPage(patch: "18.7")
+        await meta.refresh(reference: nil)
+        XCTAssertEqual(referenceChecks, 2)
+        XCTAssertEqual(meta.currentPublicMeta?.pack.patch, "18.7")
+    }
+
+    @MainActor func testPublishedCompWithUnknownItemIsRejectedInsteadOfLosingItsEquipment() throws {
+        let reference = try XCTUnwrap(MetaStore(directory: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)).reference)
+        let page = try rolloverPage(patch: "18.6", itemKey: "TFT99_UnknownItem")
+        XCTAssertNil(page.snapshot(reference: reference, branch: "16.22", patch: "18.6"))
     }
 
     func testTacticsFallbackImportsVerifiedRankAndMatchDetails() async throws {
